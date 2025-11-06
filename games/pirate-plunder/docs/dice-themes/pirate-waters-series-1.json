@@ -1,0 +1,277 @@
+{
+  "theme": "Pirate Waters - Series I",
+  "items": [
+    /* ================= Swabbie (Common) ================= */
+    {
+      "slug": "bone-classic",
+      "label": "Bone Classic",
+      "rarity": "Swabbie",
+      "skin": "bone",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#10B981", "strength": "low" },
+      "effects": []
+    },
+    {
+      "slug": "pearl-simple",
+      "label": "Pearl Simple",
+      "rarity": "Swabbie",
+      "skin": "pearl",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#A3A3A3", "strength": "low" },
+      "effects": []
+    },
+    {
+      "slug": "golden-doubloon-lite",
+      "label": "Golden Doubloon Lite",
+      "rarity": "Swabbie",
+      "skin": "brass",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#F59E0B", "strength": "low" },
+      "effects": []
+    },
+    {
+      "slug": "shadow-ebony",
+      "label": "Shadow Ebony",
+      "rarity": "Swabbie",
+      "skin": "ebony",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#60A5FA", "strength": "low" },
+      "effects": []
+    },
+    {
+      "slug": "seafoam",
+      "label": "Seafoam",
+      "rarity": "Swabbie",
+      "skin": "ocean",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#10B981", "strength": "low" },
+      "effects": []
+    },
+    {
+      "slug": "obsidian-ember",
+      "label": "Obsidian Ember",
+      "rarity": "Swabbie",
+      "skin": "obsidian",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#EF4444", "strength": "low" },
+      "effects": []
+    },
+
+    /* ================= Deckhand (Uncommon) ================= */
+    {
+      "slug": "misty-pearl",
+      "label": "Misty Pearl",
+      "rarity": "Deckhand",
+      "skin": "pearl",
+      "material": "frostedGlass",
+      "pipStyle": "classic",
+      "glow": { "color": "#A3A3A3", "strength": "low" },
+      "effects": [{ "type": "sparkles", "color": "#FFFFFF", "count": 6 }]
+    },
+    {
+      "slug": "brass-beacon",
+      "label": "Brass Beacon",
+      "rarity": "Deckhand",
+      "skin": "brass",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#F59E0B", "strength": "high" },
+      "effects": [{ "type": "aura", "style": "pulse", "color": "#F59E0B", "strength": "high" }]
+    },
+    {
+      "slug": "bone-lantern",
+      "label": "Bone Lantern",
+      "rarity": "Deckhand",
+      "skin": "bone",
+      "material": "frostedGlass",
+      "pipStyle": "classic",
+      "glow": { "color": "#10B981", "strength": "low" },
+      "effects": [{ "type": "aura", "style": "pulse", "color": "#10B981", "strength": "low" }]
+    },
+    {
+      "slug": "night-watch",
+      "label": "Night Watch",
+      "rarity": "Deckhand",
+      "skin": "ebony",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#8B5CF6", "strength": "low" },
+      "effects": [{ "type": "aura", "style": "pulse", "color": "#8B5CF6", "strength": "low" }]
+    },
+    {
+      "slug": "reef-glass",
+      "label": "Reef Glass",
+      "rarity": "Deckhand",
+      "skin": "ocean",
+      "material": "frostedGlass",
+      "tint": "#7AE1D6",
+      "pipStyle": "classic",
+      "glow": { "color": "#3B82F6", "strength": "low" },
+      "effects": [{ "type": "sparkles", "color": "#E0FFFF", "count": 6 }]
+    },
+    {
+      "slug": "obsidian-salt",
+      "label": "Obsidian Salt",
+      "rarity": "Deckhand",
+      "skin": "obsidian",
+      "material": "frostedGlass",
+      "tint": "#6D28D9",
+      "pipStyle": "classic",
+      "glow": { "color": "#8B5CF6", "strength": "low" },
+      "effects": []
+    },
+
+    /* ================= Corsair (Rare) ================= */
+    {
+      "slug": "deep-current",
+      "label": "Deep Current",
+      "rarity": "Corsair",
+      "skin": "ocean",
+      "material": "clearGlass",
+      "tint": "#2DD4BF",
+      "pipStyle": "classic",
+      "glow": { "color": "#3B82F6", "strength": "high" },
+      "effects": [{ "type": "aura", "style": "electric", "color": "#3B82F6", "strength": "high" }]
+    },
+    {
+      "slug": "doubloon-ring",
+      "label": "Doubloon Ring",
+      "rarity": "Corsair",
+      "skin": "brass",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#F59E0B", "strength": "high" },
+      "effects": [{ "type": "rim-marquee", "color": "#F59E0B" }]
+    },
+    {
+      "slug": "moonlit-bone",
+      "label": "Moonlit Bone",
+      "rarity": "Corsair",
+      "skin": "bone",
+      "material": "clearGlass",
+      "tint": "#CFE6F1",
+      "pipStyle": "classic",
+      "glow": { "color": "#A3A3A3", "strength": "high" },
+      "effects": [{ "type": "sparkles", "color": "#FFFFFF", "count": 6 }]
+    },
+    {
+      "slug": "midnight-corsair",
+      "label": "Midnight Corsair",
+      "rarity": "Corsair",
+      "skin": "ebony",
+      "material": "solid",
+      "pipStyle": "classic",
+      "glow": { "color": "#60A5FA", "strength": "high" },
+      "effects": [{ "type": "rim-marquee", "color": "#60A5FA" }]
+    },
+    {
+      "slug": "siren-pearl",
+      "label": "Siren Pearl",
+      "rarity": "Corsair",
+      "skin": "pearl",
+      "material": "frostedGlass",
+      "pipStyle": "classic",
+      "glow": { "color": "#10B981", "strength": "high" },
+      "effects": [{ "type": "aura", "style": "pulse", "color": "#10B981", "strength": "high" }]
+    },
+    {
+      "slug": "cursed-ember",
+      "label": "Cursed Ember",
+      "rarity": "Corsair",
+      "skin": "obsidian",
+      "material": "clearGlass",
+      "tint": "#8B5CF6",
+      "pipStyle": "classic",
+      "glow": { "color": "#8B5CF6", "strength": "high" },
+      "effects": [{ "type": "aura", "style": "electric", "color": "#8B5CF6", "strength": "high" }]
+    },
+
+    /* ================= Captain (Epic) ================= */
+    {
+      "slug": "cursed-obsidian",
+      "label": "Cursed Obsidian",
+      "rarity": "Captain",
+      "skin": "obsidian",
+      "material": "ghost",
+      "pipStyle": "classic",
+      "glow": { "color": "#8B5CF6", "strength": "high" },
+      "effects": [
+        { "type": "aura", "style": "pulse", "color": "#8B5CF6", "strength": "high" },
+        { "type": "sparkles", "color": "#C4B5FD", "count": 6 }
+      ]
+    },
+    {
+      "slug": "krakens-depths",
+      "label": "Kraken's Depths",
+      "rarity": "Captain",
+      "skin": "ocean",
+      "material": "ghost",
+      "pipStyle": "classic",
+      "glow": { "color": "#22D3EE", "strength": "high" },
+      "effects": [
+        { "type": "aura", "style": "electric", "color": "#22D3EE", "strength": "high" },
+        { "type": "sparkles", "color": "#7DD3FC", "count": 6 }
+      ]
+    },
+    {
+      "slug": "storm-captain",
+      "label": "Storm Captain",
+      "rarity": "Captain",
+      "skin": "ebony",
+      "material": "clearGlass",
+      "tint": "#5FA8FF",
+      "pipStyle": "classic",
+      "glow": { "color": "#60A5FA", "strength": "high" },
+      "effects": [
+        { "type": "rim-marquee", "color": "#60A5FA" },
+        { "type": "aura", "style": "pulse", "color": "#60A5FA", "strength": "high" }
+      ]
+    },
+    {
+      "slug": "doubloon-hoard",
+      "label": "Doubloon Hoard",
+      "rarity": "Captain",
+      "skin": "brass",
+      "material": "clearGlass",
+      "pipStyle": "classic",
+      "glow": { "color": "#F59E0B", "strength": "high" },
+      "effects": [
+        { "type": "rim-marquee", "color": "#F59E0B" },
+        { "type": "sparkles", "color": "#FFF3C4", "count": 6 }
+      ]
+    },
+    {
+      "slug": "sirens-tear",
+      "label": "Siren's Tear",
+      "rarity": "Captain",
+      "skin": "pearl",
+      "material": "clearGlass",
+      "tint": "#2DD4BF",
+      "pipStyle": "classic",
+      "glow": { "color": "#10B981", "strength": "high" },
+      "effects": [
+        { "type": "aura", "style": "pulse", "color": "#10B981", "strength": "high" },
+        { "type": "sparkles", "color": "#FFFFFF", "count": 6 }
+      ]
+    },
+    {
+      "slug": "ghostbone-relic",
+      "label": "Ghostbone Relic",
+      "rarity": "Captain",
+      "skin": "bone",
+      "material": "ghost",
+      "pipStyle": "classic",
+      "glow": { "color": "#A3A3A3", "strength": "high" },
+      "effects": [
+        { "type": "aura", "style": "pulse", "color": "#A3A3A3", "strength": "high" },
+        { "type": "rim-marquee", "color": "#A3A3A3" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,484 @@
+/* WarFaire Presentation Styles - Global Guardrails */
+
+/* Prevent runaway images globally */
+img { max-width: 100%; height: auto; }
+
+/* Design tokens */
+:root {
+  /* P2: Brand accent */
+  --accent: #8b5cf6;
+
+  /* Spacing: 8, 16, 24 only */
+  --space-8: 8px;
+  --space-16: 16px;
+  --space-24: 24px;
+
+  /* Radius and stroke */
+  --radius-8: 8px;
+  --stroke-1: 1px;
+
+  /* Shadows */
+  --tile-shadow: 0 1px 2px rgba(0,0,0,0.10);
+  --popover-shadow: 0 2px 6px rgba(0,0,0,0.18);
+
+  /* Typography: Title 20/24, Body 14/20, Caption 12/16 */
+  --title-size: 20px;
+  --title-line: 24px;
+  --body-size: 14px;
+  --body-line: 20px;
+  --caption-size: 12px;
+  --caption-line: 16px;
+}
+
+/* App shell background: gradient + subtle paper texture only */
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  background: radial-gradient(1200px 800px at 70% -10%, #0d2a59 0%, #06253f 40%, #0a2d2e 100%);
+}
+.app-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("/assets/card_art/paper_grain.png");
+  background-repeat: repeat;
+  opacity: 0.07; /* 7 percent, keep subtle */
+  mix-blend-mode: normal;
+  z-index: 0;
+}
+
+/* Panels */
+.panel {
+  background: rgba(10,14,22,0.56);
+  border: var(--stroke-1) solid rgba(255,255,255,0.12);
+  border-radius: var(--radius-8);
+  box-shadow: var(--tile-shadow);
+  position: relative;
+  z-index: 1;
+}
+
+/* P0: Board panel matches category surface */
+.board-panel.panel {
+  background: rgba(10,14,22,0.56);
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* Section container width and grid */
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-16);
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-16);
+  position: relative;
+  z-index: 1;
+}
+
+/* Section spans */
+.section-categories { grid-column: 1 / -1; }
+.section-board { grid-column: 1 / -1; }
+.section-hand { grid-column: 1 / -1; }
+
+/* P0: Category grid tiles - tighter rhythm */
+.category-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-16);
+}
+
+.category-tile {
+  height: 56px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  padding: 0 var(--space-16);
+  border-radius: var(--radius-8);
+  border: var(--stroke-1) solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+/* P1: Hover affordances */
+.category-tile:hover {
+  border-color: var(--accent);
+  background: rgba(139, 92, 246, 0.04); /* 4% accent fill */
+}
+
+.category-tile .left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* P0: Scoring indicator dot */
+.scoring-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.category-tile .icon-24 {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+}
+
+.category-tile .name-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* P0: tighter gap */
+  min-width: 0;
+}
+
+.category-tile .name {
+  font-size: var(--body-size);
+  line-height: var(--body-line);
+  color: white;
+}
+
+.category-tile .sub {
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+  color: rgba(255,255,255,0.7);
+}
+
+/* P0: Right section with 12px gap */
+.category-tile .right {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* was 8px */
+}
+
+/* P0: Leader chip with 13px points */
+.leader-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+
+.leader-chip .avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #314a7a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.leader-chip .points {
+  font-size: 13px; /* P0: increased from 12px */
+  font-weight: 600;
+  color: white;
+}
+
+/* P0: Delta caption */
+.category-tile .delta {
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+  color: rgba(255,255,255,0.7);
+}
+
+/* Card shell */
+.card {
+  position: relative;
+  aspect-ratio: 5 / 7; /* locks size ratio */
+  border-radius: var(--radius-8);
+  border: var(--stroke-1) solid rgba(255,255,255,0.14);
+  background: rgba(18,24,38,0.72);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: var(--space-8);
+  transition: transform 120ms ease; /* P2: micro-animation */
+}
+
+/* P2: Card hover animation */
+.card:hover {
+  transform: scale(1.02);
+}
+
+.card .top {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: start;
+}
+
+.card .cat-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.card .value-badge {
+  justify-self: end;
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent); /* P2: use accent */
+  color: white;
+}
+
+.card .art {
+  margin-top: var(--space-8);
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+}
+
+.card .art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.card .namebar {
+  margin-top: var(--space-8);
+  display: grid;
+  gap: 2px;
+}
+
+.card .namebar .name {
+  font-size: var(--body-size);
+  line-height: var(--body-line);
+  color: white;
+}
+
+.card .namebar .group {
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+  color: rgba(255,255,255,0.7);
+}
+
+/* P0: Stronger selection shadow */
+.card.selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* P0: Mini chips for board rows - read as "mini cards" not dice */
+.mini-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.06);
+  border: var(--stroke-1) solid rgba(255,255,255,0.10);
+  transition: background 120ms ease; /* P2: micro-animation */
+}
+
+/* P2: Mini chip hover */
+.mini-chip:hover {
+  background: rgba(255,255,255,0.10);
+}
+
+.mini-chip img {
+  width: 22px; /* P0: reduced from 24px */
+  height: 22px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+}
+
+.mini-chip .val {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.92); /* P0: specific color */
+}
+
+/* Board rows */
+.board-rows .row {
+  height: 40px;
+  display: grid;
+  grid-template-columns: 28px 180px 1fr;
+  align-items: center;
+  padding: 0 var(--space-16);
+  border-bottom: var(--stroke-1) solid rgba(255,255,255,0.08);
+  transition: border-color 120ms ease;
+}
+
+/* P1: Row hover affordance */
+.board-rows .row:hover {
+  border-color: rgba(255,255,255,0.20); /* 1px neutral keyline */
+}
+
+.board-rows .chips {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* Hand area shows up to 4 cards with reduced spacing */
+.hand-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-8);
+}
+
+.hand-grid .card {
+  max-width: 220px;
+  margin: 0 auto;
+}
+
+/* P0: Helper text under hand tabs */
+.hand-helper {
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+  color: rgba(255,255,255,0.7);
+  margin-top: var(--space-8);
+}
+
+/* P1: Tabs consistency */
+.tabs {
+  display: flex;
+  gap: var(--space-8);
+  height: 32px; /* P1: consistent height */
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-16);
+  border-radius: 999px;
+  font-size: 13px; /* P1: consistent label size */
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.tab:hover {
+  color: white;
+  background: rgba(255,255,255,0.06);
+}
+
+.tab[aria-selected="true"] {
+  color: white;
+  background: var(--accent); /* P1: pill background for active */
+}
+
+/* P0: Action bar slot minis */
+.slot-mini {
+  width: 76px; /* P0: reduced from 88px */
+  aspect-ratio: 5 / 7;
+  border-radius: var(--radius-8);
+  border: var(--stroke-1) solid rgba(255,255,255,0.18);
+  background: rgba(18,24,38,0.72);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.slot-mini img {
+  width: 86%; /* P0: reduced from 90% */
+  height: 86%;
+  object-fit: contain;
+  display: block;
+}
+
+/* P0: Next fair chip styling */
+.slot-mini .next-chip {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.95); /* P0: bright background */
+  color: #121826; /* P0: dark text */
+  font-weight: 600;
+}
+
+/* P1: Popover styling */
+.popover {
+  background: rgba(10,14,22,0.95);
+  border: var(--stroke-1) solid rgba(255,255,255,0.20);
+  border-radius: var(--radius-8);
+  box-shadow: var(--popover-shadow);
+  padding: var(--space-16);
+  animation: popover-fade 150ms ease; /* P2: fade/slide */
+}
+
+@keyframes popover-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* P1: Your standing row in popover */
+.popover-your-standing {
+  background: rgba(139, 92, 246, 0.04); /* 4% accent background */
+}
+
+/* P1: Empty state */
+.empty-state {
+  font-size: var(--body-size);
+  line-height: var(--body-line);
+  color: rgba(255,255,255,0.7);
+  padding: var(--space-16);
+  text-align: center;
+}
+
+/* P1: Hand card hover tooltip */
+.hand-tooltip {
+  position: fixed;
+  pointer-events: none;
+  padding: var(--space-8);
+  background: rgba(10,14,22,0.95);
+  border: var(--stroke-1) solid rgba(255,255,255,0.20);
+  border-radius: var(--radius-8);
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+  color: white;
+  z-index: 100;
+  animation: popover-fade 150ms ease;
+}
+
+/* Buttons */
+.btn {
+  height: 36px;
+  padding: 0 var(--space-16);
+  border-radius: var(--radius-8);
+  font-size: var(--body-size);
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.btn-primary {
+  background: var(--accent); /* P2: use accent */
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #7c3aed;
+}

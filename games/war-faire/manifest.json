@@ -1,0 +1,17 @@
+{
+  "gameId": "warfaire",
+  "gameType": "warfaire",
+  "displayName": "War Faire",
+  "version": "0.1.0",
+  "description": "State Fair card game with prestige, ribbons, and competitive scoring",
+  "minPlayers": 4,
+  "maxPlayers": 10,
+  "assets": {
+    "serverPackage": "@pirate/game-warfaire",
+    "clientBundle": "warfaire-client.js"
+  },
+  "deployment": {
+    "timestamp": "",
+    "commitHash": ""
+  }
+}

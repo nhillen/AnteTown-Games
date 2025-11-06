@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pirate Plunder - Debug Dashboard</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1e293b;
+            color: #e2e8f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .panel {
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .panel h2 {
+            margin-top: 0;
+            color: #10b981;
+            border-bottom: 1px solid #475569;
+            padding-bottom: 10px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .status.connected {
+            background: #10b981;
+            color: white;
+        }
+        .status.disconnected {
+            background: #ef4444;
+            color: white;
+        }
+        .event-log {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #1e293b;
+            padding: 10px;
+            border: 1px solid #475569;
+            border-radius: 4px;
+        }
+        .event {
+            padding: 5px 0;
+            border-bottom: 1px solid #374151;
+            font-size: 12px;
+        }
+        .event:last-child {
+            border-bottom: none;
+        }
+        .event-timestamp {
+            color: #64748b;
+        }
+        .event-name {
+            color: #3b82f6;
+            font-weight: bold;
+        }
+        .event-socket {
+            color: #8b5cf6;
+        }
+        .game-state {
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #475569;
+            white-space: pre-wrap;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #64748b;
+            cursor: not-allowed;
+        }
+        .error {
+            background: #dc2626;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .validation-errors {
+            background: #92400e;
+            color: #fbbf24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Pirate Plunder Debug Dashboard</h1>
+        
+        <div class="controls">
+            <span id="connection-status" class="status disconnected">Disconnected</span>
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+            <button onclick="clearLog()">Clear Log</button>
+            <button onclick="refreshState()">Refresh State</button>
+            <button onclick="validateState()">Validate State</button>
+        </div>
+
+        <div id="validation-errors"></div>
+        
+        <div class="grid">
+            <div class="panel">
+                <h2>Lobby State</h2>
+                <div id="lobby-state" class="game-state">No lobby state</div>
+            </div>
+            
+            <div class="panel">
+                <h2>Game State</h2>
+                <div id="game-state" class="game-state">No game state</div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="panel">
+                <h2>Active Connections</h2>
+                <div id="connections" class="game-state">No connections</div>
+            </div>
+            
+            <div class="panel">
+                <h2>Event Log</h2>
+                <div id="event-log" class="event-log">No events logged</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        const serverUrl = 'http://localhost:3001';
+
+        function connect() {
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            socket = io(serverUrl);
+            
+            socket.on('connect', () => {
+                document.getElementById('connection-status').textContent = 'Connected';
+                document.getElementById('connection-status').className = 'status connected';
+                socket.emit('debug-subscribe');
+            });
+            
+            socket.on('disconnect', () => {
+                document.getElementById('connection-status').textContent = 'Disconnected';
+                document.getElementById('connection-status').className = 'status disconnected';
+            });
+            
+            socket.on('debug-full-state', (state) => {
+                updateLobbyState(state.lobbyState);
+                updateGameState(state.gameState);
+                updateConnections(state.connections);
+                updateEventLog(state.recentEvents || []);
+            });
+            
+            socket.on('debug-lobby-update', (lobbyState) => {
+                updateLobbyState(lobbyState);
+            });
+            
+            socket.on('debug-game-update', (gameState) => {
+                updateGameState(gameState);
+            });
+            
+            socket.on('debug-connections-update', (connections) => {
+                updateConnections(connections);
+            });
+            
+            socket.on('debug-event', (event) => {
+                addEventToLog(event);
+            });
+            
+            socket.on('debug-log-cleared', () => {
+                document.getElementById('event-log').innerHTML = 'Event log cleared';
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                showError('Failed to connect to server. Make sure the backend is running on ' + serverUrl);
+            });
+        }
+        
+        function disconnect() {
+            if (socket) {
+                socket.emit('debug-unsubscribe');
+                socket.disconnect();
+                socket = null;
+            }
+        }
+        
+        function clearLog() {
+            if (socket) {
+                socket.emit('debug-clear-log');
+            }
+        }
+        
+        function refreshState() {
+            if (socket) {
+                socket.emit('debug-get-state');
+            }
+        }
+        
+        function validateState() {
+            // This would need to be implemented on the backend
+            showError('State validation not yet implemented');
+        }
+        
+        function updateLobbyState(lobbyState) {
+            const element = document.getElementById('lobby-state');
+            if (lobbyState) {
+                element.textContent = JSON.stringify(lobbyState, null, 2);
+            } else {
+                element.textContent = 'No lobby state';
+            }
+        }
+        
+        function updateGameState(gameState) {
+            const element = document.getElementById('game-state');
+            if (gameState) {
+                element.textContent = JSON.stringify(gameState, null, 2);
+            } else {
+                element.textContent = 'No game state';
+            }
+        }
+        
+        function updateConnections(connections) {
+            const element = document.getElementById('connections');
+            if (connections && connections.length > 0) {
+                const formatted = connections.map(([socketId, info]) => ({
+                    socketId,
+                    ...info
+                }));
+                element.textContent = JSON.stringify(formatted, null, 2);
+            } else {
+                element.textContent = 'No active connections';
+            }
+        }
+        
+        function updateEventLog(events) {
+            const logElement = document.getElementById('event-log');
+            if (events && events.length > 0) {
+                logElement.innerHTML = events.map(formatEvent).join('');
+            } else {
+                logElement.innerHTML = 'No events logged';
+            }
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function addEventToLog(event) {
+            const logElement = document.getElementById('event-log');
+            const eventHtml = formatEvent(event);
+            logElement.innerHTML += eventHtml;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function formatEvent(event) {
+            const time = new Date(event.timestamp).toLocaleTimeString();
+            return `
+                <div class="event">
+                    <span class="event-timestamp">${time}</span>
+                    <span class="event-name">${event.event}</span>
+                    <span class="event-socket">${event.socketId.slice(0, 8)}...</span>
+                    ${event.data ? `<br><pre>${JSON.stringify(event.data, null, 2)}</pre>` : ''}
+                </div>
+            `;
+        }
+        
+        function showError(message) {
+            const errorsElement = document.getElementById('validation-errors');
+            errorsElement.innerHTML = `<div class="error">${message}</div>`;
+            setTimeout(() => {
+                errorsElement.innerHTML = '';
+            }, 5000);
+        }
+        
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            connect();
+        });
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+    </script>
+</body>
+</html>

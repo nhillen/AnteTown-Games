@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pirate Plunder - Simple Test Client</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        body { font-family: monospace; background: #1a1a1a; color: #fff; padding: 20px; }
+        button { margin: 5px; padding: 10px; background: #0066cc; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0088ff; }
+        .log { background: #2a2a2a; padding: 10px; margin: 10px 0; border-radius: 5px; max-height: 400px; overflow-y: auto; }
+        .dice { display: inline-block; margin: 2px; padding: 5px; background: #444; border-radius: 3px; }
+        .locked { background: #006600 !important; }
+        input { background: #333; color: white; border: 1px solid #666; padding: 5px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🎲 Pirate Plunder - Test Client</h1>
+    
+    <div>
+        <input type="text" id="playerName" placeholder="Your name" value="TestPlayer">
+        <button onclick="join()">Join Game</button>
+        <button onclick="addAI()">Add AI</button>
+        <button onclick="fillToMin()">Fill to 4</button>
+        <button onclick="startHand()">Start Hand</button>
+    </div>
+    
+    <div>
+        <h3>Actions:</h3>
+        <button onclick="lockDie(0)">Lock Die 0</button>
+        <button onclick="lockDie(1)">Lock Die 1</button>
+        <button onclick="lockDie(2)">Lock Die 2</button>
+        <button onclick="lockDie(3)">Lock Die 3</button>
+        <button onclick="lockDie(4)">Lock Die 4</button>
+    </div>
+    
+    <div>
+        <button onclick="bet()">Bet $5</button>
+        <button onclick="call()">Call</button>
+        <button onclick="check()">Check</button>
+        <button onclick="fold()">Fold</button>
+        <button onclick="nextPhase()">Next Phase (Debug)</button>
+    </div>
+    
+    <div>
+        <h3>Game State:</h3>
+        <div id="gameInfo"></div>
+    </div>
+    
+    <div>
+        <h3>My Dice:</h3>
+        <div id="myDice"></div>
+    </div>
+    
+    <div>
+        <h3>Players:</h3>
+        <div id="players"></div>
+    </div>
+    
+    <div>
+        <h3>Log:</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:3001');
+        let me = null;
+        let gameState = null;
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += new Date().toLocaleTimeString() + ' - ' + message + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        socket.on('connect', () => {
+            log('Connected to server');
+        });
+        
+        socket.on('disconnect', () => {
+            log('Disconnected from server');
+        });
+        
+        socket.on('joined', (data) => {
+            me = data.player;
+            log('Joined as ' + me.name);
+        });
+        
+        socket.on('lobby_state', (state) => {
+            log('Lobby updated: ' + state.players.length + ' players');
+            document.getElementById('players').innerHTML = state.players.map(p => 
+                `<div>${p.name} ${p.isAI ? '(AI)' : ''}: $${p.bankroll}</div>`
+            ).join('');
+        });
+        
+        socket.on('game_state', (state) => {
+            gameState = state;
+            log('Game state: ' + state.phase + ', Pot: $' + state.pot);
+            
+            document.getElementById('gameInfo').innerHTML = `
+                <div>Phase: ${state.phase}</div>
+                <div>Pot: $${state.pot}</div>
+                <div>Current Bet: $${state.currentBet}</div>
+                <div>Active Players: ${state.seats.filter(s => !s.hasFolded).length}</div>
+            `;
+            
+            // Show my dice
+            const mySeat = state.seats.find(s => s.playerId === socket.id);
+            if (mySeat) {
+                document.getElementById('myDice').innerHTML = mySeat.dice.map((die, i) => 
+                    `<span class="dice ${die.locked ? 'locked' : ''}">${die.value || '?'}</span>`
+                ).join(' ') + ` (Lock allowance: ${mySeat.lockAllowance || 0})`;
+            }
+        });
+        
+        function join() {
+            const name = document.getElementById('playerName').value;
+            socket.emit('join', { name });
+        }
+        
+        function addAI() {
+            socket.emit('add_ai', { count: 1 });
+        }
+        
+        function fillToMin() {
+            socket.emit('fill_ai_to_min', { min: 4 });
+        }
+        
+        function startHand() {
+            socket.emit('start_hand');
+        }
+        
+        function lockDie(index) {
+            socket.emit('lock_select', { index });
+        }
+        
+        function bet() {
+            socket.emit('player_action', { action: 'bet', amount: 5 });
+        }
+        
+        function call() {
+            socket.emit('player_action', { action: 'call' });
+        }
+        
+        function check() {
+            socket.emit('player_action', { action: 'check' });
+        }
+        
+        function fold() {
+            socket.emit('player_action', { action: 'fold' });
+        }
+        
+        function nextPhase() {
+            socket.emit('next_phase');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+// Pirate Plunder Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  googleId          String   @unique
+  email             String   @unique
+  name              String
+  avatar            String?
+  bankroll          Float    @default(100)
+  totalGamesPlayed  Int      @default(0)
+  totalWinnings     Float    @default(0)
+  createdAt         DateTime @default(now())
+  lastLogin         DateTime @default(now())
+  isAdmin           Boolean  @default(false)
+
+  // Cosmetics - simplified to collection-based system
+  banner            String   @default("default")
+  emblem            String   @default("default")
+  title             String   @default("Landlubber")
+  highSkin          String   @default("bone-classic") @map("highskin")
+  lowSkin           String   @default("pearl-simple") @map("lowskin")
+
+  // Unlocked cosmetics as a comma-separated string
+  unlockedCosmetics String   @default("default,bone-classic,pearl-simple,Landlubber")
+
+  // Game-specific permissions
+  gamePermissions   UserGamePermission[]
+
+  @@map("users")
+}
+
+model UserGamePermission {
+  id        String   @id @default(cuid())
+  userId    String   @map("userid")
+  user      User     @relation(fields: [userId], references: [googleId])
+  gameType  String   @map("gametype") // 'pirate-plunder', 'warfaire', 'flipz', 'houserules-poker'
+  role      String   // 'admin', 'moderator', etc.
+  createdAt DateTime @default(now()) @map("createdat")
+  updatedAt DateTime @updatedAt @map("updatedat")
+
+  @@unique([userId, gameType])
+  @@map("user_game_permissions")
+}
+
+model Session {
+  sid     String @id
+  sess    String
+  expire  DateTime
+
+  @@map("sessions")
+}
+
+model TableBankroll {
+  id        String   @id @default(cuid())
+  userId    String   @map("userid") // googleId of the user
+  userName  String   @map("username") // player name for easier debugging
+  tableId   String   @map("tableid") // identifier for the table (for now just "main")
+  seatIndex Int      @map("seatindex") // which seat they're in (0-5)
+  amount    Float    // bankroll amount in dollars
+  createdAt DateTime @default(now()) @map("createdat")
+  updatedAt DateTime @updatedAt @map("updatedat")
+
+  @@unique([userId, tableId])
+  @@map("table_bankrolls")
+}
+
+model BankrollAuditLog {
+  id            String   @id @default(cuid())
+  userId        String   @map("userid") // googleId of the user
+  userName      String   @map("username") // player name
+  operation     String   // SIT_DOWN, STAND_UP, TOP_UP, PAYOUT_SYNC, etc.
+  amountChange  Float    @map("amountchange") // change in dollars (positive or negative)
+  beforeAmount  Float    @map("beforeamount") // bankroll before change (dollars)
+  afterAmount   Float    @map("afteramount") // bankroll after change (dollars)
+  tableStack    Float?   @map("tablestack") // table stack at time of operation (dollars)
+  metadata      String?  // JSON string with additional context
+  createdAt     DateTime @default(now()) @map("createdat")
+
+  @@index([userId, createdAt])
+  @@map("bankroll_audit_log")
+}
+
+model DiceCollection {
+  id          String   @id // e.g., "bone-classic", "krakens-depths"
+  name        String   // Display name, e.g., "Bone Classic"
+  rarity      String   // "Swabbie", "Deckhand", "Corsair", "Captain", "Kraken"
+  theme       String?  // e.g., "Pirate Waters - Series I"
+  description String   // Description text
+  price       Float    // Price in dollars
+  combo       String   // JSON blob of DiceCombo (skin, material, effects, tint, etc.)
+  complexity  Int      @default(0) // Complexity score
+  createdAt   DateTime @default(now()) @map("createdat")
+  updatedAt   DateTime @updatedAt @map("updatedat")
+
+  @@map("dice_collections")
+}
+
+model CustomSkin {
+  id         String   @id @default(cuid())
+  userId     String   @map("userid")
+  userName   String   @map("username") // player name for easier debugging
+  skinId     String   @map("skinid")
+  name       String
+  comboData  String   @map("combodata") // JSON blob of DiceCombo
+  complexity Int
+  rarity     String
+  isPublic   Boolean  @default(false) @map("ispublic")
+  createdAt  DateTime @default(now()) @map("createdat")
+  updatedAt  DateTime @updatedAt @map("updatedat")
+
+  @@unique([userId, skinId])
+  @@map("custom_skins")
+}

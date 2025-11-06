@@ -1,0 +1,268 @@
+{
+  "_metadata": {
+    "version": "1.0.0",
+    "description": "Table configuration for Pirate Plunder game",
+    "lastModified": "2025-09-23T01:50:23.447Z"
+  },
+  "table": {
+    "minHumanPlayers": 1,
+    "targetTotalPlayers": 4,
+    "maxSeats": 8,
+    "cargoChestLearningMode": false,
+    "tableMinimumMultiplier": 2
+  },
+  "betting": {
+    "streets": {
+      "enabled": false,
+      "S1": 1,
+      "S2": 3,
+      "S3": 6,
+      "s3_multiplier": "1x"
+    },
+    "ante": {
+      "mode": "per_player",
+      "amount": 100,
+      "every_nth": 1,
+      "progressive": false,
+      "street_multiplier": 1
+    },
+    "edge_tiers": {
+      "enabled": true,
+      "behind": 0.5,
+      "co": 0.75,
+      "leader": 1,
+      "dominant": 1.25
+    },
+    "dominant_threshold": 2,
+    "rounding": 1
+  },
+  "payouts": {
+    "role_payouts": {
+      "ship": 0.4,
+      "captain": 0.3,
+      "crew": 0.2
+    },
+    "multi_role_allowed": true,
+    "combo_kicker": null,
+    "role_requirements": {
+      "ship": 2,
+      "captain": 2,
+      "crew": 2
+    }
+  },
+  "house": {
+    "rake_percent": 0.05,
+    "rake_enabled": true,
+    "rake_cap": 1000
+  },
+  "chest": {
+    "drip_percent": 0.1,
+    "carryover": true,
+    "unfilled_role_to_chest": 0.5,
+    "low_rank_triggers": {
+      "trips": 0.3,
+      "quads": 0.6,
+      "yahtzee": 1
+    },
+    "trigger_tiebreak": "rank_then_time"
+  },
+  "bust_fee": {
+    "enabled": true,
+    "basis": "S2",
+    "fixed_amount": 0,
+    "to": "chest"
+  },
+  "advanced": {
+    "ties": "reroll_one_die",
+    "declare_role": false,
+    "reveal_sequence": [
+      1,
+      2,
+      3
+    ]
+  },
+  "timing": {
+    "phase_timers": {
+      "lock_phase_seconds": 30,
+      "betting_phase_seconds": 30,
+      "turn_timeout_seconds": 30
+    },
+    "delays": {
+      "auto_start_seconds": 3,
+      "payout_display_seconds": 3,
+      "showdown_display_seconds": 8,
+      "hand_end_seconds": 3,
+      "countdown_seconds": 5
+    },
+    "session": {
+      "max_age_days": 7,
+      "reconnect_timeout_minutes": 2,
+      "disconnect_action_timeout_seconds": 30,
+      "disconnect_fold_timeout_seconds": 30,
+      "disconnect_kick_timeout_minutes": 3
+    }
+  },
+  "display": {
+    "history": {
+      "max_hands_stored": 100,
+      "recent_display_count": 20
+    }
+  },
+  "rules_display": {
+    "sections": {
+      "role_hierarchy": {
+        "enabled": true,
+        "weight": 10,
+        "type": "static",
+        "span": 3
+      },
+      "cargo_chest": {
+        "enabled": true,
+        "weight": 20,
+        "type": "dynamic",
+        "span": 1
+      },
+      "locking_rules": {
+        "enabled": true,
+        "weight": 30,
+        "type": "static",
+        "span": 1
+      },
+      "betting": {
+        "enabled": true,
+        "weight": 40,
+        "type": "static",
+        "span": 1
+      },
+      "bust_fee": {
+        "enabled": true,
+        "weight": 50,
+        "type": "dynamic",
+        "span": 2
+      },
+      "edge_tiers": {
+        "enabled": true,
+        "weight": 60,
+        "type": "dynamic",
+        "span": 2
+      }
+    }
+  },
+  "presets": {
+    "baseline": {
+      "name": "Baseline (Teach)",
+      "description": "Standard teaching configuration",
+      "config": {
+        "betting": {
+          "streets": {
+            "S1": 1,
+            "S2": 3,
+            "S3": 6,
+            "s3_multiplier": "1x"
+          },
+          "ante": {
+            "mode": "none"
+          }
+        }
+      }
+    },
+    "big_river": {
+      "name": "Big River",
+      "description": "Juiced S3 for bigger pots",
+      "config": {
+        "betting": {
+          "streets": {
+            "S1": 1,
+            "S2": 3,
+            "S3": 6,
+            "s3_multiplier": "3x"
+          },
+          "ante": {
+            "mode": "none"
+          }
+        }
+      }
+    },
+    "casino_standard": {
+      "name": "Casino Standard",
+      "description": "Per-player ante configuration",
+      "config": {
+        "betting": {
+          "streets": {
+            "S1": 1,
+            "S2": 3,
+            "S3": 6,
+            "s3_multiplier": "1x"
+          },
+          "ante": {
+            "mode": "per_player",
+            "amount": 10
+          }
+        }
+      }
+    },
+    "action_night": {
+      "name": "Action Night",
+      "description": "Higher stakes with aggressive edge tiers",
+      "config": {
+        "betting": {
+          "streets": {
+            "S1": 2,
+            "S2": 5,
+            "S3": 10,
+            "s3_multiplier": "1x"
+          },
+          "ante": {
+            "mode": "per_player",
+            "amount": 25
+          },
+          "edge_tiers": {
+            "behind": 0.5,
+            "co": 0.75,
+            "leader": 1,
+            "dominant": 1.5
+          }
+        }
+      }
+    },
+    "harsh_fold_incentive": {
+      "name": "Harsh Fold Incentive",
+      "description": "S3-based bust fees to discourage folding",
+      "config": {
+        "bust_fee": {
+          "enabled": true,
+          "basis": "S3",
+          "to": "chest"
+        }
+      }
+    },
+    "crew_love": {
+      "name": "Crew Love",
+      "description": "Buffed crew payouts",
+      "config": {
+        "payouts": {
+          "role_payouts": {
+            "ship": 0.42,
+            "captain": 0.3,
+            "crew": 0.28
+          }
+        }
+      }
+    },
+    "sticky_ties": {
+      "name": "Sticky Ties",
+      "description": "More expensive tie-breaking",
+      "config": {
+        "betting": {
+          "edge_tiers": {
+            "behind": 0.5,
+            "co": 0.8,
+            "leader": 1,
+            "dominant": 1.25
+          }
+        }
+      }
+    }
+  },
+  "hasPendingChanges": false
+}

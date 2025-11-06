@@ -1,0 +1,5 @@
+# Configure npm to use the OVH Verdaccio registry for @pirate scoped packages.
+# Copy this file to ~/.npmrc (or append to existing) and replace <token> after logging in.
+
+@pirate:registry=http://registry.tail751d97.ts.net:4873/
+//registry.tail751d97.ts.net:4873/:_authToken=<replace-with-token>

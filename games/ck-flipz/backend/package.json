@@ -1,0 +1,24 @@
+{
+  "name": "@pirate/game-ck-flipz-backend",
+  "version": "0.1.0",
+  "description": "CK Flipz backend - Game logic for coin and card flip games",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pirate/game-sdk": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.3"
+  },
+  "peerDependencies": {
+    "socket.io": "^4.0.0"
+  }
+}

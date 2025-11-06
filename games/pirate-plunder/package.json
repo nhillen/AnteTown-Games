@@ -1,0 +1,35 @@
+{
+  "name": "@pirate/game-pirate-plunder",
+  "version": "0.1.0",
+  "description": "Pirate Plunder - A dice-based poker game with roles",
+  "main": "backend/dist/index.js",
+  "types": "backend/dist/index.d.ts",
+  "exports": {
+    ".": "./backend/dist/index.js",
+    "./client": "./frontend/dist/index.js",
+    "./types": "./backend/dist/types.js"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "publish:verdaccio": "npm run build && npm publish --registry http://localhost:4873",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["dice", "poker", "game", "pirate"],
+  "author": "DryBrush Games",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  },
+  "peerDependencies": {
+    "socket.io": "^4.0.0",
+    "socket.io-client": "^4.0.0"
+  }
+}

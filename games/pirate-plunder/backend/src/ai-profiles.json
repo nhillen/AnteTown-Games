@@ -1,0 +1,58 @@
+[
+    {
+        "name": "Reckless Roger",
+        "style": "Aggressive",
+        "riskTolerance": 0.85,
+        "bluffFrequency": 0.25,
+        "foldThreshold": 2,
+        "raiseMultiplier": 1.5,
+        "rolePriority": ["Ship", "Captain", "Crew", "Cargo3", "Cargo2", "Cargo1"],
+        "mistakeChance": 0.1,
+        "cosmetics": {
+            "highSkin": "golden-doubloon-lite",
+            "lowSkin": "obsidian-ember"
+        }
+    },
+    {
+        "name": "Calculating Clara",
+        "style": "Tight-Aggressive",
+        "riskTolerance": 0.65,
+        "bluffFrequency": 0.1,
+        "foldThreshold": 4,
+        "raiseMultiplier": 1.2,
+        "rolePriority": ["Ship", "Captain", "Crew", "Cargo3", "Cargo2", "Cargo1"],
+        "mistakeChance": 0.05,
+        "cosmetics": {
+            "highSkin": "shadow-ebony",
+            "lowSkin": "pearl-simple"
+        }
+    },
+    {
+        "name": "Lucky Luke",
+        "style": "Loose-Passive",
+        "riskTolerance": 0.9,
+        "bluffFrequency": 0.05,
+        "foldThreshold": 1,
+        "raiseMultiplier": 0.7,
+        "rolePriority": ["Ship", "Cargo3", "Captain", "Cargo2", "Crew", "Cargo1"],
+        "mistakeChance": 0.15,
+        "cosmetics": {
+            "highSkin": "bone-classic",
+            "lowSkin": "seafoam"
+        }
+    },
+    {
+        "name": "Careful Kate",
+        "style": "Tight-Passive",
+        "riskTolerance": 0.4,
+        "bluffFrequency": 0.02,
+        "foldThreshold": 5,
+        "raiseMultiplier": 0.5,
+        "rolePriority": ["Ship", "Captain", "Crew", "Cargo3", "Cargo2", "Cargo1"],
+        "mistakeChance": 0.05,
+        "cosmetics": {
+            "highSkin": "seafoam",
+            "lowSkin": "pearl-simple"
+        }
+    }
+]

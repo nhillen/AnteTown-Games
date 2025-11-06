@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connection Test</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Backend Connection Test</h1>
+    <div id="status">Testing connection...</div>
+    
+    <script>
+        const socket = io('http://localhost:3001');
+        const statusDiv = document.getElementById('status');
+        
+        socket.on('connect', () => {
+            statusDiv.innerHTML = '<span style="color: green;">✅ Connected to backend!</span>';
+            socket.emit('join', { name: 'ConnectionTest' });
+        });
+        
+        socket.on('joined', (data) => {
+            statusDiv.innerHTML += '<br><span style="color: blue;">✅ Successfully joined as ' + data.player.name + '</span>';
+        });
+        
+        socket.on('connect_error', (error) => {
+            statusDiv.innerHTML = '<span style="color: red;">❌ Connection failed: ' + error.message + '</span><br>Make sure backend is running on http://localhost:3001';
+        });
+        
+        setTimeout(() => {
+            if (statusDiv.innerHTML === 'Testing connection...') {
+                statusDiv.innerHTML = '<span style="color: red;">❌ Connection timeout - backend may not be running</span>';
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
