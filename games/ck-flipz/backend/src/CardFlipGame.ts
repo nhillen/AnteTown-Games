@@ -90,29 +90,30 @@ export class CardFlipGame extends GameBase {
   /**
    * Override sitPlayer to enforce minimum buy-in based on ante
    */
-  public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number): { success: boolean; error?: string; seatIndex?: number } {
+  public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number, currencyMode: 'TC' | 'VT' = 'TC'): { success: boolean; error?: string; seatIndex?: number } {
     const anteAmount = this.getAnteAmount();
     const minimumBuyIn = anteAmount * this.minBuyInMultiplier;
 
     // Enforce minimum buy-in
     if (buyInAmount && buyInAmount < minimumBuyIn) {
-      const minDollars = (minimumBuyIn / 100).toFixed(2);
-      const anteDollars = (anteAmount / 100).toFixed(2);
+      const minAmount = Math.floor(minimumBuyIn / 100);
+      const anteTokens = Math.floor(anteAmount / 100);
       return {
         success: false,
-        error: `Minimum buy-in is $${minDollars} (${this.minBuyInMultiplier}x the $${anteDollars} ante)`
+        error: `Minimum buy-in is ${minAmount} ${currencyMode} (${this.minBuyInMultiplier}x the ${anteTokens} ${currencyMode} ante)`
       };
     }
 
     // Use the minimum if no buy-in specified
     const actualBuyIn = buyInAmount || minimumBuyIn;
 
-    // Check if player has enough bankroll for the minimum
-    if (player.bankroll < minimumBuyIn) {
-      const minDollars = (minimumBuyIn / 100).toFixed(2);
+    // Check if player has enough balance in the selected currency
+    const playerBalance = currencyMode === 'TC' ? player.bankroll : (player.townChips || 0);
+    if (playerBalance < minimumBuyIn) {
+      const minAmount = Math.floor(minimumBuyIn / 100);
       return {
         success: false,
-        error: `Insufficient bankroll. Need at least $${minDollars} to sit at this table`
+        error: `Insufficient ${currencyMode}. Need at least ${minAmount} ${currencyMode} to sit at this table`
       };
     }
 
