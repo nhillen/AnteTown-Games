@@ -19,6 +19,8 @@ type CoinFlipGameState = GameState & {
   calledSide?: 'heads' | 'tails';
   callerPlayerId?: string;
   flipResult?: 'heads' | 'tails';
+  readyPlayers?: string[]; // Track who is ready to start
+  lobbyTimerEndsAt?: number; // Timestamp when lobby timer expires
 };
 
 export class CoinFlipGame extends GameBase {
@@ -139,6 +141,8 @@ export class CoinFlipGame extends GameBase {
     delete this.gameState.calledSide;
     delete this.gameState.callerPlayerId;
     delete this.gameState.flipResult;
+    delete this.gameState.readyPlayers; // Clear ready state
+    delete this.gameState.lobbyTimerEndsAt; // Clear lobby timer
 
     // Reset all seats
     for (const seat of this.gameState.seats) {
@@ -410,13 +414,54 @@ export class CoinFlipGame extends GameBase {
         break;
 
       case 'start_hand':
+      case 'mark_ready':
         if (this.gameState.phase === 'Lobby' && this.canStartHand()) {
-          this.startHand();
+          this.handleMarkReady(playerId);
         }
         break;
 
       default:
         console.warn(`🪙 [Flipz] Unknown action: ${action}`);
+    }
+  }
+
+  private handleMarkReady(playerId: string): void {
+    if (!this.gameState || this.gameState.phase !== 'Lobby') return;
+
+    // Initialize ready players array if not exists
+    if (!this.gameState.readyPlayers) {
+      this.gameState.readyPlayers = [];
+    }
+
+    // Add player to ready list if not already there
+    if (!this.gameState.readyPlayers.includes(playerId)) {
+      this.gameState.readyPlayers.push(playerId);
+      const seat = this.findSeat(playerId);
+      console.log(`🪙 [CoinFlip] ${seat?.name} marked ready (${this.gameState.readyPlayers.length}/2)`);
+    }
+
+    const activePlayers = this.getActivePlayers();
+
+    // Start if both players are ready
+    if (this.gameState.readyPlayers.length >= 2 && activePlayers.length >= 2) {
+      console.log(`🪙 [CoinFlip] Both players ready, starting hand`);
+      this.startHand();
+    } else {
+      // Set a lobby timer if not already set
+      if (!this.gameState.lobbyTimerEndsAt) {
+        this.gameState.lobbyTimerEndsAt = Date.now() + 10000; // 10 second timer
+        console.log(`🪙 [CoinFlip] Starting lobby timer (10s)`);
+
+        this.phaseTimer = setTimeout(() => {
+          if (this.gameState && this.gameState.phase === 'Lobby' && this.canStartHand()) {
+            console.log(`🪙 [CoinFlip] Lobby timer expired, starting hand`);
+            this.startHand();
+          }
+        }, 10000);
+      }
+
+      // Broadcast updated state with ready players
+      this.broadcast('game_state', this.gameState);
     }
   }
 
@@ -510,7 +555,7 @@ export class CoinFlipGame extends GameBase {
 
     switch (this.gameState.phase) {
       case 'Lobby':
-        return this.canStartHand() ? ['start_hand'] : [];
+        return this.canStartHand() ? ['mark_ready'] : [];
 
       case 'CallSide':
         if (this.gameState.currentTurnPlayerId === playerId) {
@@ -593,6 +638,8 @@ export class CoinFlipGame extends GameBase {
         delete this.gameState.calledSide;
         delete this.gameState.callerPlayerId;
         delete this.gameState.flipResult;
+        delete this.gameState.readyPlayers; // Clear ready state
+        delete this.gameState.lobbyTimerEndsAt; // Clear lobby timer
 
         // Clear any timers
         if (this.phaseTimer) {
