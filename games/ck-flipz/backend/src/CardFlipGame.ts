@@ -68,6 +68,23 @@ export class CardFlipGame extends GameBase {
   }
 
   /**
+   * Create an AI player for this game
+   */
+  public createAIPlayer(): Player {
+    const botNames = ['CardBot', 'RedMaster', 'BlackJack', 'CardShark', 'DealerBot', 'ColorPicker'];
+    const randomName = botNames[Math.floor(Math.random() * botNames.length)];
+    const uniqueId = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    return {
+      id: uniqueId,
+      name: randomName,
+      isAI: true,
+      bankroll: 100000, // $1000
+      googleId: undefined
+    };
+  }
+
+  /**
    * Override sitPlayer to enforce minimum buy-in based on ante
    */
   public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number): { success: boolean; error?: string; seatIndex?: number } {
