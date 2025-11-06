@@ -49,14 +49,22 @@ export class CardFlipGame extends GameBase {
   private inactivityChecker: NodeJS.Timeout | null = null;
   private lastPickerId: string | null = null; // Track who picked last to rotate
 
-  constructor(config: TableConfig & { rakePercentage?: number; minBuyInMultiplier?: number }) {
+  constructor(config: TableConfig, options?: { rakePercentage?: number; minBuyInMultiplier?: number }) {
     super(config);
-    this.rakePercentage = config.rakePercentage ?? 5;
-    this.minBuyInMultiplier = config.minBuyInMultiplier ?? 5;
+    this.rakePercentage = options?.rakePercentage ?? 5;
+    this.minBuyInMultiplier = options?.minBuyInMultiplier ?? 5;
     this.initializeGameState('Lobby');
 
     // Start inactivity checker
     this.startInactivityChecker();
+  }
+
+  public getMetadata() {
+    return {
+      emoji: '🎴',
+      botNamePrefix: 'CardBot',
+      defaultBuyIn: this.getAnteAmount() * 5  // 5x ante
+    };
   }
 
   /**

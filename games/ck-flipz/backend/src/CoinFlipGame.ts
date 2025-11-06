@@ -32,14 +32,22 @@ export class CoinFlipGame extends GameBase {
   private playerLastActivity: Map<string, number> = new Map(); // Track last activity time
   private inactivityChecker: NodeJS.Timeout | null = null;
 
-  constructor(config: TableConfig & { rakePercentage?: number; minBuyInMultiplier?: number }) {
+  constructor(config: TableConfig, options?: { rakePercentage?: number; minBuyInMultiplier?: number }) {
     super(config);
-    this.rakePercentage = config.rakePercentage ?? 5;
-    this.minBuyInMultiplier = config.minBuyInMultiplier ?? 5;
+    this.rakePercentage = options?.rakePercentage ?? 5;
+    this.minBuyInMultiplier = options?.minBuyInMultiplier ?? 5;
     this.initializeGameState('Lobby');
 
     // Start inactivity checker
     this.startInactivityChecker();
+  }
+
+  public getMetadata() {
+    return {
+      emoji: '🪙',
+      botNamePrefix: 'FlipBot',
+      defaultBuyIn: this.getAnteAmount() * 5  // 5x ante
+    };
   }
 
   /**

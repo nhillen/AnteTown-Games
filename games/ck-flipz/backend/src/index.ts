@@ -6,10 +6,12 @@
  */
 
 import type { Server as SocketIOServer } from 'socket.io';
+import { CoinFlipGame } from './CoinFlipGame.js';
+import { CardFlipGame } from './CardFlipGame.js';
+import { FLIPZ_TABLES, type FlipzTableConfig, type FlipzGameVariant } from './FlipzTableConfig.js';
 
-export { CoinFlipGame } from './CoinFlipGame.js';
-export { CardFlipGame } from './CardFlipGame.js';
-export { FLIPZ_TABLES, type FlipzTableConfig, type FlipzGameVariant } from './FlipzTableConfig.js';
+export { CoinFlipGame, CardFlipGame };
+export { FLIPZ_TABLES, type FlipzTableConfig, type FlipzGameVariant };
 
 export const GAME_METADATA = {
   id: 'ck-flipz',
@@ -45,12 +47,47 @@ export function initializeCKFlipz(io: SocketIOServer, options?: {
 
   const gameInstances = new Map();
 
-  // TODO: Create game instances for each table configuration
-  // This requires integrating with AnteTown's multi-table system
+  // Create a game instance for each table
+  for (const tableConfig of tables) {
+    let game;
+
+    const config = {
+      maxSeats: tableConfig.maxSeats,
+      minHumanPlayers: 1,
+      targetTotalPlayers: 2,
+      betting: {
+        ante: {
+          mode: 'fixed',
+          amount: tableConfig.ante
+        }
+      }
+    };
+
+    if (tableConfig.variant === 'coin-flip') {
+      game = new CoinFlipGame(config, {
+        rakePercentage: tableConfig.rakePercentage,
+        minBuyInMultiplier: tableConfig.minBuyInMultiplier
+      });
+    } else {
+      game = new CardFlipGame(config, {
+        rakePercentage: tableConfig.rakePercentage,
+        minBuyInMultiplier: tableConfig.minBuyInMultiplier
+      });
+    }
+
+    gameInstances.set(tableConfig.tableId, {
+      game,
+      config: tableConfig,
+      io  // Store io reference for socket handling
+    });
+
+    console.log(`   ✅ ${tableConfig.displayName} (${tableConfig.tableId})`);
+  }
 
   return {
     gameId: GAME_METADATA.id,
     namespace,
-    tables: gameInstances
+    tables: gameInstances,
+    metadata: GAME_METADATA
   };
 }
