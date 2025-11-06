@@ -31,6 +31,8 @@ type CardFlipGameState = GameState & {
   flippedCards: Card[];
   redCount: number;
   blackCount: number;
+  readyPlayers?: string[]; // Track who is ready to start
+  lobbyTimerEndsAt?: number; // Timestamp when lobby timer expires
 };
 
 const RED_SUITS = ['♥', '♦'];
@@ -150,6 +152,8 @@ export class CardFlipGame extends GameBase {
     this.gameState.flippedCards = [];
     this.gameState.redCount = 0;
     this.gameState.blackCount = 0;
+    delete this.gameState.readyPlayers; // Clear ready state
+    delete this.gameState.lobbyTimerEndsAt; // Clear lobby timer
 
     // Reset all seats
     for (const seat of this.gameState.seats) {
@@ -403,13 +407,53 @@ export class CardFlipGame extends GameBase {
         break;
 
       case 'start_hand':
+      case 'mark_ready':
         if (this.gameState.phase === 'Lobby' && this.canStartHand()) {
-          this.startHand();
+          this.handleMarkReady(playerId);
         }
         break;
 
       default:
         console.warn(`🎴 [CardFlip] Unknown action: ${action}`);
+    }
+  }
+
+  private handleMarkReady(playerId: string): void {
+    if (!this.gameState || this.gameState.phase !== 'Lobby') return;
+
+    // Initialize ready players array if not exists
+    if (!this.gameState.readyPlayers) {
+      this.gameState.readyPlayers = [];
+    }
+
+    // Add player to ready list if not already there
+    if (!this.gameState.readyPlayers.includes(playerId)) {
+      this.gameState.readyPlayers.push(playerId);
+      const seat = this.findSeat(playerId);
+      console.log(`🎴 [CardFlip] ${seat?.name} marked ready (${this.gameState.readyPlayers.length}/2)`);
+    }
+
+    const activePlayers = this.getActivePlayers();
+
+    // Start if both players are ready
+    if (this.gameState.readyPlayers.length >= 2 && activePlayers.length >= 2) {
+      console.log(`🎴 [CardFlip] Both players ready, starting hand`);
+      this.startHand();
+    } else {
+      // Set a lobby timer if not already set
+      if (!this.gameState.lobbyTimerEndsAt) {
+        this.gameState.lobbyTimerEndsAt = Date.now() + 10000; // 10 second timer
+        console.log(`🎴 [CardFlip] Starting lobby timer (10s)`);
+
+        this.phaseTimer = setTimeout(() => {
+          if (this.gameState && this.gameState.phase === 'Lobby' && this.canStartHand()) {
+            console.log(`🎴 [CardFlip] Lobby timer expired, starting hand`);
+            this.startHand();
+          }
+        }, 10000);
+      }
+
+      this.broadcastGameState();
     }
   }
 
