@@ -31,6 +31,8 @@ export class CoinFlipGame extends GameBase {
   private inactivityTimeoutMs: number = 60000; // 60 seconds of inactivity
   private playerLastActivity: Map<string, number> = new Map(); // Track last activity time
   private inactivityChecker: NodeJS.Timeout | null = null;
+  private lastCallerPlayerId: string | null = null; // Track who called last hand for rotation
+  private queuedStandUps: Set<string> = new Set(); // Players who want to stand after current hand
 
   constructor(config: TableConfig, options?: { rakePercentage?: number; minBuyInMultiplier?: number }) {
     super(config);
@@ -249,7 +251,7 @@ export class CoinFlipGame extends GameBase {
   private handleCallSidePhase(): void {
     if (!this.gameState) return;
 
-    // First active player gets to call
+    // Rotate who gets to call
     const activePlayers = this.getActivePlayers();
     const allSeatedPlayers = this.gameState.seats.filter(s => s);
     console.log(`🪙 [Flipz] CallSide: ${allSeatedPlayers.length} seated, ${activePlayers.length} active`);
@@ -260,18 +262,29 @@ export class CoinFlipGame extends GameBase {
       return;
     }
 
-    const firstPlayer = activePlayers[0];
-    if (!firstPlayer) return;
+    // Rotate caller: if lastCaller is set, pick the next player; otherwise pick first player
+    let currentCaller = activePlayers[0];
+    if (this.lastCallerPlayerId) {
+      const lastCallerIndex = activePlayers.findIndex(p => p.playerId === this.lastCallerPlayerId);
+      if (lastCallerIndex >= 0) {
+        // Pick next player (wrap around if needed)
+        const nextIndex = (lastCallerIndex + 1) % activePlayers.length;
+        currentCaller = activePlayers[nextIndex];
+        console.log(`🪙 [Flipz] Rotating caller from ${activePlayers[lastCallerIndex].name} to ${currentCaller.name}`);
+      }
+    }
 
-    this.gameState.currentTurnPlayerId = firstPlayer.playerId;
-    console.log(`🪙 [Flipz] ${firstPlayer.name} can call heads or tails (${activePlayers.length} players total)`);
+    if (!currentCaller) return;
+
+    this.gameState.currentTurnPlayerId = currentCaller.playerId;
+    console.log(`🪙 [Flipz] ${currentCaller.name} can call heads or tails (${activePlayers.length} players total)`);
 
     // If AI player, auto-call immediately
-    if (firstPlayer.isAI) {
+    if (currentCaller.isAI) {
       const aiSide = Math.random() < 0.5 ? 'heads' : 'tails';
-      console.log(`🪙 [Flipz] AI ${firstPlayer.name} auto-calling ${aiSide}`);
+      console.log(`🪙 [Flipz] AI ${currentCaller.name} auto-calling ${aiSide}`);
       setTimeout(() => {
-        this.handleCallSide(firstPlayer.playerId, aiSide);
+        this.handleCallSide(currentCaller.playerId, aiSide);
       }, 1000); // 1 second delay for realism
       return;
     }
@@ -281,10 +294,10 @@ export class CoinFlipGame extends GameBase {
 
     this.phaseTimer = setTimeout(() => {
       // Auto-call random if player didn't act
-      if (!this.gameState?.calledSide && firstPlayer) {
+      if (!this.gameState?.calledSide && currentCaller) {
         const randomSide = Math.random() < 0.5 ? 'heads' : 'tails';
-        console.log(`🪙 [Flipz] Auto-calling ${randomSide} for ${firstPlayer.name} (timer expired)`);
-        this.handleCallSide(firstPlayer.playerId, randomSide);
+        console.log(`🪙 [Flipz] Auto-calling ${randomSide} for ${currentCaller.name} (timer expired)`);
+        this.handleCallSide(currentCaller.playerId, randomSide);
       }
     }, 5000);
   }
@@ -337,17 +350,31 @@ export class CoinFlipGame extends GameBase {
       isAI: false,
     });
 
-    // Move to hand end
+    // Move to hand end after 5 seconds (more time to see results)
     this.phaseTimer = setTimeout(() => {
       this.transitionToPhase('HandEnd');
-    }, 3000);
+    }, 5000);
   }
 
   private handleHandEndPhase(): void {
     this.endHand();
+
+    // Process queued stand-ups
+    if (this.queuedStandUps.size > 0) {
+      console.log(`🪙 [Flipz] Processing ${this.queuedStandUps.size} queued stand-ups`);
+      for (const playerId of this.queuedStandUps) {
+        const seat = this.findSeat(playerId);
+        if (seat) {
+          console.log(`🪙 [Flipz] Standing ${seat.name} (queued)`);
+          this.standPlayer(playerId, true); // immediate stand
+        }
+      }
+      this.queuedStandUps.clear();
+    }
+
     this.broadcastGameState();
 
-    // Auto-start next hand after 3 seconds if enough players (gives time to stand up)
+    // Auto-start next hand after 5 seconds if enough players (gives time to see results and stand up)
     this.phaseTimer = setTimeout(() => {
       if (this.canStartHand()) {
         const activePlayers = this.getActivePlayers();
@@ -359,7 +386,7 @@ export class CoinFlipGame extends GameBase {
           console.log(`🪙 [Flipz] HandEnd: Not enough active players, staying in Lobby`);
         }
       }
-    }, 3000);
+    }, 5000);
   }
 
   // ============================================================
@@ -404,6 +431,9 @@ export class CoinFlipGame extends GameBase {
 
     this.gameState.calledSide = side;
     this.gameState.callerPlayerId = playerId;
+
+    // Save caller for rotation in next hand
+    this.lastCallerPlayerId = playerId;
 
     // Clear turn timer
     if (this.phaseTimer) {
@@ -521,8 +551,32 @@ export class CoinFlipGame extends GameBase {
 
   /**
    * Override standPlayer to reset game when a player stands in 2-player game
+   * If hand is in progress and not immediate, queue the stand for after hand ends
    */
   public standPlayer(playerId: string, immediate: boolean = false): { success: boolean; error?: string } {
+    if (!this.gameState) {
+      return super.standPlayer(playerId, immediate);
+    }
+
+    // If not immediate and hand is in progress, queue the stand
+    const handInProgress = this.gameState.phase !== 'Lobby' && this.gameState.phase !== 'HandEnd';
+    if (!immediate && handInProgress) {
+      const seat = this.findSeat(playerId);
+      if (seat) {
+        console.log(`🪙 [Flipz] Queueing stand for ${seat.name} after hand ends`);
+        this.queuedStandUps.add(playerId);
+
+        // Notify player
+        this.emitToPlayer(playerId, 'info', 'You will stand up after this hand ends');
+
+        return { success: true };
+      }
+      return { success: false, error: 'Player not found' };
+    }
+
+    // Remove from queued stand-ups if standing immediately
+    this.queuedStandUps.delete(playerId);
+
     const result = super.standPlayer(playerId, immediate);
 
     if (result.success && this.gameState) {

@@ -48,6 +48,7 @@ export class CardFlipGame extends GameBase {
   private playerLastActivity: Map<string, number> = new Map(); // Track last activity time
   private inactivityChecker: NodeJS.Timeout | null = null;
   private lastPickerId: string | null = null; // Track who picked last to rotate
+  private queuedStandUps: Set<string> = new Set(); // Players who want to stand after current hand
 
   constructor(config: TableConfig, options?: { rakePercentage?: number; minBuyInMultiplier?: number }) {
     super(config);
@@ -344,15 +345,31 @@ export class CardFlipGame extends GameBase {
       isAI: false,
     });
 
+    // Move to hand end after 5 seconds (more time to see results)
     this.phaseTimer = setTimeout(() => {
       this.transitionToPhase('HandEnd');
-    }, 3000);
+    }, 5000);
   }
 
   private handleHandEndPhase(): void {
     this.endHand();
+
+    // Process queued stand-ups
+    if (this.queuedStandUps.size > 0) {
+      console.log(`🎴 [CardFlip] Processing ${this.queuedStandUps.size} queued stand-ups`);
+      for (const playerId of this.queuedStandUps) {
+        const seat = this.findSeat(playerId);
+        if (seat) {
+          console.log(`🎴 [CardFlip] Standing ${seat.name} (queued)`);
+          this.standPlayer(playerId, true); // immediate stand
+        }
+      }
+      this.queuedStandUps.clear();
+    }
+
     this.broadcastGameState();
 
+    // Auto-start next hand after 5 seconds if enough players (gives time to see results and stand up)
     this.phaseTimer = setTimeout(() => {
       if (this.canStartHand()) {
         const activePlayers = this.getActivePlayers();
@@ -363,7 +380,7 @@ export class CardFlipGame extends GameBase {
           console.log(`🎴 [CardFlip] HandEnd: Not enough active players`);
         }
       }
-    }, 3000);
+    }, 5000);
   }
 
   // ============================================================
@@ -546,8 +563,32 @@ export class CardFlipGame extends GameBase {
 
   /**
    * Override standPlayer to reset game when a player stands in 2-player game
+   * If hand is in progress and not immediate, queue the stand for after hand ends
    */
   public standPlayer(playerId: string, immediate: boolean = false): { success: boolean; error?: string } {
+    if (!this.gameState) {
+      return super.standPlayer(playerId, immediate);
+    }
+
+    // If not immediate and hand is in progress, queue the stand
+    const handInProgress = this.gameState.phase !== 'Lobby' && this.gameState.phase !== 'HandEnd';
+    if (!immediate && handInProgress) {
+      const seat = this.findSeat(playerId);
+      if (seat) {
+        console.log(`🎴 [CardFlip] Queueing stand for ${seat.name} after hand ends`);
+        this.queuedStandUps.add(playerId);
+
+        // Notify player
+        this.emitToPlayer(playerId, 'info', 'You will stand up after this hand ends');
+
+        return { success: true };
+      }
+      return { success: false, error: 'Player not found' };
+    }
+
+    // Remove from queued stand-ups if standing immediately
+    this.queuedStandUps.delete(playerId);
+
     const result = super.standPlayer(playerId, immediate);
 
     if (result.success && this.gameState) {
