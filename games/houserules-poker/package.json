@@ -16,8 +16,7 @@
     "publish:verdaccio": "npm publish --registry http://vps-0b87e710.tail751d97.ts.net:4873/"
   },
   "dependencies": {
-    "@pirate/core-engine": "^0.1.0",
-    "@pirate/game-sdk": "^0.1.5",
+    "@antetown/game-sdk": "*",
     "clsx": "^2.1.1"
   },
   "peerDependencies": {

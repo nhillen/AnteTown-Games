@@ -16,7 +16,7 @@
  * - Tie is not possible with 3 cards
  */
 
-import { GameBase, GameState, Seat, WinnerResult, TableConfig, Player } from '@pirate/game-sdk';
+import { GameBase, GameState, Seat, WinnerResult, TableConfig, Player } from '@antetown/game-sdk';
 
 type CardFlipPhase = 'Lobby' | 'Ante' | 'PickSide' | 'FlipCard1' | 'FlipCard2' | 'FlipCard3' | 'Payout' | 'HandEnd';
 type CardColor = 'red' | 'black';

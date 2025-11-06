@@ -10,7 +10,7 @@
  * - Fast rounds, minimal complexity
  */
 
-import { GameBase, GameState, Seat, WinnerResult, TableConfig, Player } from '@pirate/game-sdk';
+import { GameBase, GameState, Seat, WinnerResult, TableConfig, Player } from '@antetown/game-sdk';
 
 type CoinFlipPhase = 'Lobby' | 'Ante' | 'CallSide' | 'Flip' | 'Payout' | 'HandEnd';
 
