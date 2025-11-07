@@ -1,4 +1,4 @@
-import { GameBase, GameState, Seat, Player, WinnerResult, GameMetadata } from '@pirate/game-sdk';
+import { GameBase, GameState, Seat, Player, WinnerResult, GameMetadata } from '@antetown/game-sdk';
 import { Card, PokerPhase, PokerAction, PokerSeat, AIPersonality, AIPersonalityProfile } from './types.js';
 import { createDeck, shuffleDeck, dealCards } from './deck.js';
 import { evaluateHand, handRankToString } from './hand-evaluator.js';
