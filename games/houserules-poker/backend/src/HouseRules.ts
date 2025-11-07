@@ -89,6 +89,26 @@ export class HouseRules extends GameBase {
     };
   }
 
+  /**
+   * Create an AI player for the poker table
+   */
+  public createAIPlayer(): Player {
+    const botNames = ['CardShark', 'BluffMaster', 'ChipLeader', 'PokerFace', 'AllInAnnie', 'FoldEmFredy', 'RiverRat', 'TightTommy'];
+    const randomName = botNames[Math.floor(Math.random() * botNames.length)];
+    const uniqueId = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    // Give AI players enough bankroll for multiple buy-ins (100 big blinds worth)
+    const aiBankroll = this.bigBlindAmount * 100;
+
+    return {
+      id: uniqueId,
+      name: randomName,
+      isAI: true,
+      bankroll: aiBankroll,
+      googleId: undefined
+    };
+  }
+
   protected initializeGameState(phase: PokerPhase): void {
     const seats: (Seat & PokerSeat)[] = Array(this.tableConfig.maxSeats).fill(null);
 
