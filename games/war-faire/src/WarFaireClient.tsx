@@ -1364,7 +1364,7 @@ export default function WarFaireClient({
               )
             ) : (
               <div className="slot-mini">
-                <span className="text-xs text-slate-400">Slot A</span>
+                {/* Empty slot - no text label */}
               </div>
             )}
 
@@ -1390,7 +1390,7 @@ export default function WarFaireClient({
                 )
               ) : (
                 <div className="slot-mini">
-                  <span className="text-xs text-slate-400">Slot B</span>
+                  {/* Empty slot - no text label */}
                 </div>
               )
             )}
@@ -1400,7 +1400,7 @@ export default function WarFaireClient({
               <button
                 onClick={() => setIsFaceUp(!isFaceUp)}
                 className={`px-4 py-3 rounded-lg text-sm font-medium min-w-[100px] ${
-                  isFaceUp ? 'bg-purple-600 text-white' : 'bg-slate-200 text-slate-700'
+                  isFaceUp ? 'bg-purple-600 text-white' : 'bg-slate-200 text-slate-900'
                 }`}
                 aria-label={isFaceUp ? 'Slot A is face-up' : 'Slot B is face-up'}
               >

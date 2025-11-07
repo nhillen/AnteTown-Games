@@ -154,6 +154,7 @@ img { max-width: 100%; height: auto; }
   display: flex;
   align-items: center;
   gap: 12px; /* was 8px */
+  margin-left: 16px; /* Add space between category name and first leader chip */
 }
 
 /* P0: Leader chip with 13px points */
@@ -253,6 +254,7 @@ img { max-width: 100%; height: auto; }
   margin-top: var(--space-8);
   display: grid;
   gap: 2px;
+  padding-bottom: 4px; /* Prevent text cutoff at bottom */
 }
 
 .card .namebar .name {
