@@ -33,6 +33,23 @@ export class WarFaireGame extends GameBase {
   }
 
   /**
+   * Create an AI player for PVE mode
+   */
+  public createAIPlayer(): Player {
+    const botNames = ['WarBot', 'FairMaster', 'RibbonChaser', 'CategoryKing', 'PrestigePro', 'FairWarrior'];
+    const randomName = botNames[Math.floor(Math.random() * botNames.length)];
+    const uniqueId = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    return {
+      id: uniqueId,
+      name: randomName,
+      isAI: true,
+      bankroll: 0, // War Faire doesn't use bankroll
+      googleId: undefined
+    };
+  }
+
+  /**
    * Override sitPlayer to remove bankroll requirement for WarFaire
    * WarFaire doesn't use betting, so players can join with 0 bankroll
    */
