@@ -1,4 +1,4 @@
-import { GameBase, GameState, Seat, Player, WinnerResult, GameMetadata } from '@pirate/game-sdk';
+import { GameBase, GameState, Seat, Player, WinnerResult, GameMetadata } from '@antetown/game-sdk';
 import { Game } from '../game.js';
 import { scoreFair, updatePrestige } from '../scorer.js';
 
