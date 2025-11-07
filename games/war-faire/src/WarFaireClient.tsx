@@ -1078,17 +1078,15 @@ export default function WarFaireClient({
                             </thead>
                             <tbody>
                               {/* P1: Your standing - sticky first row if player exists in this category */}
-                              {myScore && (() => {
-                                return (
-                                  <tr className="sticky top-[33px] z-10 popover-your-standing border-b-2 border-slate-300">
-                                    <td className="px-4 py-2 font-bold text-slate-900">You</td>
-                                    <td className="px-4 py-2 text-right font-bold text-slate-900">{myScore.score}</td>
-                                    <td className="px-4 py-2 text-right font-semibold text-green-700">
-                                      {myScore.delta > 0 && `+${myScore.delta}`}
-                                    </td>
-                                  </tr>
-                                );
-                              })()}
+                              {myScore && (
+                                <tr className="sticky top-[33px] z-10 popover-your-standing border-b-2 border-slate-300">
+                                  <td className="px-4 py-2 font-bold text-slate-900">You</td>
+                                  <td className="px-4 py-2 text-right font-bold text-slate-900">{myScore.score}</td>
+                                  <td className="px-4 py-2 text-right font-semibold text-green-700">
+                                    {myScore.delta > 0 && `+${myScore.delta}`}
+                                  </td>
+                                </tr>
+                              )}
                               {allScores.map((player, idx) => (
                                 <tr
                                   key={player.playerId}
@@ -1355,16 +1353,11 @@ export default function WarFaireClient({
               ) : (
                 <div className="slot-mini">
                   <img src={getCardArt((slotA.card.getEffectiveCategory ? slotA.card.getEffectiveCategory() : slotA.card.category).toLowerCase())} alt="" />
-                  {slotA.card.isGroupCard && (
-                    <div className="absolute top-1 left-1 bg-amber-300 px-1 py-0.5 rounded text-xs font-bold text-amber-900">
-                      {slotA.card.category}
-                    </div>
-                  )}
                 </div>
               )
             ) : (
               <div className="slot-mini">
-                {/* Empty slot - no text label */}
+                <span className="text-xs text-slate-400">Slot A</span>
               </div>
             )}
 
@@ -1381,16 +1374,11 @@ export default function WarFaireClient({
                   // When A is face-down, B is face-up (current fair)
                   <div className="slot-mini">
                     <img src={getCardArt((slotB.card.getEffectiveCategory ? slotB.card.getEffectiveCategory() : slotB.card.category).toLowerCase())} alt="" />
-                    {slotB.card.isGroupCard && (
-                      <div className="absolute top-1 left-1 bg-amber-300 px-1 py-0.5 rounded text-xs font-bold text-amber-900">
-                        {slotB.card.category}
-                      </div>
-                    )}
                   </div>
                 )
               ) : (
                 <div className="slot-mini">
-                  {/* Empty slot - no text label */}
+                  <span className="text-xs text-slate-400">Slot B</span>
                 </div>
               )
             )}
@@ -1415,7 +1403,7 @@ export default function WarFaireClient({
             {/* When isFaceUp is true, A is face-up, so show selector for A if it's a group card */}
             {slotA && slotA.card.isGroupCard && isFaceUp && (
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-700">
+                <label className="text-xs font-medium text-slate-900">
                   Face-Up Card ({slotA.card.category}) Category:
                 </label>
                 <select
@@ -1438,7 +1426,7 @@ export default function WarFaireClient({
             {/* B is face-up when A is face-down (when isFaceUp is false) */}
             {slotB && slotB.card.isGroupCard && !isFaceUp && (
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-700">
+                <label className="text-xs font-medium text-slate-900">
                   Face-Up Card ({slotB.card.category}) Category:
                 </label>
                 <select
