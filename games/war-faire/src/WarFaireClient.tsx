@@ -1003,6 +1003,7 @@ export default function WarFaireClient({
                       const leaders = getCategoryLeaders(cat.name);
                       const topScore = leaders[0]?.score || 0;
                       const allScores = getAllCategoryScores(cat.name);
+                      const myScore = allScores.find(p => p.playerId === meId);
 
                 return (
                   <div
@@ -1077,8 +1078,7 @@ export default function WarFaireClient({
                             </thead>
                             <tbody>
                               {/* P1: Your standing - sticky first row if player exists in this category */}
-                              {allScores.find(p => p.playerId === meId) && (() => {
-                                const myScore = allScores.find(p => p.playerId === meId)!;
+                              {myScore && (() => {
                                 return (
                                   <tr className="sticky top-[33px] z-10 popover-your-standing border-b-2 border-slate-300">
                                     <td className="px-4 py-2 font-bold text-slate-900">You</td>
