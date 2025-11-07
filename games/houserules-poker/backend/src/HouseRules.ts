@@ -185,6 +185,7 @@ export class HouseRules extends GameBase {
       totalContribution: 0,
       holeCards: [],
       ...(player.cosmetics && { cosmetics: player.cosmetics }),
+      ...(player.googleId && { googleId: player.googleId }),
     };
 
     // Assign random personality to AI players
