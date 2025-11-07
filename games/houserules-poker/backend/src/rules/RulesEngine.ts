@@ -1,6 +1,6 @@
 import { Card, HandEvaluation, PokerPhase, PokerAction } from '../types.js';
 import { PokerSeat } from '../types.js';
-import { Seat } from '@pirate/game-sdk';
+import { Seat } from '@antetown/game-sdk';
 
 /**
  * Game variant identifier

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { GameState, Seat } from '@pirate/game-sdk';
+import type { GameState, Seat } from '@antetown/game-sdk';
 import type { Card, PokerPhase, PokerAction } from './types';
 import clsx from 'clsx';
 

@@ -1,6 +1,6 @@
 import { TableRegistry } from './TableRegistry.js';
 import { HouseRules } from '../HouseRules.js';
-import { Player } from '@pirate/game-sdk';
+import { Player } from '@antetown/game-sdk';
 import { PokerTableInfo, PokerTableConfig } from './TableConfig.js';
 import { GameVariant } from '../rules/index.js';
 
