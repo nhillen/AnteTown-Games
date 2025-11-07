@@ -40,26 +40,36 @@ export class WarFaireGame extends GameBase {
     const randomName = botNames[Math.floor(Math.random() * botNames.length)];
     const uniqueId = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+    // Give AI players enough bankroll for multiple games
+    const anteAmount = (this.tableConfig as any).ante || (this.tableConfig as any).anteAmount || 500;
+    const aiBankroll = anteAmount * 100; // 100 antes worth
+
     return {
       id: uniqueId,
       name: randomName,
       isAI: true,
-      bankroll: 0, // War Faire doesn't use bankroll
+      bankroll: aiBankroll,
       googleId: undefined
     };
   }
 
   /**
-   * Override sitPlayer to remove bankroll requirement for WarFaire
-   * WarFaire doesn't use betting, so players can join with 0 bankroll
+   * Override sitPlayer to require ante amount as buy-in
+   * WarFaire requires players to have enough chips for the ante
    */
   public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number): { success: boolean; error?: string; seatIndex?: number } {
     if (!this.gameState) {
       return { success: false, error: 'Game not initialized' };
     }
 
-    // WarFaire doesn't require bankroll - players can join with 0
-    const requiredBuyIn = 0;
+    // WarFaire requires the ante amount as minimum buy-in
+    const anteAmount = (this.tableConfig as any).ante || (this.tableConfig as any).anteAmount || 0;
+    const requiredBuyIn = buyInAmount || anteAmount;
+
+    // Check if player has enough bankroll
+    if (player.bankroll < requiredBuyIn) {
+      return { success: false, error: `Insufficient funds. Need at least $${(requiredBuyIn/100).toFixed(2)}` };
+    }
 
     // Find empty seat
     let targetSeat = seatIndex;
@@ -75,7 +85,7 @@ export class WarFaireGame extends GameBase {
       return { success: false, error: 'Seat already taken' };
     }
 
-    // Create seat
+    // Create seat with table stack
     const seat: Seat = {
       playerId: player.id,
       name: player.name,
@@ -90,8 +100,11 @@ export class WarFaireGame extends GameBase {
 
     this.gameState.seats[targetSeat] = seat;
 
-    // No bankroll deduction for WarFaire
+    // Deduct buy-in from player's bankroll
+    player.bankroll -= requiredBuyIn;
     player.tableStack = requiredBuyIn;
+
+    console.log(`🎪 [SIT] ${player.name} sat down with $${(requiredBuyIn/100).toFixed(2)} (remaining bankroll: $${(player.bankroll/100).toFixed(2)})`);
 
     return { success: true, seatIndex: targetSeat };
   }
@@ -133,6 +146,26 @@ export class WarFaireGame extends GameBase {
         }
       });
       console.log('🎪 Seat to player index mapping:', Array.from(this.seatToPlayerIndex.entries()));
+
+      // Collect antes from all seated players
+      const anteAmount = (this.tableConfig as any).ante || (this.tableConfig as any).anteAmount || 0;
+      if (anteAmount > 0) {
+        console.log(`🎪 Collecting antes: ${anteAmount} pennies from ${seatedPlayers.length} players`);
+        let totalCollected = 0;
+        for (const seat of seatedPlayers) {
+          if (seat.tableStack >= anteAmount) {
+            seat.tableStack -= anteAmount;
+            seat.currentBet = anteAmount;
+            seat.totalContribution = anteAmount;
+            totalCollected += anteAmount;
+            console.log(`🎪 Collected ${anteAmount} from ${seat.name}, remaining stack: ${seat.tableStack}`);
+          } else {
+            console.warn(`🎪 WARNING: ${seat.name} doesn't have enough for ante (has ${seat.tableStack}, needs ${anteAmount})`);
+          }
+        }
+        this.gameState.pot = totalCollected;
+        console.log(`🎪 Total pot after antes: ${totalCollected} pennies`);
+      }
 
       console.log('🎪 Setting up first fair...');
       // Setup first Fair
@@ -1195,7 +1228,7 @@ export class WarFaireGame extends GameBase {
       this.broadcast('player_action', {
         playerName: winners[0].name,
         action: 'won',
-        details: `${winners[0].payout / 10} VP`,
+        details: `$${(winners[0].payout / 100).toFixed(2)}`,
         isAI: false,
       });
     }
@@ -1231,11 +1264,20 @@ export class WarFaireGame extends GameBase {
       return [];
     }
 
-    // Award VP as pennies (1 VP = 10 cents = 10 pennies)
+    // Calculate payout: pot minus rake
+    const pot = this.gameState!.pot || 0;
+    const rakePercentage = (this.tableConfig as any).rakePercentage || 0;
+    const rake = Math.floor(pot * (rakePercentage / 100));
+    const payoutAfterRake = pot - rake;
+
+    console.log(`🎪 [PAYOUT] Winner: ${winningSeat.name} with ${winner.totalVP} VP`);
+    console.log(`🎪 [PAYOUT] Pot: $${pot/100}, Rake: $${rake/100} (${rakePercentage}%), Payout: $${payoutAfterRake/100}`);
+
     return [{
       playerId: winningSeat.playerId,
       name: winningSeat.name,
-      payout: winner.totalVP * 10
+      payout: payoutAfterRake,
+      description: `Won with ${winner.totalVP} Victory Points${rake > 0 ? ` (${rakePercentage}% rake: -$${(rake/100).toFixed(2)})` : ''}`
     }];
   }
 
