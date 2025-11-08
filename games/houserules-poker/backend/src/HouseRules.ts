@@ -66,7 +66,7 @@ export class HouseRules extends GameBase {
     super(tableConfig);
     this.variant = tableConfig.variant || 'holdem'; // Default to Hold'em for backward compatibility
     this.rulesEngine = loadRulesEngine(this.variant);
-    this.tableConfig.maxSeats = tableConfig.maxSeats || 9; // 9-max poker table
+    this.tableConfig.maxSeats = tableConfig.maxSeats || 7; // 7-max poker table
 
     // Override defaults from table config
     this.minBuyIn = tableConfig.minBuyIn || this.minBuyIn;
