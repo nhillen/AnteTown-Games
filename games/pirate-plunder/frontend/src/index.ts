@@ -5,8 +5,11 @@
  * by host platforms (like AnteTown).
  */
 
-// Export the main game component
+// Export the main game component (GameApp - requires AuthProvider wrapper)
 export { default as PiratePlunderClient } from './components/GameApp'
+
+// Export the full App (includes AuthProvider wrapper)
+export { default as PiratePlunderApp } from './App'
 
 // Export additional components that might be useful
 export { default as BackOffice } from './components/BackOffice'
