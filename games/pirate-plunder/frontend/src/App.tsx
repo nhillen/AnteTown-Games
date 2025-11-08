@@ -6,7 +6,11 @@ import LandingPage from './components/LandingPage'
 import BackOffice from './components/BackOffice'
 import { useDiceCollections } from './hooks/useDiceCollections'
 
-function AppContent() {
+interface AppContentProps {
+  platformMode?: boolean
+}
+
+function AppContent({ platformMode = false }: AppContentProps) {
   const { user, loading } = useAuth()
   const [view, setView] = useState<'game' | 'backoffice'>('game')
   useDiceCollections()
@@ -43,13 +47,17 @@ function AppContent() {
     return <BackOffice />
   }
 
-  return <GameApp />
+  return <GameApp platformMode={platformMode} />
 }
 
-export default function App() {
+interface AppProps {
+  platformMode?: boolean  // When true, hide platform-provided UI elements
+}
+
+export default function App({ platformMode = false }: AppProps = {}) {
   return (
     <AuthProvider>
-      <AppContent />
+      <AppContent platformMode={platformMode} />
     </AuthProvider>
   )
 }

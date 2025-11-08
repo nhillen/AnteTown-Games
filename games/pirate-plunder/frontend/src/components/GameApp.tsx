@@ -76,7 +76,11 @@ type LogEntry = {
   isAI: boolean
 }
 
-export default function GameApp() {
+interface GameAppProps {
+  platformMode?: boolean  // When true, hide platform-provided UI (Profile, Store, Login, etc.)
+}
+
+export default function GameApp({ platformMode = false }: GameAppProps = {}) {
   const { user, loading, refreshUser } = useAuth()
   const [connected, setConnected] = useState(false)
   const [me, setMe] = useState<Player | null>(null)
@@ -619,22 +623,26 @@ export default function GameApp() {
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-800 to-emerald-900 text-white relative">
       {/* Header */}
       <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">
-              🏴‍☠️ Pirate Plunder
-            </h1>
-            {connected && me && (
-              <div className="text-sm text-gray-300 flex items-center gap-2">
-                <Badge variant="success">Connected</Badge>
-                <span>Playing as: {me.name}</span>
-                <span>Bankroll: ${(me.bankroll / 100).toFixed(2)}</span>
-              </div>
-            )}
+        {/* Left side - only show in standalone mode */}
+        {!platformMode && (
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-2xl font-bold">
+                🏴‍☠️ Pirate Plunder
+              </h1>
+              {connected && me && (
+                <div className="text-sm text-gray-300 flex items-center gap-2">
+                  <Badge variant="success">Connected</Badge>
+                  <span>Playing as: {me.name}</span>
+                  <span>Bankroll: ${(me.bankroll / 100).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center gap-3">
+          {/* Stand Up - always show when seated */}
           {isSeated && (
             <Button
               onClick={handleStandUpImmediate}
@@ -645,53 +653,59 @@ export default function GameApp() {
               🚪 Stand Up
             </Button>
           )}
-          <Button
-            onClick={() => setShowProfile(true)}
-            variant="secondary"
-            size="sm"
-          >
-            Profile
-          </Button>
-          {user?.isAdmin && (
-            <Button
-              onClick={() => setShowAdminMenu(true)}
-              variant="warning"
-              size="sm"
-            >
-              🔧 Admin
-            </Button>
+
+          {/* Platform-provided buttons - only in standalone mode */}
+          {!platformMode && (
+            <>
+              <Button
+                onClick={() => setShowProfile(true)}
+                variant="secondary"
+                size="sm"
+              >
+                Profile
+              </Button>
+              {user?.isAdmin && (
+                <Button
+                  onClick={() => setShowAdminMenu(true)}
+                  variant="warning"
+                  size="sm"
+                >
+                  🔧 Admin
+                </Button>
+              )}
+              <Button
+                onClick={() => setShowStore(true)}
+                variant="secondary"
+                size="sm"
+              >
+                🛒 Store
+              </Button>
+              <Button
+                onClick={() => setShowRules(!showRules)}
+                variant="secondary"
+                size="sm"
+              >
+                {showRules ? 'Hide Rules' : 'Rules'}
+              </Button>
+              <Button
+                onClick={() => setShowConfigManager(true)}
+                variant="secondary"
+                size="sm"
+              >
+                ⚙️ Table Config
+              </Button>
+              {isGameAdmin && (
+                <Button
+                  onClick={() => window.location.hash = 'backoffice'}
+                  variant="secondary"
+                  size="sm"
+                >
+                  🔧 BackOffice
+                </Button>
+              )}
+              <LoginButton gameBankroll={me?.bankroll} />
+            </>
           )}
-          <Button
-            onClick={() => setShowStore(true)}
-            variant="secondary"
-            size="sm"
-          >
-            🛒 Store
-          </Button>
-          <Button
-            onClick={() => setShowRules(!showRules)}
-            variant="secondary"
-            size="sm"
-          >
-            {showRules ? 'Hide Rules' : 'Rules'}
-          </Button>
-          <Button
-            onClick={() => setShowConfigManager(true)}
-            variant="secondary"
-            size="sm"
-          >
-            ⚙️ Table Config
-          </Button>
-          {isGameAdmin && (
-            <Button
-              onClick={() => window.location.hash = 'backoffice'}
-              variant="secondary"
-              size="sm"
-            >
-              🔧 BackOffice
-            </Button>
-          )}
-          <LoginButton gameBankroll={me?.bankroll} />
         </div>
       </div>
 
