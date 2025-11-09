@@ -251,7 +251,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
     const handleTableState = (state: TableState) => {
       console.log('🪑 TABLE_STATE received:', {
         seatedCount: state.seats.filter(s => s !== null).length,
-        seats: state.seats.map((s, i) => s ? `${i}: ${s.name} (${s.playerId.slice(0,6)})` : `${i}: empty`),
+        seats: state.seats.map((s, i) => s ? `${i}: ${s.name} (${s.playerId?.slice(0,6) || 'no-id'})` : `${i}: empty`),
         mySocketId: socket?.id?.slice(0,6)
       })
       setTable(state)
