@@ -627,12 +627,34 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
         {/* Controls and Action Log row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* My dice control area - spans 2 columns */}
-          {(isGameActive && mySeat && !mySeat?.hasFolded) && (
-            // @ts-ignore - game and mySeat are guaranteed non-null in this block by the conditional check above
+          {(() => {
+            // CRITICAL DEBUG: Log the exact condition values
+            const shouldRenderControls = isGameActive && mySeat && !mySeat?.hasFolded;
+            console.log('🎯 Lock UI Render Check:', {
+              isGameActive,
+              hasMySeat: !!mySeat,
+              mySeatHasFolded: mySeat?.hasFolded,
+              shouldRender: shouldRenderControls,
+              mySeatDice: mySeat?.dice?.length,
+              fullMySeat: mySeat
+            });
+            if (!shouldRenderControls) return null;
+            // @ts-ignore - game and mySeat are guaranteed non-null by the check above
+            return (
             <div className="lg:col-span-2 bg-slate-800/95 backdrop-blur rounded-lg p-4 border border-slate-700 shadow-2xl">
             {isLockPhase ? (
               <div className="space-y-3">
                 {/* Phase timer */}
+                {(() => {
+                  console.log('⏱️ Progress Bar Check:', {
+                    hasPhaseEndsAtMs: !!game.phaseEndsAtMs,
+                    phaseEndsAtMs: game.phaseEndsAtMs,
+                    startTime: game.phaseEndsAtMs ? game.phaseEndsAtMs - 30000 : 'N/A',
+                    endTime: game.phaseEndsAtMs,
+                    currentTime: Date.now()
+                  });
+                  return null;
+                })()}
                 {game.phaseEndsAtMs && (
                   <CenterProgressBar
                     startTime={game.phaseEndsAtMs - 30000}
@@ -675,23 +697,35 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                   {/* Debug info */}
                 </div>
                 <div className="flex gap-2 justify-center">
+                  {(() => {
+                    console.log('🎲 Rendering dice buttons:', {
+                      diceCount: mySeat.dice.length,
+                      diceValues: mySeat.dice.map(d => d.value),
+                      diceLocked: mySeat.dice.map(d => d.locked),
+                      hasOnLockSelect: !!onLockSelect
+                    });
+                    return null;
+                  })()}
                   {mySeat.dice.map((die, i) => {
                     // Determine if this die will be public when locked
                     const lockedDice = mySeat.dice
                       .map((d, idx) => ({ die: d, index: idx }))
                       .filter(item => item.die.locked)
                       .sort((a, b) => (b.die.value || 0) - (a.die.value || 0));
-                    
+
                     const minRequired = mySeat.minLocksRequired || 1;
                     const willBePublic = die.locked && lockedDice.findIndex(item => item.index === i) < minRequired;
-                    
+
                     // Use green ring for public dice, blue for private
                     const ringColor = die.locked ? (willBePublic ? 'ring-green-500' : 'ring-blue-500') : 'ring-transparent';
-                    
+
                     return (
                       <button
                         key={i}
-                        onClick={() => onLockSelect(i)}
+                        onClick={() => {
+                          console.log('🎲 DIE BUTTON CLICKED:', { index: i, value: die.value, locked: die.locked });
+                          onLockSelect(i);
+                        }}
                         className={`
                           transition-all transform hover:scale-110 relative
                           cursor-pointer hover:shadow-lg hover:shadow-emerald-500/30
@@ -888,8 +922,9 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
               </div>
             ) : null}
             </div>
-          )}
-          
+            );
+          })()}
+
           {/* Right column - Game Legend only */}
           <div className="space-y-4">
             <GameLegend />

@@ -610,8 +610,12 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
   }
 
   const handleLockSelect = (index: number) => {
+    console.log('🎲 LOCK SELECT CLICKED:', { index, hasSocket: !!socket });
     if (socket) {
+      console.log('🎲 Emitting lock_select event with index:', index);
       socket.emit('lock_select', { index })
+    } else {
+      console.error('🎲 No socket available to emit lock_select!');
     }
   }
 
