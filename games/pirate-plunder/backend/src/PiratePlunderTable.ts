@@ -14,6 +14,7 @@ export interface PiratePlunderTableConfig {
   minBuyIn: number;       // In cents/pennies
   maxSeats: number;
   rake: number;           // Percentage (e.g., 5 for 5%)
+  mode?: string;          // 'PVE' or 'PVP'
 }
 
 export interface Player {
@@ -223,9 +224,42 @@ export class PiratePlunderTable {
   private checkStartGame() {
     // Check if we have enough players to start
     const seatedPlayers = this.tableState.seats.filter(s => s !== null).length;
-    if (seatedPlayers >= 2 && !this.gameState) {
-      console.log(`[${this.config.tableId}] Starting game with ${seatedPlayers} players`);
-      // TODO: Initialize game state and start first round
+    const mode = this.config.mode?.toUpperCase() || 'PVP';
+
+    // Determine minimum players based on mode
+    const minPlayers = mode === 'PVE' ? 1 : 2;
+
+    if (seatedPlayers >= minPlayers && !this.gameState) {
+      console.log(`[${this.config.tableId}] Starting ${mode} game with ${seatedPlayers} players`);
+
+      // Initialize basic game state
+      this.gameState = {
+        phase: 'betting',
+        seats: this.tableState.seats.map((player, index) => ({
+          player,
+          bet: 0,
+          status: player ? 'active' : 'empty'
+        })),
+        pot: 0,
+        currentBet: this.config.ante
+      };
+
+      // Broadcast game state to all players
+      this.broadcastGameState();
+    }
+  }
+
+  private broadcastGameState() {
+    if (!this.gameState) return;
+
+    console.log(`[${this.config.tableId}] Broadcasting game state - phase: ${this.gameState.phase}`);
+
+    // Emit to all players at this table
+    for (const socketId of this.socketIdToPlayer.keys()) {
+      const socket = this.namespace.sockets.get(socketId);
+      if (socket) {
+        socket.emit('game_state', this.gameState);
+      }
     }
   }
 
