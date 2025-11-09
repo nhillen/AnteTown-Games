@@ -202,14 +202,20 @@ export class PiratePlunderTable {
 
   private broadcastTableState() {
     // Broadcast table state (seats) to all connected players at this table
+    // PVE mode: 1 human min, PVP mode: 2 humans min
+    const mode = this.config.mode?.toUpperCase() || 'PVP';
+    const minHumanPlayers = mode === 'PVE' ? 1 : 2;
+    const targetTotalPlayers = mode === 'PVE' ? 2 : 4; // PVE fills to 2, PVP to 4
+
     const tableState = {
       seats: this.tableState.seats,
       cargoChest: this.tableState.cargoChest,
       config: {
-        minHumanPlayers: 1,
-        targetTotalPlayers: 2,
+        minHumanPlayers,
+        targetTotalPlayers,
         maxSeats: this.config.maxSeats,
-        cargoChestLearningMode: false
+        cargoChestLearningMode: false,
+        currency: this.config.currency || 'TC'
       }
     };
 

@@ -35,6 +35,7 @@ type TableConfig = {
   targetTotalPlayers: number
   maxSeats: number
   cargoChestLearningMode: boolean
+  currency?: string // e.g., 'TC', 'SC', 'Event Tokens'
 }
 
 type TableState = {
@@ -428,7 +429,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
   const confirmBuyIn = () => {
     if (socket) {
       socket.emit('sit_down', { buyInAmount })
-      addToActionLog('System', `Sitting down with ${buyInAmount} TC`, '', false)
+      addToActionLog('System', `Sitting down with ${buyInAmount} ${table?.config?.currency || 'TC'}`, '', false)
       setShowBuyInModal(false)
 
       // Refresh user data after a short delay to ensure backend updates are complete
@@ -458,7 +459,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
             clearInterval(checkConnection)
             console.log('✅ Now connected, emitting sit_down')
             socket.emit('sit_down', { seatIndex, buyInAmount })
-            addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with ${buyInAmount} TC`, '', false)
+            addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with ${buyInAmount} ${table?.config?.currency || 'TC'}`, '', false)
           }
         }, 100)
         // Timeout after 5 seconds
@@ -469,7 +470,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
       console.log('✅ Connected, emitting sit_down now')
       socket.emit('sit_down', { seatIndex, buyInAmount })
       console.log('✅ sit_down emitted')
-      addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with ${buyInAmount} TC`, '', false)
+      addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with ${buyInAmount} ${table?.config?.currency || 'TC'}`, '', false)
     }
   }
 
@@ -1118,7 +1119,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-2">
-                  Buy-in Amount (Your bankroll: ${((me?.bankroll || 0) / 100).toFixed(2)})
+                  Buy-in Amount (Your bankroll: {((me?.bankroll || 0) / 100).toFixed(2)} {table?.config?.currency || 'TC'})
                 </label>
                 {tableRequirements && (
                   <div className="mb-3 p-3 bg-blue-900/30 border border-blue-600/50 rounded">
@@ -1145,7 +1146,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
                   Cancel
                 </Button>
                 <Button variant="primary" onClick={confirmBuyIn}>
-                  Sit Down with ${buyInAmount}
+                  Sit Down with {buyInAmount} {table?.config?.currency || 'TC'}
                 </Button>
               </div>
             </div>
