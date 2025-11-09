@@ -10,6 +10,8 @@
 
 import { Namespace, Socket } from 'socket.io';
 import { GameBase, Player, Seat as SDKSeat, GameMetadata, GameState, WinnerResult, TableConfig } from '@antetown/game-sdk';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface PiratePlunderTableConfig {
   tableId: string;
@@ -48,6 +50,22 @@ export type Die = {
   isPublic?: boolean;  // Visible to other players
 };
 
+// AI Profile for personality-based decisions
+export type AIProfile = {
+  name: string;
+  style: string;
+  riskTolerance: number;
+  bluffFrequency: number;
+  foldThreshold: number;
+  raiseMultiplier: number;
+  rolePriority: string[];
+  mistakeChance: number;
+  cosmetics?: {
+    highSkin?: string;
+    lowSkin?: string;
+  };
+};
+
 // Hand evaluation result
 export type HandResult = {
   sixCount: number;    // Ship (6s)
@@ -80,6 +98,7 @@ export interface PiratePlunderSeat extends SDKSeat {
   lockAllowance: number;      // Locks remaining for current phase
   minLocksRequired?: number;  // Minimum locks required
   lockingDone: boolean;       // Player confirmed locks
+  aiProfile?: AIProfile;      // AI personality profile
 }
 
 // Extend SDK GameState with Pirate Plunder specific fields
@@ -105,6 +124,7 @@ export class PiratePlunderTable extends GameBase {
   private namespace: Namespace;
   public gameState: PiratePlunderGameState | null = null;
   private phaseTimer: NodeJS.Timeout | null = null;
+  private aiProfiles: AIProfile[] = [];
 
   constructor(config: PiratePlunderTableConfig, namespace: Namespace) {
     // Convert to GameBase TableConfig format
@@ -125,6 +145,27 @@ export class PiratePlunderTable extends GameBase {
     this.config = config;
     this.namespace = namespace;
     this.gameType = 'pirate-plunder';
+
+    // Load AI profiles from JSON file
+    try {
+      const profilesPath = path.join(__dirname, 'ai-profiles.json');
+      const profilesData = fs.readFileSync(profilesPath, 'utf8');
+      this.aiProfiles = JSON.parse(profilesData);
+      console.log(`[${this.config.tableId}] Loaded ${this.aiProfiles.length} AI profiles`);
+    } catch (error) {
+      console.warn(`[${this.config.tableId}] Failed to load AI profiles, using basic AI:`, error);
+      // Fallback to basic profile
+      this.aiProfiles = [{
+        name: 'Basic AI',
+        style: 'Balanced',
+        riskTolerance: 0.5,
+        bluffFrequency: 0.1,
+        foldThreshold: 3,
+        raiseMultiplier: 1.0,
+        rolePriority: ['Ship', 'Captain', 'Crew', 'Cargo3', 'Cargo2', 'Cargo1'],
+        mistakeChance: 0.1
+      }];
+    }
 
     // Initialize game state with Pirate Plunder specifics
     this.initializeGameState('Lobby');
@@ -149,6 +190,77 @@ export class PiratePlunderTable extends GameBase {
 
   private rollDie(): number {
     return Math.floor(Math.random() * 6) + 1;
+  }
+
+  private assignAIProfile(): AIProfile {
+    // Randomly select an AI profile with some variance
+    const profile = this.aiProfiles[Math.floor(Math.random() * this.aiProfiles.length)];
+    if (!profile) {
+      // Fallback profile
+      return {
+        name: 'Basic AI',
+        style: 'Balanced',
+        riskTolerance: 0.5,
+        bluffFrequency: 0.1,
+        foldThreshold: 3,
+        raiseMultiplier: 1.0,
+        rolePriority: ['Ship', 'Captain', 'Crew', 'Cargo3', 'Cargo2', 'Cargo1'],
+        mistakeChance: 0.1
+      };
+    }
+
+    // Add ±10% variance to numeric values to prevent robotic behavior
+    const variance = () => 0.9 + Math.random() * 0.2; // 0.9 to 1.1 multiplier
+
+    const result: AIProfile = {
+      name: profile.name,
+      style: profile.style,
+      rolePriority: profile.rolePriority,
+      riskTolerance: Math.max(0, Math.min(1, profile.riskTolerance * variance())),
+      bluffFrequency: Math.max(0, Math.min(1, profile.bluffFrequency * variance())),
+      foldThreshold: Math.max(1, profile.foldThreshold * variance()),
+      raiseMultiplier: Math.max(0.1, profile.raiseMultiplier * variance()),
+      mistakeChance: Math.max(0, Math.min(1, profile.mistakeChance * variance()))
+    };
+
+    if (profile.cosmetics) {
+      result.cosmetics = profile.cosmetics;
+    }
+
+    return result;
+  }
+
+  private getRollsRemaining(phase: PiratePlunderPhase): number {
+    if (phase.includes('Roll1') || phase.includes('Lock1')) return 2;
+    if (phase.includes('Roll2') || phase.includes('Lock2')) return 1;
+    if (phase.includes('Roll3') || phase.includes('Lock3')) return 1;
+    if (phase.includes('Roll4')) return 0;
+    return 0;
+  }
+
+  private updateDicePublicVisibility(seat: PiratePlunderSeat): void {
+    // Don't reset dice that are already public from previous rounds
+    // Only update visibility when all players have finished locking in this phase
+    if (!this.gameState?.allLockingComplete) {
+      return; // Keep existing visibility until everyone is done locking
+    }
+
+    // Get the minimum required locks for this round
+    const minRequired = seat.minLocksRequired || 1;
+
+    // Get locked dice sorted by value (descending) to show the highest values
+    const lockedDice = seat.dice
+      .map((die, index) => ({ die, index }))
+      .filter(item => item.die.locked)
+      .sort((a, b) => b.die.value - a.die.value);
+
+    // Mark the top N locked dice as public (where N is minimum required)
+    for (let i = 0; i < Math.min(minRequired, lockedDice.length); i++) {
+      const lockedItem = lockedDice[i];
+      if (lockedItem) {
+        lockedItem.die.isPublic = true;
+      }
+    }
   }
 
   private nextPhase(current: PiratePlunderPhase): PiratePlunderPhase {
@@ -178,6 +290,44 @@ export class PiratePlunderTable extends GameBase {
       twoCount: counts[2] || 0,
       threeCount: counts[3] || 0
     };
+  }
+
+  private evaluateHandStrength(dice: Die[], phase: PiratePlunderPhase): number {
+    const values = dice.map(d => d.value);
+
+    // Count dice by value for role evaluation
+    const counts = [0, 0, 0, 0, 0, 0, 0]; // index 0 unused, 1-6 for die values
+    for (const value of values) {
+      if (value >= 1 && value <= 6) {
+        counts[value] = (counts[value] || 0) + 1;
+      }
+    }
+
+    let strength = 0;
+
+    // Role-based scoring (Ship/Captain/Crew)
+    strength += (counts[6] || 0) * 2.0;  // Ship (6s) - most valuable
+    strength += (counts[5] || 0) * 1.5;  // Captain (5s)
+    strength += (counts[4] || 0) * 1.2;  // Crew (4s)
+
+    // Cargo scoring (1s, 2s, 3s are valuable for cargo chest triggers)
+    const lowDiceCount = (counts[1] || 0) + (counts[2] || 0) + (counts[3] || 0);
+    const hasTripsOrBetter = lowDiceCount >= 3;
+
+    if (hasTripsOrBetter) {
+      strength += lowDiceCount * 0.5; // Bonus for low dice combinations
+    }
+
+    // Phase-based adjustments
+    if (phase === 'Bet1') {
+      // Early betting - be more conservative
+      strength *= 0.8;
+    } else if (phase === 'Bet3') {
+      // Final betting - hand is locked in
+      strength *= 1.2;
+    }
+
+    return strength;
   }
 
   private advanceTurn(): void {
@@ -447,31 +597,213 @@ export class PiratePlunderTable extends GameBase {
   }
 
   private makeAILockingDecision(seat: PiratePlunderSeat, minLocksRequired: number): void {
-    // AI strategy: Lock highest value dice (prioritize 6s, then 5s, then 4s)
-    const currentLocked = seat.dice.filter(d => d.locked).length;
-    const needToLock = Math.max(0, minLocksRequired - currentLocked);
+    if (!this.gameState) return;
 
-    if (needToLock === 0) {
-      seat.lockingDone = true;
+    // Use basic logic if no AI profile
+    if (!seat.aiProfile) {
+      this.makeBasicAILockingDecision(seat);
       return;
     }
 
-    // Sort unlocked dice by value (highest first)
-    const unlocked = seat.dice
-      .map((die, index) => ({ die, index }))
-      .filter(item => !item.die.locked)
-      .sort((a, b) => b.die.value - a.die.value);
+    const profile = seat.aiProfile;
+    const rollsRemaining = this.getRollsRemaining(this.gameState.phase);
 
-    // Lock the highest value dice
-    for (let i = 0; i < Math.min(needToLock, unlocked.length); i++) {
-      const item = unlocked[i];
-      if (item?.die) {
-        item.die.locked = true;
+    // Get current dice counts
+    const counts = [0, 0, 0, 0, 0, 0, 0]; // index 0 unused, 1-6 for die values
+    for (const die of seat.dice) {
+      if (die.value >= 1 && die.value <= 6) {
+        counts[die.value] = (counts[die.value] || 0) + 1;
       }
     }
 
+    // Analyze competition by checking other players' visible locked dice
+    const competitionAnalysis = {
+      6: 0, // Ship competition count
+      5: 0, // Captain competition count
+      4: 0, // Crew competition count
+      3: 0, 2: 0, 1: 0 // Cargo competition counts
+    };
+
+    // Count visible locked dice from other players
+    for (const otherSeat of this.gameState.seats) {
+      if (!otherSeat || otherSeat.playerId === seat.playerId) continue; // Skip self
+      for (const die of otherSeat.dice || []) {
+        if (die.locked && die.isPublic && die.value >= 1 && die.value <= 6) {
+          competitionAnalysis[die.value as keyof typeof competitionAnalysis]++;
+        }
+      }
+    }
+
+    // Determine target role based on priority, current dice, and competition
+    let targetRole = '';
+    let targetValue = 0;
+
+    for (const role of profile.rolePriority) {
+      let roleValue = 0;
+      let hasRequiredDice = false;
+      let competitorCount = 0;
+
+      if (role === 'Ship') {
+        roleValue = 6;
+        hasRequiredDice = (counts[6] || 0) > 0;
+        competitorCount = competitionAnalysis[6];
+      } else if (role === 'Captain') {
+        roleValue = 5;
+        hasRequiredDice = (counts[5] || 0) > 0;
+        competitorCount = competitionAnalysis[5];
+      } else if (role === 'Crew') {
+        roleValue = 4;
+        hasRequiredDice = (counts[4] || 0) > 0;
+        competitorCount = competitionAnalysis[4];
+      } else if (role === 'Cargo3') {
+        roleValue = 3;
+        hasRequiredDice = (counts[3] || 0) > 0;
+        competitorCount = competitionAnalysis[3];
+      } else if (role === 'Cargo2') {
+        roleValue = 2;
+        hasRequiredDice = (counts[2] || 0) > 0;
+        competitorCount = competitionAnalysis[2];
+      } else if (role === 'Cargo1') {
+        roleValue = 1;
+        hasRequiredDice = (counts[1] || 0) > 0;
+        competitorCount = competitionAnalysis[1];
+      }
+
+      // Strategy: prefer roles where we have dice AND low competition
+      // OR if we're aggressive (high risk tolerance), pursue even without initial dice
+      const shouldPursue = hasRequiredDice ||
+        (profile.riskTolerance > 0.7 && competitorCount === 0 && rollsRemaining > 0);
+
+      // Avoid heavily contested roles unless we're already committed
+      const isHeavilyContested = competitorCount >= 2;
+      const alreadyCommitted = seat.dice.filter(d => d.locked && d.value === roleValue).length > 0;
+
+      if (shouldPursue && (!isHeavilyContested || alreadyCommitted)) {
+        targetRole = role;
+        targetValue = roleValue;
+        break;
+      }
+    }
+
+    const unlockedDice = seat.dice
+      .map((die, index) => ({ die, index }))
+      .filter(({ die }) => !die.locked);
+
+    let locksToMake = seat.lockAllowance;
+    const lockedIndices: number[] = [];
+
+    // Strategy 1: Lock dice matching target role/cargo
+    if (targetValue > 0) {
+      const targetDice = unlockedDice.filter(({ die }) => die.value === targetValue);
+      for (const { index } of targetDice) {
+        if (locksToMake <= 0) break;
+        seat.dice[index]!.locked = true;
+        lockedIndices.push(index);
+        locksToMake--;
+      }
+    }
+
+    // Strategy 2: If we still need to lock more dice, use personality-based priority
+    if (locksToMake > 0) {
+      const remainingDice = unlockedDice
+        .filter(({ index }) => !lockedIndices.includes(index))
+        .sort((a, b) => {
+          // Use the AI's role priority to determine value preferences
+          const getPriorityFromProfile = (value: number) => {
+            for (let i = 0; i < profile.rolePriority.length; i++) {
+              const role = profile.rolePriority[i];
+              if ((role === 'Ship' && value === 6) ||
+                  (role === 'Captain' && value === 5) ||
+                  (role === 'Crew' && value === 4) ||
+                  (role === 'Cargo3' && value === 3) ||
+                  (role === 'Cargo2' && value === 2) ||
+                  (role === 'Cargo1' && value === 1)) {
+                return profile.rolePriority.length - i; // Higher priority = higher score
+              }
+            }
+            return 0;
+          };
+
+          // Factor in competition - reduce priority for heavily contested values
+          const getCompetitionAdjustedPriority = (value: number) => {
+            const basePriority = getPriorityFromProfile(value);
+            const competition = competitionAnalysis[value as keyof typeof competitionAnalysis] || 0;
+
+            // Conservative players avoid competition more
+            const competitionPenalty = competition * (1 - profile.riskTolerance);
+            return basePriority - competitionPenalty;
+          };
+
+          return getCompetitionAdjustedPriority(b.die.value) - getCompetitionAdjustedPriority(a.die.value);
+        });
+
+      for (const { index } of remainingDice) {
+        if (locksToMake <= 0) break;
+        seat.dice[index]!.locked = true;
+        lockedIndices.push(index);
+        locksToMake--;
+      }
+    }
+
+    // Apply mistake chance - sometimes unlock a good die or lock a bad one
+    if (Math.random() < profile.mistakeChance && lockedIndices.length > 0) {
+      const mistakeIndex = Math.floor(Math.random() * lockedIndices.length);
+      const dieIndex = lockedIndices[mistakeIndex];
+      if (dieIndex !== undefined && seat.dice[dieIndex]) {
+        seat.dice[dieIndex]!.locked = false;
+
+        // Find a worse die to lock instead, if available
+        const unlockedBadDice = seat.dice
+          .map((die, index) => ({ die, index }))
+          .filter(({ die, index }) => !die.locked && die.value <= 2);
+
+        if (unlockedBadDice.length > 0) {
+          const badDieIndex = unlockedBadDice[0]?.index;
+          if (badDieIndex !== undefined && seat.dice[badDieIndex]) {
+            seat.dice[badDieIndex]!.locked = true;
+          }
+        }
+
+        console.log(`[${seat.name}] AI mistake: unlocked die value ${seat.dice[dieIndex]!.value}`);
+      }
+    }
+
+    // Update dice visibility
+    this.updateDicePublicVisibility(seat);
+
+    // Update lock allowance
+    const currentLocked = seat.dice.filter(d => d.locked).length;
+    const minRequired = seat.minLocksRequired || 1;
+    seat.lockAllowance = Math.max(0, minRequired - currentLocked);
     seat.lockingDone = true;
-    console.log(`[${seat.name}] AI locked ${needToLock} dice`);
+
+    console.log(`[${seat.name}] AI locked dice (target: ${targetRole}, locked: ${currentLocked}/${minRequired})`);
+  }
+
+  private makeBasicAILockingDecision(seat: PiratePlunderSeat): void {
+    if (!this.gameState) return;
+
+    // Fallback to simple logic: lock highest value dice
+    const unlockedDice = seat.dice
+      .map((die, index) => ({ die, index }))
+      .filter(({ die }) => !die.locked)
+      .sort((a, b) => b.die.value - a.die.value);
+
+    let locksToMake = seat.lockAllowance;
+    for (const { index } of unlockedDice) {
+      if (locksToMake <= 0) break;
+      seat.dice[index]!.locked = true;
+      locksToMake--;
+    }
+
+    this.updateDicePublicVisibility(seat);
+
+    const currentLocked = seat.dice.filter(d => d.locked).length;
+    const minRequired = seat.minLocksRequired || 1;
+    seat.lockAllowance = Math.max(0, minRequired - currentLocked);
+    seat.lockingDone = true;
+
+    console.log(`[${seat.name}] AI locked ${currentLocked} dice (basic logic)`);
   }
 
   private handleBettingPhase(): void {
@@ -546,7 +878,114 @@ export class PiratePlunderTable extends GameBase {
   }
 
   private makeAIBettingDecision(seat: PiratePlunderSeat): void {
-    // Simple AI: call or fold based on hand strength
+    if (!this.gameState || !seat.aiProfile) {
+      // Fallback to simple logic
+      this.makeBasicAIBettingDecision(seat);
+      return;
+    }
+
+    const profile = seat.aiProfile;
+    let handStrength = this.evaluateHandStrength(seat.dice, this.gameState.phase);
+
+    // Apply bluff modifier
+    if (Math.random() < profile.bluffFrequency) {
+      handStrength += 2; // Act stronger than actual hand
+      console.log(`[${seat.name}] AI bluffing (strength ${handStrength.toFixed(1)})`);
+    }
+
+    // Apply mistake modifier
+    if (Math.random() < profile.mistakeChance) {
+      handStrength -= 1; // Act weaker than actual hand
+      console.log(`[${seat.name}] AI mistake (strength ${handStrength.toFixed(1)})`);
+    }
+
+    const amountToCall = this.gameState.currentBet - (seat.currentBet || 0);
+
+    // Decision logic based on profile
+    if (handStrength < profile.foldThreshold) {
+      // Weak hand - consider folding based on risk tolerance
+      if (Math.random() > profile.riskTolerance || amountToCall > seat.tableStack * 0.2) {
+        this.processFold(seat.playerId);
+        console.log(`[${seat.name}] AI folded (strength ${handStrength.toFixed(1)} < threshold ${profile.foldThreshold})`);
+        return;
+      }
+    }
+
+    if (amountToCall === 0) {
+      // No amount to call - decide between check and bet
+      if (handStrength >= profile.foldThreshold + 2 && Math.random() < profile.riskTolerance) {
+        // Strong hand - consider betting
+        const betAmount = Math.round((this.gameState.pot || 100) * profile.raiseMultiplier * 0.1);
+        const actualBet = Math.min(betAmount, seat.tableStack);
+
+        seat.tableStack -= actualBet;
+        seat.currentBet = actualBet;
+        seat.totalContribution = (seat.totalContribution || 0) + actualBet;
+        this.gameState.pot += actualBet;
+        this.gameState.currentBet = actualBet;
+        seat.hasActed = true;
+
+        if (seat.tableStack === 0) seat.isAllIn = true;
+
+        // Reset hasActed for other players since bet increased
+        for (const s of this.gameState.seats) {
+          if (s && s.playerId !== seat.playerId) s.hasActed = false;
+        }
+
+        console.log(`[${seat.name}] AI bet ${actualBet} ${this.currency} (strength ${handStrength.toFixed(1)})`);
+      } else {
+        // Check
+        seat.hasActed = true;
+        console.log(`[${seat.name}] AI checked`);
+      }
+    } else {
+      // Amount to call - decide call vs raise vs fold
+      const maxRaisesPerRound = 4;
+      const currentRaises = this.gameState.bettingRoundCount || 0;
+
+      if (handStrength >= profile.foldThreshold + 3 &&
+          Math.random() < profile.riskTolerance * 0.7 &&
+          amountToCall < seat.tableStack * 0.3 &&
+          currentRaises < maxRaisesPerRound) {
+        // Strong hand - consider raising
+        const raiseAmount = Math.round((this.gameState.pot || 100) * profile.raiseMultiplier * 0.15);
+        const totalAmount = amountToCall + raiseAmount;
+        const actualAmount = Math.min(totalAmount, seat.tableStack);
+
+        seat.tableStack -= actualAmount;
+        seat.currentBet += actualAmount;
+        seat.totalContribution = (seat.totalContribution || 0) + actualAmount;
+        this.gameState.pot += actualAmount;
+        this.gameState.currentBet = seat.currentBet;
+        this.gameState.bettingRoundCount = (this.gameState.bettingRoundCount || 0) + 1;
+        seat.hasActed = true;
+
+        if (seat.tableStack === 0) seat.isAllIn = true;
+
+        // Reset hasActed for other players
+        for (const s of this.gameState.seats) {
+          if (s && s.playerId !== seat.playerId) s.hasActed = false;
+        }
+
+        console.log(`[${seat.name}] AI raised to ${this.gameState.currentBet} ${this.currency} (strength ${handStrength.toFixed(1)})`);
+      } else {
+        // Call
+        const callAmount = Math.min(amountToCall, seat.tableStack);
+        seat.tableStack -= callAmount;
+        seat.currentBet += callAmount;
+        seat.totalContribution = (seat.totalContribution || 0) + callAmount;
+        this.gameState.pot += callAmount;
+        seat.hasActed = true;
+
+        if (seat.tableStack === 0) seat.isAllIn = true;
+
+        console.log(`[${seat.name}] AI called ${callAmount} ${this.currency} (strength ${handStrength.toFixed(1)})`);
+      }
+    }
+  }
+
+  private makeBasicAIBettingDecision(seat: PiratePlunderSeat): void {
+    // Simple fallback AI: call or fold based on hand strength
     const hand = this.evaluateHand(seat.dice);
     const handStrength = hand.sixCount + hand.fiveCount + hand.fourCount;
 
@@ -857,19 +1296,26 @@ export class PiratePlunderTable extends GameBase {
   }
 
   /**
-   * Create an AI player for Pirate Plunder
+   * Create an AI player for Pirate Plunder with personality profile
    */
   createAIPlayer(): Player {
-    const botNames = ['PirateBot', 'Captain Hook', 'Blackbeard', 'Anne Bonny', 'Calico Jack', 'Morgan'];
-    const randomName = botNames[Math.floor(Math.random() * botNames.length)] || 'PirateBot';
+    // Assign AI profile
+    const profile = this.assignAIProfile();
+
     const uniqueId = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-    return {
+    const player: Player = {
       id: uniqueId,
-      name: randomName,
+      name: profile.name,
       isAI: true,
       bankroll: 10000 // AI starting bankroll
     };
+
+    if (profile.cosmetics) {
+      player.cosmetics = profile.cosmetics;
+    }
+
+    return player;
   }
 
   // ============================================================
@@ -970,6 +1416,14 @@ export class PiratePlunderTable extends GameBase {
         console.log(`[${this.config.tableId}] PVE mode: Adding ${neededPlayers} AI players`);
         const added = this.addAIPlayers(neededPlayers, () => this.createAIPlayer(), this.config.minBuyIn);
         console.log(`[${this.config.tableId}] Added ${added} AI players`);
+
+        // Assign AI profiles to all AI seats
+        for (const seat of this.gameState.seats) {
+          if (seat && seat.isAI && !seat.aiProfile) {
+            seat.aiProfile = this.assignAIProfile();
+            console.log(`[${seat.name}] Assigned AI profile: ${seat.aiProfile.style} (risk: ${seat.aiProfile.riskTolerance.toFixed(2)})`);
+          }
+        }
       }
     }
 
