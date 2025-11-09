@@ -147,6 +147,22 @@ export class PiratePlunderTable extends GameBase {
     }
   }
 
+  /**
+   * Create an AI player for Pirate Plunder
+   */
+  createAIPlayer(): Player {
+    const botNames = ['PirateBot', 'Captain Hook', 'Blackbeard', 'Anne Bonny', 'Calico Jack', 'Morgan'];
+    const randomName = botNames[Math.floor(Math.random() * botNames.length)] || 'PirateBot';
+    const uniqueId = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    return {
+      id: uniqueId,
+      name: randomName,
+      isAI: true,
+      bankroll: 10000 // AI starting bankroll
+    };
+  }
+
   // ============================================================
   // PIRATE PLUNDER SPECIFIC PUBLIC METHODS
   // ============================================================
@@ -233,6 +249,20 @@ export class PiratePlunderTable extends GameBase {
     }
 
     console.log(`[${this.config.tableId}] ${player.name} sat at seat ${result.seatIndex} with ${buyInAmount} ${this.currency}`);
+
+    // In PVE mode, automatically add AI players to fill remaining seats
+    if (this.config.mode?.toUpperCase() === 'PVE' && this.gameState) {
+      const seatedCount = this.gameState.seats.filter(s => s !== null).length;
+      const mode = this.config.mode?.toUpperCase() || 'PVP';
+      const targetTotalPlayers = mode === 'PVE' ? 2 : 4;
+      const neededPlayers = targetTotalPlayers - seatedCount;
+
+      if (neededPlayers > 0) {
+        console.log(`[${this.config.tableId}] PVE mode: Adding ${neededPlayers} AI players`);
+        const added = this.addAIPlayers(neededPlayers, () => this.createAIPlayer(), this.config.minBuyIn);
+        console.log(`[${this.config.tableId}] Added ${added} AI players`);
+      }
+    }
 
     // Broadcast updated state
     this.broadcastTableState();
