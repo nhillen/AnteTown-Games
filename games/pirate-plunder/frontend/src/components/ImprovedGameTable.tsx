@@ -154,16 +154,51 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
   const isGameActive = game && game.phase !== 'Lobby' && game.phase !== 'PreHand'
   const isBettingPhase = game?.phase.includes('Bet')
   const isLockPhase = game?.phase.includes('Lock')
+
+  // CRITICAL DEBUG: Always log game state to diagnose Lock UI issue
+  console.log('🎮 ImprovedGameTable render:', {
+    hasGame: !!game,
+    phase: game?.phase,
+    isGameActive,
+    isBettingPhase,
+    isLockPhase,
+    seatsCount: game?.seats?.length
+  });
+
   // Find player's seat with robust detection for both game and table seat formats
   const mySeat = game?.seats.find(s => {
     if (!s || !meId) return false;
     // Handle both playerId (game seats) and id (table seats) formats
     return s.playerId === meId || (s as any).id === meId;
-  }) || 
+  }) ||
   // Fallback: Find by name if socket IDs don't match (common during reconnection)
   (userName ? game?.seats.find(s => s && s.name && s.name.includes(userName)) : null)
-  
-  // Debug logging (removed - was too spammy)
+
+  // CRITICAL DEBUG: Log mySeat search results
+  console.log('🪑 mySeat search:', {
+    meId,
+    userName,
+    mySeatFound: !!mySeat,
+    mySeatPlayerId: mySeat?.playerId,
+    allSeatPlayerIds: game?.seats?.map(s => s ? s.playerId : null)
+  });
+
+  // Debug logging for Lock phase issues
+  useEffect(() => {
+    if (isLockPhase) {
+      console.log('🔍 Lock Phase Debug:', {
+        phase: game?.phase,
+        meId,
+        userName,
+        mySeatFound: !!mySeat,
+        mySeatData: mySeat,
+        allSeats: game?.seats?.map(s => s ? { playerId: s.playerId, name: s.name, dice: s.dice?.length } : null),
+        isGameActive,
+        isBettingPhase,
+        isLockPhase
+      });
+    }
+  }, [isLockPhase, meId, userName, mySeat, game?.phase, game?.seats, isGameActive, isBettingPhase])
   
   // Seat positions no longer needed with horizontal rail layout
 

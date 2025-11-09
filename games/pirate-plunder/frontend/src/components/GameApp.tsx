@@ -141,8 +141,18 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
 
   // Debug: Track when me changes
   useEffect(() => {
-    console.log(`👤 me state changed:`, { hasMe: !!me, meId: me?.id, meName: me?.name });
+    console.log(`👤 me state changed:`, { hasMe: !!me, meId: me?.id, meName: me?.name, meData: me });
   }, [me]);
+
+  // Debug: Track when game state changes
+  useEffect(() => {
+    console.log(`🎮 GAME STATE CHANGED:`, {
+      hasGame: !!game,
+      phase: game?.phase,
+      seatsCount: game?.seats?.length,
+      fullGame: game
+    });
+  }, [game]);
 
   useEffect(() => {
     if (!socket || !user) return
@@ -229,6 +239,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
 
     const handleGameState = (gameState: any) => {
       console.log(`📡 handleGameState CALLED:`, { phase: gameState?.phase, seats: gameState?.seats?.length, timestamp: Date.now() });
+      console.log(`🔥 FULL GAME STATE:`, gameState);
       setGame(gameState)
 
       // Clear standUpPending when hand ends or goes back to lobby
@@ -251,13 +262,13 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
     const handleTableState = (state: TableState) => {
       console.log('🪑 TABLE_STATE received:', {
         seatedCount: state.seats.filter(s => s !== null).length,
-        seats: state.seats.map((s, i) => s ? `${i}: ${s.name} (${s.playerId?.slice(0,6) || 'no-id'})` : `${i}: empty`),
-        mySocketId: socket?.id?.slice(0,6)
+        seats: state.seats.map((s, i) => s ? `${i}: ${s.name} (${String(s.playerId || '').slice(0,6) || 'no-id'})` : `${i}: empty`),
+        mySocketId: String(socket?.id || '').slice(0,6)
       })
       setTable(state)
       // Check if we're seated using socket ID since me might not be set yet
       const seated = state.seats.some(s => s?.playerId === socket?.id)
-      console.log('🪑 Am I seated?', seated, 'Socket ID:', socket?.id?.slice(0,6))
+      console.log('🪑 Am I seated?', seated, 'Socket ID:', String(socket?.id || '').slice(0,6))
       setIsSeated(seated)
 
       // Reset standUpPending if we're no longer seated (i.e., standing up completed)
@@ -904,11 +915,23 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
               const gameSeatedCount = game?.seats?.filter((s: any) => s !== null).length || 0;
               const tableSeatedCount = effectiveTable?.seats?.filter((s: any) => s !== null).length || 0;
 
+              console.log('🔀 Game/Table merge logic:', {
+                hasGame: !!game,
+                gamePhase: game?.phase,
+                gameSeatedCount,
+                tableSeatedCount,
+                willUseBranch: game && gameSeatedCount >= tableSeatedCount && gameSeatedCount > 0 ? 'GAME_AS_IS' :
+                              game && effectiveTable && tableSeatedCount > 0 ? 'HYBRID' : 'FAKE_GAME'
+              });
+
               if (game && gameSeatedCount >= tableSeatedCount && gameSeatedCount > 0) {
                 // Game has all players from table - use it as-is
+                console.log('✅ Using game as-is');
                 gameToPass = game;
               } else if (game && effectiveTable && tableSeatedCount > 0) {
                 // Game exists but missing players from table - create hybrid with properly mapped seats
+                console.log('🔀 Creating hybrid game');
+
                 const hybridSeats = effectiveTable.seats.map((tableSeat: any) => {
                   if (!tableSeat) return null;
                   // Convert table seat to game seat format with default game properties
@@ -937,10 +960,18 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
                 gameToPass = { ...game, seats: hybridSeats };
               } else {
                 // No active game - use fakeGame
+                console.log('⚠️ Using fakeGame (Lobby phase)');
                 gameToPass = fakeGame;
               }
 
-              // Debug logging removed to prevent spam
+              // CRITICAL DEBUG: Log what's being passed to ImprovedGameTable
+              console.log('🎯 Rendering ImprovedGameTable with:', {
+                hasGame: !!gameToPass,
+                phase: gameToPass?.phase,
+                seatsCount: gameToPass?.seats?.length,
+                meId: me?.id,
+                userName: user?.name
+              });
 
               // Always render ImprovedGameTable (even if table_state hasn't arrived yet)
               // ImprovedGameTable will show the sit-down button when meId exists

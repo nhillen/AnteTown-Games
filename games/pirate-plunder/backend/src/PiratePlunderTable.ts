@@ -404,11 +404,11 @@ export class PiratePlunderTable extends GameBase {
         seat.isAllIn = false;
         seat.totalContribution = 0;
         seat.dice = [
-          { value: 1, locked: false },
-          { value: 1, locked: false },
-          { value: 1, locked: false },
-          { value: 1, locked: false },
-          { value: 1, locked: false }
+          { value: 1, locked: false, isPublic: false },
+          { value: 1, locked: false, isPublic: false },
+          { value: 1, locked: false, isPublic: false },
+          { value: 1, locked: false, isPublic: false },
+          { value: 1, locked: false, isPublic: false }
         ];
         seat.lockAllowance = 0;
         seat.lockingDone = false;
@@ -504,7 +504,7 @@ export class PiratePlunderTable extends GameBase {
     for (const seat of this.gameState.seats) {
       if (seat && !seat.hasFolded) {
         seat.dice = seat.dice.map(die =>
-          die.locked ? die : { value: this.rollDie(), locked: false }
+          die.locked ? die : { value: this.rollDie(), locked: false, isPublic: false }
         );
       }
     }
@@ -530,7 +530,7 @@ export class PiratePlunderTable extends GameBase {
     for (const seat of this.gameState.seats) {
       if (seat && !seat.hasFolded) {
         seat.dice = seat.dice.map(die =>
-          die.locked ? die : { value: this.rollDie(), locked: false }
+          die.locked ? die : { value: this.rollDie(), locked: false, isPublic: false }
         );
       }
     }
@@ -548,6 +548,8 @@ export class PiratePlunderTable extends GameBase {
     const round = parseInt(this.gameState.phase.slice(-1)); // Lock1 -> 1, Lock2 -> 2, etc.
     const minLocksRequired = round;
 
+    console.log(`[${this.config.tableId}] Lock${round} phase: require ${minLocksRequired} locks`);
+
     this.gameState.allLockingComplete = false;
 
     // Set lock requirements for each player
@@ -558,9 +560,13 @@ export class PiratePlunderTable extends GameBase {
         seat.minLocksRequired = minLocksRequired;
         seat.lockingDone = false;
 
+        console.log(`[${seat.name}] dice=${seat.dice.length}, currentLocked=${currentLocked}, lockAllowance=${seat.lockAllowance}, isAI=${seat.isAI}, hasProfile=${!!seat.aiProfile}`);
+
         // AI players automatically lock their best dice
         if (seat.isAI) {
           this.makeAILockingDecision(seat, minLocksRequired);
+          const afterLocked = seat.dice.filter(d => d.locked).length;
+          console.log(`[${seat.name}] AI locked: before=${currentLocked}, after=${afterLocked}, lockingDone=${seat.lockingDone}`);
         }
       }
     }
@@ -569,7 +575,20 @@ export class PiratePlunderTable extends GameBase {
 
     // Check if all players are done locking (every 1 second, 30 second timeout)
     const checkLockingComplete = () => {
-      if (!this.gameState || this.gameState.phase !== `Lock${round}`) return;
+      if (!this.gameState || this.gameState.phase !== `Lock${round}`) {
+        console.log(`[${this.config.tableId}] checkLockingComplete bailed: phase changed`);
+        return;
+      }
+
+      const seatStatuses = this.gameState.seats.map(seat => {
+        if (!seat || seat.hasFolded) return 'folded/null';
+        const locked = seat.dice.filter(d => d.locked).length;
+        const minRequired = seat.minLocksRequired || 1;
+        const isDone = locked >= minRequired && (seat.isAI || seat.lockingDone);
+        return `${seat.name}: ${locked}/${minRequired} done=${seat.lockingDone} isAI=${seat.isAI} result=${isDone}`;
+      });
+
+      console.log(`[${this.config.tableId}] checkLockingComplete: ${seatStatuses.filter(s => s !== 'folded/null').join(' | ')}`);
 
       const allDone = this.gameState.seats.every(seat => {
         if (!seat || seat.hasFolded) return true;
@@ -577,11 +596,15 @@ export class PiratePlunderTable extends GameBase {
         return locked >= (seat.minLocksRequired || 1) && (seat.isAI || seat.lockingDone);
       });
 
+      console.log(`[${this.config.tableId}] allDone=${allDone}`);
+
       if (allDone) {
+        console.log(`[${this.config.tableId}] All players done locking, advancing to next phase`);
         this.gameState.allLockingComplete = true;
         this.gameState.phase = this.nextPhase(this.gameState.phase);
         this.onEnterPhase();
       } else {
+        console.log(`[${this.config.tableId}] Not all done, checking again in 1 second`);
         // Check again in 1 second
         this.phaseTimer = setTimeout(checkLockingComplete, 1000);
       }
