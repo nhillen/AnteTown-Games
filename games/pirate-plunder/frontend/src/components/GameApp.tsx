@@ -1124,10 +1124,10 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
                 {tableRequirements && (
                   <div className="mb-3 p-3 bg-blue-900/30 border border-blue-600/50 rounded">
                     <div className="text-sm text-blue-300 font-medium">
-                      💡 Table Minimum: ${tableRequirements.requiredTableStack.toFixed(2)}
+                      💡 Table Minimum: {tableRequirements.requiredTableStack.toFixed(2)} {table?.config?.currency || 'TC'}
                     </div>
                     <div className="text-xs text-blue-400 mt-1">
-                      Minimum needed for gameplay costs: ${tableRequirements.minimumTableStack.toFixed(2)}
+                      Minimum needed for gameplay costs: {tableRequirements.minimumTableStack.toFixed(2)} {table?.config?.currency || 'TC'}
                       (× {tableRequirements.tableMinimumMultiplier} multiplier)
                     </div>
                   </div>
