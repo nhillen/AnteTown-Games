@@ -42,7 +42,7 @@ const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
 export class CardFlipGame extends GameBase {
   public gameType = 'card-flip';
   public gameState: CardFlipGameState | null = null;
-  private defaultAnteAmount = 100; // $1.00 in pennies
+  private defaultAnteAmount = 1; // Default ante in currency units (1 TC)
   private phaseTimer: NodeJS.Timeout | null = null;
   private rakePercentage: number = 5;
   private minBuyInMultiplier: number = 5;
@@ -82,7 +82,7 @@ export class CardFlipGame extends GameBase {
       id: uniqueId,
       name: randomName,
       isAI: true,
-      bankroll: 100000, // $1000
+      bankroll: 1000, // AI starting bankroll in currency units (1000 TC)
       googleId: undefined
     };
   }
@@ -96,24 +96,20 @@ export class CardFlipGame extends GameBase {
 
     // Enforce minimum buy-in
     if (buyInAmount && buyInAmount < minimumBuyIn) {
-      const minAmount = Math.floor(minimumBuyIn / 100);
-      const anteTokens = Math.floor(anteAmount / 100);
       return {
         success: false,
-        error: `Minimum buy-in is ${minAmount} ${currencyMode} (${this.minBuyInMultiplier}x the ${anteTokens} ${currencyMode} ante)`
+        error: `Minimum buy-in is ${minimumBuyIn} ${currencyMode} (${this.minBuyInMultiplier}x the ${anteAmount} ${currencyMode} ante)`
       };
     }
 
     // Use the minimum if no buy-in specified
     const actualBuyIn = buyInAmount || minimumBuyIn;
 
-    // Check if player has enough balance in the selected currency
-    const playerBalance = currencyMode === 'TC' ? player.bankroll : (player.townChips || 0);
-    if (playerBalance < minimumBuyIn) {
-      const minAmount = Math.floor(minimumBuyIn / 100);
+    // Check if player has enough balance
+    if (player.bankroll < minimumBuyIn) {
       return {
         success: false,
-        error: `Insufficient ${currencyMode}. Need at least ${minAmount} ${currencyMode} to sit at this table`
+        error: `Insufficient ${currencyMode}. Need at least ${minimumBuyIn} ${currencyMode} to sit at this table`
       };
     }
 
@@ -211,7 +207,7 @@ export class CardFlipGame extends GameBase {
     if (!this.gameState) return;
 
     const anteAmount = this.getAnteAmount();
-    console.log(`🎴 [CardFlip] Collecting ${anteAmount} pennies ante from each player`);
+    console.log(`🎴 [CardFlip] Collecting ${anteAmount} ante from each player`);
 
     // Auto-stand players who can't cover ante
     for (let i = 0; i < this.gameState.seats.length; i++) {
@@ -240,7 +236,7 @@ export class CardFlipGame extends GameBase {
     }
 
     this.collectAntes(anteAmount);
-    console.log(`🎴 [CardFlip] Pot after antes: ${this.gameState.pot} pennies`);
+    console.log(`🎴 [CardFlip] Pot after antes: ${this.gameState.pot}`);
 
     this.phaseTimer = setTimeout(() => {
       this.transitionToPhase('PickSide');
@@ -330,11 +326,11 @@ export class CardFlipGame extends GameBase {
     const winnersAfterRake = winnersBeforeRake.map(winner => {
       const rake = Math.floor(winner.payout * (this.rakePercentage / 100));
       const payoutAfterRake = winner.payout - rake;
-      console.log(`🎴 [CardFlip] ${winner.name}: $${winner.payout/100} - ${this.rakePercentage}% rake ($${rake/100}) = $${payoutAfterRake/100}`);
+      console.log(`🎴 [CardFlip] ${winner.name}: ${winner.payout} - ${this.rakePercentage}% rake (${rake}) = ${payoutAfterRake}`);
       return {
         ...winner,
         payout: payoutAfterRake,
-        description: `${winner.description} (${this.rakePercentage}% rake: -$${(rake/100).toFixed(2)})`
+        description: `${winner.description} (${this.rakePercentage}% rake: -${rake})`
       };
     });
 
@@ -346,7 +342,7 @@ export class CardFlipGame extends GameBase {
     this.broadcast('player_action', {
       playerName: winnersAfterRake[0]?.name || 'Unknown',
       action: 'won',
-      details: `$${((winnersAfterRake[0]?.payout || 0) / 100).toFixed(2)}`,
+      details: `${winnersAfterRake[0]?.payout || 0}`,
       isAI: false,
     });
 
@@ -534,8 +530,8 @@ export class CardFlipGame extends GameBase {
 
     const cardsStr = flippedCards.map(c => `${c.rank}${c.suit}`).join(' ');
     const description = allSameColor
-      ? `All ${winningColor}! ${cardsStr} (3 × $${(cardValue/100).toFixed(2)} = $${(winningCount * cardValue/100).toFixed(2)})`
-      : `${redCount} red, ${blackCount} black: ${cardsStr} (Net: $${(winnings/100).toFixed(2)})`;
+      ? `All ${winningColor}! ${cardsStr} (3 × ${cardValue} = ${winningCount * cardValue})`
+      : `${redCount} red, ${blackCount} black: ${cardsStr} (Net: ${winnings})`;
 
     return [{
       playerId: winnerPlayerId,

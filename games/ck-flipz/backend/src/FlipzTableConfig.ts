@@ -13,7 +13,7 @@ export type FlipzTableConfig = {
   displayName: string;
   variant: FlipzGameVariant;
   mode: FlipzGameMode;
-  ante: number; // in pennies
+  ante: number; // Currency units (TC, SC, etc.)
   maxSeats: number;
   description: string;
   emoji: string;
@@ -35,10 +35,10 @@ export const FLIPZ_TABLES: FlipzTableConfig[] = [
   // PVP Tables - Wait for another player
   {
     tableId: 'flipz-coin-pvp-1',
-    displayName: 'Coin Flip PVP - $100',
+    displayName: 'Coin Flip PVP - 100 TC',
     variant: 'coin-flip',
     mode: 'pvp',
-    ante: 10000, // $100.00
+    ante: 100, // 100 TC
     maxSeats: 2,
     description: 'Player vs Player. Classic heads or tails!',
     emoji: '🪙',
@@ -47,10 +47,10 @@ export const FLIPZ_TABLES: FlipzTableConfig[] = [
   },
   {
     tableId: 'flipz-coin-pvp-5',
-    displayName: 'Coin Flip PVP - $500',
+    displayName: 'Coin Flip PVP - 500 TC',
     variant: 'coin-flip',
     mode: 'pvp',
-    ante: 50000, // $500.00
+    ante: 500, // 500 TC
     maxSeats: 2,
     description: 'Player vs Player. Higher stakes!',
     emoji: '🪙',
@@ -59,10 +59,10 @@ export const FLIPZ_TABLES: FlipzTableConfig[] = [
   },
   {
     tableId: 'flipz-card-pvp-1',
-    displayName: 'Card Flip PVP - $100',
+    displayName: 'Card Flip PVP - 100 TC',
     variant: 'card-flip',
     mode: 'pvp',
-    ante: 10000, // $100.00
+    ante: 100, // 100 TC
     maxSeats: 2,
     description: 'Player vs Player. Red vs Black, 3 cards!',
     emoji: '🃏',
@@ -71,10 +71,10 @@ export const FLIPZ_TABLES: FlipzTableConfig[] = [
   },
   {
     tableId: 'flipz-card-pvp-5',
-    displayName: 'Card Flip PVP - $500',
+    displayName: 'Card Flip PVP - 500 TC',
     variant: 'card-flip',
     mode: 'pvp',
-    ante: 50000, // $500.00
+    ante: 500, // 500 TC
     maxSeats: 2,
     description: 'Player vs Player. Red vs Black, higher stakes!',
     emoji: '🎴',
@@ -85,10 +85,10 @@ export const FLIPZ_TABLES: FlipzTableConfig[] = [
   // PVE Tables - Instant bot pairing
   {
     tableId: 'flipz-coin-pve-1',
-    displayName: 'Coin Flip PVE - $100',
+    displayName: 'Coin Flip PVE - 100 TC',
     variant: 'coin-flip',
     mode: 'pve',
-    ante: 10000, // $100.00
+    ante: 100, // 100 TC
     maxSeats: 2,
     description: 'Play against a bot. Instant action!',
     emoji: '🪙',
@@ -97,10 +97,10 @@ export const FLIPZ_TABLES: FlipzTableConfig[] = [
   },
   {
     tableId: 'flipz-coin-pve-5',
-    displayName: 'Coin Flip PVE - $500',
+    displayName: 'Coin Flip PVE - 500 TC',
     variant: 'coin-flip',
     mode: 'pve',
-    ante: 50000, // $500.00
+    ante: 500, // 500 TC
     maxSeats: 2,
     description: 'Play against a bot. Higher stakes!',
     emoji: '🪙',
@@ -109,10 +109,10 @@ export const FLIPZ_TABLES: FlipzTableConfig[] = [
   },
   {
     tableId: 'flipz-card-pve-1',
-    displayName: 'Card Flip PVE - $100',
+    displayName: 'Card Flip PVE - 100 TC',
     variant: 'card-flip',
     mode: 'pve',
-    ante: 10000, // $100.00
+    ante: 100, // 100 TC
     maxSeats: 2,
     description: 'Play against a bot. Red vs Black!',
     emoji: '🃏',
@@ -121,10 +121,10 @@ export const FLIPZ_TABLES: FlipzTableConfig[] = [
   },
   {
     tableId: 'flipz-card-pve-5',
-    displayName: 'Card Flip PVE - $500',
+    displayName: 'Card Flip PVE - 500 TC',
     variant: 'card-flip',
     mode: 'pve',
-    ante: 50000, // $500.00
+    ante: 500, // 500 TC
     maxSeats: 2,
     description: 'Play against a bot. Red vs Black, higher stakes!',
     emoji: '🎴',

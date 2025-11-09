@@ -10,8 +10,8 @@ import { Server as SocketIOServer, Namespace, Socket } from 'socket.io';
 export interface PiratePlunderTableConfig {
   tableId: string;
   displayName: string;
-  ante: number;           // In cents/pennies
-  minBuyIn: number;       // In cents/pennies
+  ante: number;           // In TC (base currency unit)
+  minBuyIn: number;       // In TC (base currency unit)
   maxSeats: number;
   rake: number;           // Percentage (e.g., 5 for 5%)
   mode?: string;          // 'PVE' or 'PVP'
@@ -21,8 +21,8 @@ export interface Player {
   id: string;
   name: string;
   isAI: boolean;
-  bankroll: number;       // Player's total bankroll
-  tableStack?: number;    // Money at the table when seated
+  bankroll: number;       // Player's total bankroll in TC
+  tableStack?: number;    // Money at the table when seated in TC
   googleId?: string;
   cosmetics?: any;
 }
@@ -100,11 +100,9 @@ export class PiratePlunderTable {
 
     const { seatIndex, buyInAmount = this.config.minBuyIn } = payload;
 
-    // Validate buy-in amount (all values are in TC/pennies - no conversion needed)
+    // Validate buy-in amount (all values in TC - no conversion)
     if (buyInAmount < this.config.minBuyIn) {
-      // Format for display: show as whole TC units
-      const minTC = Math.floor(this.config.minBuyIn / 100);
-      socket.emit('error', `Minimum buy-in is ${minTC} TC`);
+      socket.emit('error', `Minimum buy-in is ${this.config.minBuyIn} TC`);
       return;
     }
 
@@ -130,8 +128,7 @@ export class PiratePlunderTable {
     // Update player's bankroll
     player.bankroll -= buyInAmount;
 
-    const tcAmount = Math.floor(buyInAmount / 100);
-    console.log(`[${this.config.tableId}] ${player.name} sat at seat ${targetSeat} with ${tcAmount} TC`);
+    console.log(`[${this.config.tableId}] ${player.name} sat at seat ${targetSeat} with ${buyInAmount} TC`);
 
     // Broadcast updated state
     this.broadcastTableState();

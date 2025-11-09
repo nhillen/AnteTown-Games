@@ -35,7 +35,7 @@ export type Player = {
   id: string; // socket.id
   name: string;
   isAI: boolean;
-  bankroll: number; // pennies
+  bankroll: number; // Currency units (TC, SC, etc.) - raw values, no conversion
   tableStack?: number;
   googleId?: string;
   cosmetics?: PlayerCosmetics;
@@ -98,7 +98,7 @@ export type WinnerResult = {
 export interface GameMetadata {
   emoji: string;           // Display emoji for the game (e.g., "♠️", "🎪")
   botNamePrefix: string;   // Prefix for bot names (e.g., "PokerBot", "WarBot")
-  defaultBuyIn: number;    // Default buy-in amount in pennies
+  defaultBuyIn: number;    // Default buy-in amount in currency units (raw values, no conversion)
 }
 
 /**
@@ -375,8 +375,8 @@ export abstract class GameBase {
       return { success: false, error: 'Game not initialized' };
     }
 
-    // Validate buy-in amount
-    const requiredBuyIn = buyInAmount || 1000; // Default $10
+    // Validate buy-in amount (currency units, no conversion)
+    const requiredBuyIn = buyInAmount || 1000; // Default minimum buy-in
     if (player.bankroll < requiredBuyIn) {
       return { success: false, error: 'Insufficient bankroll' };
     }

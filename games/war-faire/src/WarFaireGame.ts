@@ -41,7 +41,7 @@ export class WarFaireGame extends GameBase {
     const uniqueId = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     // Give AI players enough bankroll for multiple games
-    const anteAmount = (this.tableConfig as any).ante || (this.tableConfig as any).anteAmount || 500;
+    const anteAmount = (this.tableConfig as any).ante || (this.tableConfig as any).anteAmount || 5;
     const aiBankroll = anteAmount * 100; // 100 antes worth
 
     return {
@@ -68,7 +68,7 @@ export class WarFaireGame extends GameBase {
 
     // Check if player has enough bankroll
     if (player.bankroll < requiredBuyIn) {
-      return { success: false, error: `Insufficient funds. Need at least $${(requiredBuyIn/100).toFixed(2)}` };
+      return { success: false, error: `Insufficient funds. Need at least ${requiredBuyIn}` };
     }
 
     // Find empty seat
@@ -104,7 +104,7 @@ export class WarFaireGame extends GameBase {
     player.bankroll -= requiredBuyIn;
     player.tableStack = requiredBuyIn;
 
-    console.log(`🎪 [SIT] ${player.name} sat down with $${(requiredBuyIn/100).toFixed(2)} (remaining bankroll: $${(player.bankroll/100).toFixed(2)})`);
+    console.log(`🎪 [SIT] ${player.name} sat down with ${requiredBuyIn} (remaining bankroll: ${player.bankroll})`);
 
     return { success: true, seatIndex: targetSeat };
   }
@@ -150,7 +150,7 @@ export class WarFaireGame extends GameBase {
       // Collect antes from all seated players
       const anteAmount = (this.tableConfig as any).ante || (this.tableConfig as any).anteAmount || 0;
       if (anteAmount > 0) {
-        console.log(`🎪 Collecting antes: ${anteAmount} pennies from ${seatedPlayers.length} players`);
+        console.log(`🎪 Collecting antes: ${anteAmount} from ${seatedPlayers.length} players`);
         let totalCollected = 0;
         for (const seat of seatedPlayers) {
           if (seat.tableStack >= anteAmount) {
@@ -164,7 +164,7 @@ export class WarFaireGame extends GameBase {
           }
         }
         this.gameState.pot = totalCollected;
-        console.log(`🎪 Total pot after antes: ${totalCollected} pennies`);
+        console.log(`🎪 Total pot after antes: ${totalCollected}`);
       }
 
       console.log('🎪 Setting up first fair...');
@@ -1228,7 +1228,7 @@ export class WarFaireGame extends GameBase {
       this.broadcast('player_action', {
         playerName: winners[0].name,
         action: 'won',
-        details: `$${(winners[0].payout / 100).toFixed(2)}`,
+        details: `${winners[0].payout}`,
         isAI: false,
       });
     }
@@ -1271,13 +1271,13 @@ export class WarFaireGame extends GameBase {
     const payoutAfterRake = pot - rake;
 
     console.log(`🎪 [PAYOUT] Winner: ${winningSeat.name} with ${winner.totalVP} VP`);
-    console.log(`🎪 [PAYOUT] Pot: $${pot/100}, Rake: $${rake/100} (${rakePercentage}%), Payout: $${payoutAfterRake/100}`);
+    console.log(`🎪 [PAYOUT] Pot: ${pot}, Rake: ${rake} (${rakePercentage}%), Payout: ${payoutAfterRake}`);
 
     return [{
       playerId: winningSeat.playerId,
       name: winningSeat.name,
       payout: payoutAfterRake,
-      description: `Won with ${winner.totalVP} Victory Points${rake > 0 ? ` (${rakePercentage}% rake: -$${(rake/100).toFixed(2)})` : ''}`
+      description: `Won with ${winner.totalVP} Victory Points${rake > 0 ? ` (${rakePercentage}% rake: -${rake})` : ''}`
     }];
   }
 

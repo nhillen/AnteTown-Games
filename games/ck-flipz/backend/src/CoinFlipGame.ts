@@ -26,7 +26,7 @@ type CoinFlipGameState = GameState & {
 export class CoinFlipGame extends GameBase {
   public gameType = 'flipz';
   public gameState: CoinFlipGameState | null = null;
-  private defaultAnteAmount = 500; // $5.00 in pennies
+  private defaultAnteAmount = 5; // Default ante in currency units (5 TC)
   private phaseTimer: NodeJS.Timeout | null = null;
   private rakePercentage: number = 5; // default 5%
   private minBuyInMultiplier: number = 5; // default 5x ante
@@ -66,7 +66,7 @@ export class CoinFlipGame extends GameBase {
       id: uniqueId,
       name: randomName,
       isAI: true,
-      bankroll: 100000, // $1000
+      bankroll: 1000, // AI starting bankroll in currency units (1000 TC)
       googleId: undefined
     };
   }
@@ -80,24 +80,20 @@ export class CoinFlipGame extends GameBase {
 
     // Enforce minimum buy-in
     if (buyInAmount && buyInAmount < minimumBuyIn) {
-      const minAmount = Math.floor(minimumBuyIn / 100);
-      const anteTokens = Math.floor(anteAmount / 100);
       return {
         success: false,
-        error: `Minimum buy-in is ${minAmount} ${currencyMode} (${this.minBuyInMultiplier}x the ${anteTokens} ${currencyMode} ante)`
+        error: `Minimum buy-in is ${minimumBuyIn} ${currencyMode} (${this.minBuyInMultiplier}x the ${anteAmount} ${currencyMode} ante)`
       };
     }
 
     // Use the minimum if no buy-in specified
     const actualBuyIn = buyInAmount || minimumBuyIn;
 
-    // Check if player has enough balance in the selected currency
-    const playerBalance = currencyMode === 'TC' ? player.bankroll : (player.townChips || 0);
-    if (playerBalance < minimumBuyIn) {
-      const minAmount = Math.floor(minimumBuyIn / 100);
+    // Check if player has enough balance
+    if (player.bankroll < minimumBuyIn) {
       return {
         success: false,
-        error: `Insufficient ${currencyMode}. Need at least ${minAmount} ${currencyMode} to sit at this table`
+        error: `Insufficient ${currencyMode}. Need at least ${minimumBuyIn} ${currencyMode} to sit at this table`
       };
     }
 
@@ -207,7 +203,7 @@ export class CoinFlipGame extends GameBase {
     if (!this.gameState) return;
 
     const anteAmount = this.getAnteAmount();
-    console.log(`🪙 [Flipz] Collecting ${anteAmount} pennies ante from each player`);
+    console.log(`🪙 [Flipz] Collecting ${anteAmount} ante from each player`);
 
     // Auto-stand players who can't cover ante
     for (let i = 0; i < this.gameState.seats.length; i++) {
@@ -245,7 +241,7 @@ export class CoinFlipGame extends GameBase {
     // Collect antes
     this.collectAntes(anteAmount);
 
-    console.log(`🪙 [Flipz] Pot after antes: ${this.gameState.pot} pennies`);
+    console.log(`🪙 [Flipz] Pot after antes: ${this.gameState.pot}`);
 
     // Move to call side phase after 1 second
     this.phaseTimer = setTimeout(() => {
@@ -334,11 +330,11 @@ export class CoinFlipGame extends GameBase {
     const winnersAfterRake = winnersBeforeRake.map(winner => {
       const rake = Math.floor(winner.payout * (this.rakePercentage / 100));
       const payoutAfterRake = winner.payout - rake;
-      console.log(`🪙 [Flipz] ${winner.name}: $${winner.payout/100} - ${this.rakePercentage}% rake ($${rake/100}) = $${payoutAfterRake/100}`);
+      console.log(`🪙 [Flipz] ${winner.name}: ${winner.payout} - ${this.rakePercentage}% rake (${rake}) = ${payoutAfterRake}`);
       return {
         ...winner,
         payout: payoutAfterRake,
-        description: `${winner.description} (${this.rakePercentage}% rake: -$${(rake/100).toFixed(2)})`
+        description: `${winner.description} (${this.rakePercentage}% rake: -${rake})`
       };
     });
 
@@ -351,7 +347,7 @@ export class CoinFlipGame extends GameBase {
     this.broadcast('player_action', {
       playerName: winnersAfterRake[0]?.name || 'Unknown',
       action: 'won',
-      details: `$${((winnersAfterRake[0]?.payout || 0) / 100).toFixed(2)}`,
+      details: `${winnersAfterRake[0]?.payout || 0}`,
       isAI: false,
     });
 
