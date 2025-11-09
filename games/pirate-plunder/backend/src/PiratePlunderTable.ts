@@ -552,6 +552,9 @@ export class PiratePlunderTable extends GameBase {
 
     this.gameState.allLockingComplete = false;
 
+    // Set phase timer for frontend progress bar
+    this.gameState.phaseEndsAtMs = Date.now() + 30000; // 30 seconds
+
     // Set lock requirements for each player
     for (const seat of this.gameState.seats) {
       if (seat && !seat.hasFolded) {

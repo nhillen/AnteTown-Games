@@ -702,6 +702,8 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                       diceCount: mySeat.dice.length,
                       diceValues: mySeat.dice.map(d => d.value),
                       diceLocked: mySeat.dice.map(d => d.locked),
+                      diceIsPublic: mySeat.dice.map(d => d.isPublic),
+                      fullDice: mySeat.dice,
                       hasOnLockSelect: !!onLockSelect
                     });
                     return null;
