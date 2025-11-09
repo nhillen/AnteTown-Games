@@ -1408,8 +1408,7 @@ export class PiratePlunderTable extends GameBase {
     // In PVE mode, automatically add AI players to fill remaining seats
     if (this.config.mode?.toUpperCase() === 'PVE' && this.gameState) {
       const seatedCount = this.gameState.seats.filter(s => s !== null).length;
-      const mode = this.config.mode?.toUpperCase() || 'PVP';
-      const targetTotalPlayers = mode === 'PVE' ? 2 : 4;
+      const targetTotalPlayers = this.tableConfig.targetTotalPlayers;
       const neededPlayers = targetTotalPlayers - seatedCount;
 
       if (neededPlayers > 0) {
@@ -1530,9 +1529,8 @@ export class PiratePlunderTable extends GameBase {
   private broadcastTableState() {
     if (!this.gameState) return;
 
-    const mode = this.config.mode?.toUpperCase() || 'PVP';
-    const minHumanPlayers = mode === 'PVE' ? 1 : 2;
-    const targetTotalPlayers = mode === 'PVE' ? 2 : 4;
+    const minHumanPlayers = this.tableConfig.minHumanPlayers;
+    const targetTotalPlayers = this.tableConfig.targetTotalPlayers;
 
     // Convert GameBase Seat[] to format frontend expects
     const seats = this.gameState.seats.map(seat => {
