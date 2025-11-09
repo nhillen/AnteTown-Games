@@ -130,7 +130,7 @@ export class PiratePlunderTable extends GameBase {
     // Convert to GameBase TableConfig format
     const tableConfig: TableConfig = {
       minHumanPlayers: config.mode?.toUpperCase() === 'PVE' ? 1 : 2,
-      targetTotalPlayers: config.mode?.toUpperCase() === 'PVE' ? 2 : 4,
+      targetTotalPlayers: config.mode?.toUpperCase() === 'PVE' ? 5 : 4, // PVE: 1 human + 4 AI, PVP: 4 humans
       maxSeats: config.maxSeats,
       currency: config.currency || 'TC',
       betting: {
