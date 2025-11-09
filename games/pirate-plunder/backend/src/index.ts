@@ -142,4 +142,5 @@ export function initializePiratePlunder(io: SocketIOServer, options: InitializeP
 }
 
 // Export types and classes
-export { PiratePlunderTable, PiratePlunderTableConfig } from './PiratePlunderTable'
+export { PiratePlunderTable } from './PiratePlunderTable'
+export type { PiratePlunderTableConfig } from './PiratePlunderTable'

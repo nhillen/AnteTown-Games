@@ -70,7 +70,7 @@ export class PiratePlunderTable {
       name: payload.name,
       isAI: false,
       bankroll: payload.bankroll || 10000,
-      googleId: payload.googleId
+      ...(payload.googleId && { googleId: payload.googleId })
     };
 
     this.socketIdToPlayer.set(socket.id, player);
