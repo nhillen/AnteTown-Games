@@ -113,6 +113,28 @@ export function initializePiratePlunder(io: SocketIOServer, options: InitializeP
       table.handleStandUp(socket);
     });
 
+    // Handle lock_select - player toggling lock on a die
+    socket.on('lock_select', (payload: { index: number }) => {
+      const tableId = socketToTable.get(socket.id);
+      if (!tableId) return;
+
+      const table = tables.get(tableId);
+      if (!table) return;
+
+      table.handleLockSelect(socket, payload);
+    });
+
+    // Handle lock_done - player confirming their dice locks
+    socket.on('lock_done', () => {
+      const tableId = socketToTable.get(socket.id);
+      if (!tableId) return;
+
+      const table = tables.get(tableId);
+      if (!table) return;
+
+      table.handleLockDone(socket);
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
       console.log(`[Pirate Plunder] Client disconnected: ${socket.id}`);
@@ -128,8 +150,7 @@ export function initializePiratePlunder(io: SocketIOServer, options: InitializeP
     });
 
     // TODO: Add more event handlers:
-    // - lock_select
-    // - player_action
+    // - player_action (for betting)
     // - ready
     // etc.
   });

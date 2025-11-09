@@ -1505,6 +1505,98 @@ export class PiratePlunderTable extends GameBase {
   }
 
   /**
+   * Handle lock_select event - player toggling lock on a die
+   */
+  handleLockSelect(socket: Socket, payload: { index: number }) {
+    console.log(`[${this.config.tableId}] lock_select from ${socket.id}:`, payload);
+
+    if (!this.gameState) return;
+    if (!['Lock1', 'Lock2', 'Lock3'].includes(this.gameState.phase)) {
+      console.log(`[${this.config.tableId}] lock_select ignored - not in Lock phase (${this.gameState.phase})`);
+      return;
+    }
+
+    const seat = this.gameState.seats.find((s) => s && s.playerId === socket.id);
+    if (!seat || seat.hasFolded) {
+      console.log(`[${this.config.tableId}] lock_select ignored - player not seated or has folded`);
+      return;
+    }
+
+    const i = payload?.index ?? -1;
+    if (i < 0 || i >= seat.dice.length) {
+      console.log(`[${this.config.tableId}] lock_select ignored - invalid index ${i}`);
+      return;
+    }
+
+    const die = seat.dice[i]!;
+
+    if (die.locked) {
+      // Unlocking: check if we can still meet minimum requirements
+      const currentLocked = seat.dice.filter(d => d.locked).length;
+      const minRequired = seat.minLocksRequired || 1;
+      if (currentLocked > minRequired) {
+        // Can unlock this die
+        seat.dice[i] = { value: die.value, locked: false, isPublic: false };
+        seat.lockAllowance = Math.max(0, minRequired - (currentLocked - 1));
+        console.log(`[${this.config.tableId}] Unlocked die ${i} (value: ${die.value})`);
+      } else {
+        console.log(`[${this.config.tableId}] Cannot unlock - already at minimum locks (${minRequired})`);
+      }
+    } else {
+      // Locking: always allowed
+      const dieValue = die.value || this.rollDie();
+      seat.dice[i] = { value: dieValue, locked: true, isPublic: false };
+      const currentLocked = seat.dice.filter(d => d.locked).length;
+      const minRequired = seat.minLocksRequired || 1;
+      seat.lockAllowance = Math.max(0, minRequired - currentLocked);
+      console.log(`[${this.config.tableId}] Locked die ${i} (value: ${dieValue}), ${currentLocked} total locked`);
+    }
+
+    // Update which dice are visible to other players
+    this.updateDicePublicVisibility(seat);
+
+    // Broadcast updated game state
+    this.broadcastGameState();
+  }
+
+  /**
+   * Handle lock_done event - player confirming their dice locks
+   */
+  handleLockDone(socket: Socket) {
+    console.log(`[${this.config.tableId}] lock_done from ${socket.id}`);
+
+    if (!this.gameState) return;
+    if (!['Lock1', 'Lock2', 'Lock3'].includes(this.gameState.phase)) {
+      console.log(`[${this.config.tableId}] lock_done ignored - not in Lock phase (${this.gameState.phase})`);
+      return;
+    }
+
+    const seat = this.gameState.seats.find((s) => s && s.playerId === socket.id);
+    if (!seat || seat.hasFolded) {
+      console.log(`[${this.config.tableId}] lock_done ignored - player not seated or has folded`);
+      return;
+    }
+
+    // Check if player has met minimum lock requirements
+    const minRequired = seat.minLocksRequired || 1;
+    const currentLocked = seat.dice.filter(d => d.locked).length;
+    if (currentLocked < minRequired) {
+      console.log(`[${this.config.tableId}] lock_done ignored - not enough locks (${currentLocked}/${minRequired})`);
+      socket.emit('error', { message: `You must lock at least ${minRequired} dice` });
+      return;
+    }
+
+    // Mark this player as done with locking
+    seat.lockingDone = true;
+    console.log(`[${this.config.tableId}] Player marked lock_done (${currentLocked} dice locked)`);
+
+    // Broadcast updated state
+    this.broadcastGameState();
+
+    // Phase will advance automatically when all players are done or timer expires
+  }
+
+  /**
    * Get current stats for this table
    */
   getStats() {
