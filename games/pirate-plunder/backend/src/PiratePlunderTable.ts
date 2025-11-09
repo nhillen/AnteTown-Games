@@ -100,9 +100,11 @@ export class PiratePlunderTable {
 
     const { seatIndex, buyInAmount = this.config.minBuyIn } = payload;
 
-    // Validate buy-in amount
+    // Validate buy-in amount (all values are in TC/pennies - no conversion needed)
     if (buyInAmount < this.config.minBuyIn) {
-      socket.emit('error', `Minimum buy-in is $${(this.config.minBuyIn / 100).toFixed(2)}`);
+      // Format for display: show as whole TC units
+      const minTC = Math.floor(this.config.minBuyIn / 100);
+      socket.emit('error', `Minimum buy-in is ${minTC} TC`);
       return;
     }
 
@@ -125,10 +127,11 @@ export class PiratePlunderTable {
     const seatedPlayer = { ...player, tableStack: buyInAmount };
     this.tableState.seats[targetSeat] = seatedPlayer;
 
-    // Update player's bankroll (TODO: integrate with money flow service)
+    // Update player's bankroll
     player.bankroll -= buyInAmount;
 
-    console.log(`[${this.config.tableId}] ${player.name} sat at seat ${targetSeat} with ${buyInAmount}`);
+    const tcAmount = Math.floor(buyInAmount / 100);
+    console.log(`[${this.config.tableId}] ${player.name} sat at seat ${targetSeat} with ${tcAmount} TC`);
 
     // Broadcast updated state
     this.broadcastTableState();

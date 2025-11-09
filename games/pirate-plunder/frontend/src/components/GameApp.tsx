@@ -416,20 +416,22 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
 
   const handleSitDown = () => {
     if (!isSeated) {
-      const maxBankroll = Math.floor((me?.bankroll || 10000) / 100)
-      const minRequired = tableRequirements?.requiredTableStack || 1
-      const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, 100))
+      // All values in TC (pennies) - no conversion needed
+      const maxBankroll = me?.bankroll || 10000  // Already in TC pennies
+      const minRequired = (tableRequirements?.requiredTableStack || 10) * 100  // Convert display TC to pennies
+      const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, 10000))  // Default 100 TC
       setBuyInAmount(defaultAmount)
       setShowBuyInModal(true)
     }
   }
-  
+
   const confirmBuyIn = () => {
     if (socket) {
       socket.emit('sit_down', { buyInAmount })
-      addToActionLog('System', `Sitting down with $${buyInAmount}`, '', false)
+      const tcAmount = Math.floor(buyInAmount / 100)
+      addToActionLog('System', `Sitting down with ${tcAmount} TC`, '', false)
       setShowBuyInModal(false)
-      
+
       // Refresh user data after a short delay to ensure backend updates are complete
       setTimeout(() => {
         refreshUser()
@@ -439,9 +441,11 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
 
   const handleModalSitDown = (seatIndex: number, buyInAmount: number) => {
     if (socket) {
+      const tcAmount = Math.floor(buyInAmount / 100);
       console.log('💺 Emitting sit_down event:', {
         seatIndex,
         buyInAmount,
+        tcAmount,
         socketId: socket.id?.slice(0,6),
         socketConnected: socket.connected,
         connectedState: connected,
@@ -457,7 +461,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
             clearInterval(checkConnection)
             console.log('✅ Now connected, emitting sit_down')
             socket.emit('sit_down', { seatIndex, buyInAmount })
-            addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with $${buyInAmount}`, '', false)
+            addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with ${tcAmount} TC`, '', false)
           }
         }, 100)
         // Timeout after 5 seconds
@@ -468,7 +472,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
       console.log('✅ Connected, emitting sit_down now')
       socket.emit('sit_down', { seatIndex, buyInAmount })
       console.log('✅ sit_down emitted')
-      addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with $${buyInAmount}`, '', false)
+      addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with ${tcAmount} TC`, '', false)
     }
   }
 
