@@ -20,6 +20,7 @@ export interface PiratePlunderTableConfig {
 
 export interface Player {
   id: string;
+  playerId?: string;      // Duplicate of id for frontend compatibility
   name: string;
   isAI: boolean;
   bankroll: number;       // Player's total bankroll in base currency units
@@ -71,6 +72,7 @@ export class PiratePlunderTable {
 
     const player: Player = {
       id: socket.id,
+      playerId: socket.id, // Also send as playerId for frontend compatibility
       name: payload.name,
       isAI: false,
       bankroll: payload.bankroll || 10000,
@@ -171,12 +173,15 @@ export class PiratePlunderTable {
   handleDisconnect(socket: Socket) {
     console.log(`[${this.config.tableId}] disconnect from ${socket.id}`);
 
-    // Mark player as disconnected but keep their seat
-    // They can reconnect and resume
+    // Remove player from their seat
     const seatIndex = this.tableState.seats.findIndex(s => s?.id === socket.id);
-    if (seatIndex !== -1 && this.tableState.seats[seatIndex]) {
-      const player = this.tableState.seats[seatIndex]!;
-      player.name += ' (disconnected)';
+    if (seatIndex !== -1) {
+      const player = this.tableState.seats[seatIndex];
+      if (player) {
+        console.log(`[${this.config.tableId}] Removing ${player.name} from seat ${seatIndex} due to disconnect`);
+        this.tableState.seats[seatIndex] = null;
+        this.broadcastTableState();
+      }
     }
 
     // Clean up
