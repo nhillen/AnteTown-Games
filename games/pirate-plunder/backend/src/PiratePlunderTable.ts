@@ -180,12 +180,15 @@ export class PiratePlunderTable extends GameBase {
     // Try to reconnect to existing seat if they have one
     const reconnected = this.reconnectPlayer(socket, player);
 
-    // Send joined response
+    // Send joined response (frontend expects { player, isAdmin })
     socket.emit('joined', {
-      playerId: player.id.slice(0, 6), // Short ID for frontend
-      name: player.name,
-      isAdmin: false,
-      reconnected
+      player: {
+        id: player.id,
+        name: player.name,
+        isAI: player.isAI,
+        bankroll: player.bankroll
+      },
+      isAdmin: false
     });
 
     // Broadcast updated lobby state
