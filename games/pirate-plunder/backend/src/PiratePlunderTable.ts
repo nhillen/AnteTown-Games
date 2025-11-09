@@ -1,11 +1,15 @@
 /**
  * PiratePlunderTable - Manages a single table instance for Pirate Plunder
  *
- * This class encapsulates all the game state and logic for one table.
- * Multiple instances can run simultaneously on the platform.
+ * Extends GameBase SDK for:
+ * - Player management (seating, standing, reconnection)
+ * - Bankroll operations
+ * - Socket event broadcasting
+ * - Standardized types
  */
 
-import { Server as SocketIOServer, Namespace, Socket } from 'socket.io';
+import { Namespace, Socket } from 'socket.io';
+import { GameBase, Player, Seat, GameMetadata, GameState, WinnerResult, TableConfig } from '@antetown/game-sdk';
 
 export interface PiratePlunderTableConfig {
   tableId: string;
@@ -18,45 +22,134 @@ export interface PiratePlunderTableConfig {
   currency?: string;      // Currency symbol (e.g., 'TC', 'SC') - defaults to 'TC'
 }
 
-export interface Player {
-  id: string;
-  playerId?: string;      // Duplicate of id for frontend compatibility
-  name: string;
-  isAI: boolean;
-  bankroll: number;       // Player's total bankroll in base currency units
-  tableStack?: number;    // Money at the table when seated in base currency units
-  googleId?: string;
-  cosmetics?: any;
+export interface PiratePlunderGameState extends GameState {
+  cargoChest: number;
+  // Add Pirate Plunder specific state here as game develops
+  dice?: any[];
+  roles?: any;
 }
 
-export interface TableState {
-  seats: (Player | null)[];
-  cargoChest?: number;
-}
-
-export interface GameState {
-  phase: string;
-  seats: any[];
-  pot: number;
-  currentBet: number;
-  // ... more game state fields
-}
-
-export class PiratePlunderTable {
+export class PiratePlunderTable extends GameBase {
   private config: PiratePlunderTableConfig;
-  private tableState: TableState;
-  private gameState: GameState | null = null;
-  private socketIdToPlayer: Map<string, Player> = new Map();
   private namespace: Namespace;
 
   constructor(config: PiratePlunderTableConfig, namespace: Namespace) {
+    // Convert to GameBase TableConfig format
+    const tableConfig: TableConfig = {
+      minHumanPlayers: config.mode?.toUpperCase() === 'PVE' ? 1 : 2,
+      targetTotalPlayers: config.mode?.toUpperCase() === 'PVE' ? 2 : 4,
+      maxSeats: config.maxSeats,
+      currency: config.currency || 'TC',
+      betting: {
+        ante: {
+          mode: 'fixed',
+          amount: config.ante
+        }
+      }
+    };
+
+    super(tableConfig);
     this.config = config;
     this.namespace = namespace;
-    this.tableState = {
-      seats: new Array(config.maxSeats).fill(null),
-      cargoChest: 0
+    this.gameType = 'pirate-plunder';
+
+    // Initialize game state with Pirate Plunder specifics
+    this.initializeGameState('Lobby');
+    if (this.gameState) {
+      (this.gameState as PiratePlunderGameState).cargoChest = 0;
+    }
+  }
+
+  // ============================================================
+  // REQUIRED GAMEBASE ABSTRACT METHODS
+  // ============================================================
+
+  getMetadata(): GameMetadata {
+    return {
+      emoji: '🎲',
+      botNamePrefix: 'PirateBot',
+      defaultBuyIn: this.config.minBuyIn
     };
   }
+
+  startHand(): void {
+    if (!this.gameState) return;
+
+    console.log(`[${this.config.tableId}] Starting hand`);
+
+    // Reset for new hand
+    this.gameState.phase = 'Betting';
+    this.gameState.pot = 0;
+    this.gameState.currentBet = this.config.ante;
+
+    // Reset all seats
+    for (const seat of this.gameState.seats) {
+      if (seat) {
+        seat.hasFolded = false;
+        seat.currentBet = 0;
+        seat.hasActed = false;
+        seat.isAllIn = false;
+      }
+    }
+
+    // Collect antes
+    this.collectAntes(this.config.ante);
+
+    // Broadcast updated state
+    this.broadcastGameState();
+  }
+
+  handlePlayerAction(playerId: string, action: string, data?: any): void {
+    // TODO: Implement Pirate Plunder specific actions
+    // For now, just log
+    console.log(`[${this.config.tableId}] Player ${playerId.slice(0, 6)} action: ${action}`, data);
+
+    // Placeholder implementation
+    const seat = this.findSeat(playerId);
+    if (!seat) return;
+
+    switch (action) {
+      case 'bet':
+      case 'raise':
+      case 'call':
+      case 'fold':
+        // Handle betting actions
+        break;
+      case 'lock_dice':
+        // Handle dice locking
+        break;
+      default:
+        console.warn(`[${this.config.tableId}] Unknown action: ${action}`);
+    }
+  }
+
+  evaluateWinners(): WinnerResult[] {
+    // TODO: Implement Pirate Plunder win evaluation
+    // For now, return empty array
+    return [];
+  }
+
+  getValidActions(playerId: string): string[] {
+    // TODO: Implement based on game phase and player state
+    const seat = this.findSeat(playerId);
+    if (!seat || seat.hasFolded) return [];
+
+    if (!this.gameState) return [];
+
+    // Basic actions based on phase
+    switch (this.gameState.phase) {
+      case 'Betting':
+        return ['fold', 'call', 'raise'];
+      case 'DiceRoll':
+        return ['lock_dice', 'roll'];
+      default:
+        return [];
+    }
+  }
+
+  // ============================================================
+  // PIRATE PLUNDER SPECIFIC PUBLIC METHODS
+  // ============================================================
 
   getTableId(): string {
     return this.config.tableId;
@@ -66,36 +159,55 @@ export class PiratePlunderTable {
     return this.config;
   }
 
-  // Handle player joining the table
+  /**
+   * Handle player joining the table (lobby)
+   * Uses GameBase's registerSocket
+   */
   handleJoin(socket: Socket, payload: { name: string; bankroll?: number; googleId?: string }) {
     console.log(`[${this.config.tableId}] Player ${payload.name} joining`);
 
     const player: Player = {
       id: socket.id,
-      playerId: socket.id, // Also send as playerId for frontend compatibility
       name: payload.name,
       isAI: false,
       bankroll: payload.bankroll || 10000,
       ...(payload.googleId && { googleId: payload.googleId })
     };
 
-    this.socketIdToPlayer.set(socket.id, player);
+    // Use GameBase's registerSocket
+    this.registerSocket(socket, player);
 
-    // Send current state to player
+    // Try to reconnect to existing seat if they have one
+    const reconnected = this.reconnectPlayer(socket, player);
+
+    // Send joined response
     socket.emit('joined', {
-      player: player,
-      isAdmin: false // TODO: Check if player is admin
+      playerId: player.id.slice(0, 6), // Short ID for frontend
+      name: player.name,
+      isAdmin: false,
+      reconnected
     });
 
-    // Broadcast lobby state to all players
+    // Broadcast updated lobby state
     this.broadcastLobbyState();
+
+    // Broadcast table state if they reconnected
+    if (reconnected) {
+      this.broadcastTableState();
+      if (this.gameState) {
+        this.broadcastGameState();
+      }
+    }
   }
 
-  // Handle player sitting down at a seat
+  /**
+   * Handle player sitting down at a seat
+   * Uses GameBase's sitPlayer
+   */
   handleSitDown(socket: Socket, payload: { seatIndex?: number; buyInAmount?: number }) {
     console.log(`[${this.config.tableId}] sit_down from ${socket.id}:`, payload);
 
-    const player = this.socketIdToPlayer.get(socket.id);
+    const player = this.connectedPlayers.get(socket.id);
     if (!player) {
       socket.emit('error', 'Player not found. Please rejoin.');
       return;
@@ -103,190 +215,158 @@ export class PiratePlunderTable {
 
     const { seatIndex, buyInAmount = this.config.minBuyIn } = payload;
 
-    // Validate buy-in amount (all values in base currency - no conversion)
+    // Validate buy-in amount
     if (buyInAmount < this.config.minBuyIn) {
-      const currency = this.config.currency || 'TC';
-      socket.emit('error', `Minimum buy-in is ${this.config.minBuyIn} ${currency}`);
+      socket.emit('error', `Minimum buy-in is ${this.config.minBuyIn} ${this.currency}`);
       return;
     }
 
-    if (buyInAmount > player.bankroll) {
-      socket.emit('error', 'Insufficient bankroll');
+    // Use GameBase's sitPlayer method
+    const result = this.sitPlayer(player, seatIndex, buyInAmount);
+
+    if (!result.success) {
+      socket.emit('error', result.error || 'Failed to sit down');
       return;
     }
 
-    // Find an empty seat (use specified index or find first available)
-    let targetSeat = seatIndex;
-    if (targetSeat === undefined || this.tableState.seats[targetSeat] !== null) {
-      targetSeat = this.tableState.seats.findIndex(s => s === null);
-      if (targetSeat === -1) {
-        socket.emit('error', 'Table is full');
-        return;
-      }
-    }
-
-    // Sit the player down
-    const seatedPlayer = { ...player, tableStack: buyInAmount };
-    this.tableState.seats[targetSeat] = seatedPlayer;
-
-    // Update player's bankroll
-    player.bankroll -= buyInAmount;
-
-    const currency = this.config.currency || 'TC';
-    console.log(`[${this.config.tableId}] ${player.name} sat at seat ${targetSeat} with ${buyInAmount} ${currency}`);
+    console.log(`[${this.config.tableId}] ${player.name} sat at seat ${result.seatIndex} with ${buyInAmount} ${this.currency}`);
 
     // Broadcast updated state
     this.broadcastTableState();
 
-    // Start game if enough players
-    this.checkStartGame();
+    // Check if we can start the game
+    if (this.canStartHand()) {
+      this.startHand();
+    }
   }
 
-  // Handle player standing up
+  /**
+   * Handle player standing up
+   * Uses GameBase's standPlayer
+   */
   handleStandUp(socket: Socket) {
     console.log(`[${this.config.tableId}] stand_up from ${socket.id}`);
 
-    const seatIndex = this.tableState.seats.findIndex(s => s?.id === socket.id);
-    if (seatIndex === -1) {
-      socket.emit('error', 'Not seated');
+    const player = this.connectedPlayers.get(socket.id);
+    if (!player) {
+      socket.emit('error', 'Player not found');
       return;
     }
 
-    const player = this.tableState.seats[seatIndex];
-    if (!player) return;
+    // Use GameBase's standPlayer method
+    const result = this.standPlayer(player.id, true); // immediate = true for now
 
-    // Return table stack to bankroll
-    const playerObj = this.socketIdToPlayer.get(socket.id);
-    if (playerObj && player.tableStack) {
-      playerObj.bankroll += player.tableStack;
+    if (!result.success) {
+      socket.emit('error', result.error || 'Failed to stand up');
+      return;
     }
 
-    // Remove from seat
-    this.tableState.seats[seatIndex] = null;
-
-    console.log(`[${this.config.tableId}] ${player.name} stood up from seat ${seatIndex}`);
+    console.log(`[${this.config.tableId}] ${player.name} stood up`);
 
     this.broadcastTableState();
   }
 
-  // Handle player disconnect
+  /**
+   * Handle player disconnect
+   * For now, immediately remove from seat
+   * TODO: Add reconnection timeout period
+   */
   handleDisconnect(socket: Socket) {
     console.log(`[${this.config.tableId}] disconnect from ${socket.id}`);
 
-    // Remove player from their seat
-    const seatIndex = this.tableState.seats.findIndex(s => s?.id === socket.id);
-    if (seatIndex !== -1) {
-      const player = this.tableState.seats[seatIndex];
-      if (player) {
-        console.log(`[${this.config.tableId}] Removing ${player.name} from seat ${seatIndex} due to disconnect`);
-        this.tableState.seats[seatIndex] = null;
-        this.broadcastTableState();
-      }
+    // Remove player from seat immediately
+    const result = this.standPlayer(socket.id, true);
+
+    if (result.success) {
+      console.log(`[${this.config.tableId}] Removed disconnected player from seat`);
+      this.broadcastTableState();
     }
 
-    // Clean up
-    this.socketIdToPlayer.delete(socket.id);
+    // Unregister socket (GameBase method)
+    this.unregisterSocket(socket.id);
   }
 
-  // Helper methods
+  /**
+   * Get current stats for this table
+   */
+  getStats() {
+    if (!this.gameState) {
+      return {
+        seatedPlayers: 0,
+        humanPlayers: 0,
+        waitingForPlayers: true,
+        phase: 'Lobby'
+      };
+    }
+
+    const seatedPlayers = this.gameState.seats.filter(s => s !== null).length;
+    const humanPlayers = this.gameState.seats.filter(s => s && !s.isAI).length;
+
+    return {
+      seatedPlayers,
+      humanPlayers,
+      waitingForPlayers: !this.canStartHand(),
+      phase: this.gameState.phase
+    };
+  }
+
+  // ============================================================
+  // PRIVATE HELPER METHODS
+  // ============================================================
+
   private broadcastLobbyState() {
-    // Broadcast lobby state to all connected players at this table
-    const players = Array.from(this.socketIdToPlayer.values());
+    // Get all connected players
+    const players = Array.from(this.connectedPlayers.values()).map(p => ({
+      id: p.id,
+      name: p.name,
+      isAI: p.isAI,
+      bankroll: p.bankroll
+    }));
+
     const lobbyState = { players };
 
     console.log(`[${this.config.tableId}] Broadcasting lobby state with ${players.length} players`);
 
-    // Emit to all players at this table
-    for (const socketId of this.socketIdToPlayer.keys()) {
-      const socket = this.namespace.sockets.get(socketId);
-      if (socket) {
-        socket.emit('lobby_state', lobbyState);
-      }
-    }
+    // Emit to all connected sockets
+    this.broadcast('lobby_state', lobbyState);
   }
 
   private broadcastTableState() {
-    // Broadcast table state (seats) to all connected players at this table
-    // PVE mode: 1 human min, PVP mode: 2 humans min
+    if (!this.gameState) return;
+
     const mode = this.config.mode?.toUpperCase() || 'PVP';
     const minHumanPlayers = mode === 'PVE' ? 1 : 2;
-    const targetTotalPlayers = mode === 'PVE' ? 2 : 4; // PVE fills to 2, PVP to 4
+    const targetTotalPlayers = mode === 'PVE' ? 2 : 4;
+
+    // Convert GameBase Seat[] to format frontend expects
+    const seats = this.gameState.seats.map(seat => {
+      if (!seat) return null;
+
+      return {
+        playerId: seat.playerId,
+        name: seat.name,
+        isAI: seat.isAI,
+        tableStack: seat.tableStack,
+        hasFolded: seat.hasFolded,
+        currentBet: seat.currentBet,
+        cosmetics: seat.cosmetics
+      };
+    });
 
     const tableState = {
-      seats: this.tableState.seats,
-      cargoChest: this.tableState.cargoChest,
+      seats,
+      cargoChest: (this.gameState as PiratePlunderGameState).cargoChest || 0,
       config: {
         minHumanPlayers,
         targetTotalPlayers,
         maxSeats: this.config.maxSeats,
         cargoChestLearningMode: false,
-        currency: this.config.currency || 'TC'
+        currency: this.currency
       }
     };
 
-    console.log(`[${this.config.tableId}] Broadcasting table state - ${this.tableState.seats.filter(s => s).length} seated`);
+    console.log(`[${this.config.tableId}] Broadcasting table state - ${seats.filter(s => s).length} seated`);
 
-    // Emit to all players at this table
-    for (const socketId of this.socketIdToPlayer.keys()) {
-      const socket = this.namespace.sockets.get(socketId);
-      if (socket) {
-        socket.emit('table_state', tableState);
-      }
-    }
-  }
-
-  private checkStartGame() {
-    // Check if we have enough players to start
-    const seatedPlayers = this.tableState.seats.filter(s => s !== null).length;
-    const mode = this.config.mode?.toUpperCase() || 'PVP';
-
-    // Determine minimum players based on mode
-    const minPlayers = mode === 'PVE' ? 1 : 2;
-
-    if (seatedPlayers >= minPlayers && !this.gameState) {
-      console.log(`[${this.config.tableId}] Starting ${mode} game with ${seatedPlayers} players`);
-
-      // Initialize basic game state
-      this.gameState = {
-        phase: 'betting',
-        seats: this.tableState.seats.map((player, index) => ({
-          player,
-          bet: 0,
-          status: player ? 'active' : 'empty'
-        })),
-        pot: 0,
-        currentBet: this.config.ante
-      };
-
-      // Broadcast game state to all players
-      this.broadcastGameState();
-    }
-  }
-
-  private broadcastGameState() {
-    if (!this.gameState) return;
-
-    console.log(`[${this.config.tableId}] Broadcasting game state - phase: ${this.gameState.phase}`);
-
-    // Emit to all players at this table
-    for (const socketId of this.socketIdToPlayer.keys()) {
-      const socket = this.namespace.sockets.get(socketId);
-      if (socket) {
-        socket.emit('game_state', this.gameState);
-      }
-    }
-  }
-
-  // Get current stats for this table
-  getStats() {
-    const seatedPlayers = this.tableState.seats.filter(s => s !== null).length;
-    const humanPlayers = this.tableState.seats.filter(s => s && !s.isAI).length;
-
-    return {
-      seatedPlayers,
-      humanPlayers,
-      waitingForPlayers: seatedPlayers < 2,
-      phase: this.gameState?.phase || 'Lobby'
-    };
+    this.broadcast('table_state', tableState);
   }
 }
