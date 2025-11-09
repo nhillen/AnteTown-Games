@@ -5,7 +5,7 @@
  * Multiple instances can run simultaneously on the platform.
  */
 
-import { Socket } from 'socket.io';
+import { Server as SocketIOServer, Namespace, Socket } from 'socket.io';
 
 export interface PiratePlunderTableConfig {
   tableId: string;
@@ -44,9 +44,11 @@ export class PiratePlunderTable {
   private tableState: TableState;
   private gameState: GameState | null = null;
   private socketIdToPlayer: Map<string, Player> = new Map();
+  private namespace: Namespace;
 
-  constructor(config: PiratePlunderTableConfig) {
+  constructor(config: PiratePlunderTableConfig, namespace: Namespace) {
     this.config = config;
+    this.namespace = namespace;
     this.tableState = {
       seats: new Array(config.maxSeats).fill(null),
       cargoChest: 0
@@ -179,24 +181,43 @@ export class PiratePlunderTable {
 
   // Helper methods
   private broadcastLobbyState() {
-    // Broadcast lobby state to all connected players
+    // Broadcast lobby state to all connected players at this table
     const players = Array.from(this.socketIdToPlayer.values());
     const lobbyState = { players };
 
-    // TODO: Emit to all connected sockets in this table's room
     console.log(`[${this.config.tableId}] Broadcasting lobby state with ${players.length} players`);
+
+    // Emit to all players at this table
+    for (const socketId of this.socketIdToPlayer.keys()) {
+      const socket = this.namespace.sockets.get(socketId);
+      if (socket) {
+        socket.emit('lobby_state', lobbyState);
+      }
+    }
   }
 
   private broadcastTableState() {
-    // Broadcast table state (seats) to all connected players
+    // Broadcast table state (seats) to all connected players at this table
     const tableState = {
       seats: this.tableState.seats,
       cargoChest: this.tableState.cargoChest,
-      config: this.config
+      config: {
+        minHumanPlayers: 1,
+        targetTotalPlayers: 2,
+        maxSeats: this.config.maxSeats,
+        cargoChestLearningMode: false
+      }
     };
 
-    // TODO: Emit to all connected sockets in this table's room
-    console.log(`[${this.config.tableId}] Broadcasting table state`);
+    console.log(`[${this.config.tableId}] Broadcasting table state - ${this.tableState.seats.filter(s => s).length} seated`);
+
+    // Emit to all players at this table
+    for (const socketId of this.socketIdToPlayer.keys()) {
+      const socket = this.namespace.sockets.get(socketId);
+      if (socket) {
+        socket.emit('table_state', tableState);
+      }
+    }
   }
 
   private checkStartGame() {

@@ -37,19 +37,19 @@ export function initializePiratePlunder(io: SocketIOServer, options: InitializeP
 
   console.log(`🏴‍☠️ Initializing Pirate Plunder on namespace: ${namespace}`);
 
+  // Get the Socket.IO namespace
+  const nsp = namespace === '/' ? io.of('/') : io.of(namespace);
+
   // Create table instances
   const tables = new Map<string, PiratePlunderTable>();
   for (const config of tableConfigs) {
-    const table = new PiratePlunderTable(config);
+    const table = new PiratePlunderTable(config, nsp);
     tables.set(config.tableId, table);
     console.log(`   📊 Created table: ${config.displayName} (${config.tableId})`);
   }
 
   // Socket ID to table ID mapping (which table is this player at?)
   const socketToTable = new Map<string, string>();
-
-  // Get the Socket.IO namespace
-  const nsp = namespace === '/' ? io : io.of(namespace);
 
   // Register socket event handlers
   nsp.on('connection', (socket: Socket) => {
