@@ -74,7 +74,7 @@ export class CoinFlipGame extends GameBase {
   /**
    * Override sitPlayer to enforce minimum buy-in based on ante
    */
-  public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number, currencyMode: 'TC' | 'VT' = 'TC'): { success: boolean; error?: string; seatIndex?: number } {
+  public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number): { success: boolean; error?: string; seatIndex?: number } {
     const anteAmount = this.getAnteAmount();
     const minimumBuyIn = anteAmount * this.minBuyInMultiplier;
 
@@ -82,7 +82,7 @@ export class CoinFlipGame extends GameBase {
     if (buyInAmount && buyInAmount < minimumBuyIn) {
       return {
         success: false,
-        error: `Minimum buy-in is ${minimumBuyIn} ${currencyMode} (${this.minBuyInMultiplier}x the ${anteAmount} ${currencyMode} ante)`
+        error: `Minimum buy-in is ${minimumBuyIn} ${this.currency} (${this.minBuyInMultiplier}x the ${anteAmount} ${this.currency} ante)`
       };
     }
 
@@ -93,7 +93,7 @@ export class CoinFlipGame extends GameBase {
     if (player.bankroll < minimumBuyIn) {
       return {
         success: false,
-        error: `Insufficient ${currencyMode}. Need at least ${minimumBuyIn} ${currencyMode} to sit at this table`
+        error: `Insufficient ${this.currency}. Need at least ${minimumBuyIn} ${this.currency} to sit at this table`
       };
     }
 

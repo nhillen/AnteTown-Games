@@ -61,6 +61,7 @@ export type TableConfig = {
   minHumanPlayers: number;
   targetTotalPlayers: number;
   maxSeats: number;
+  currency?: string; // e.g., 'TC', 'SC', 'Event Tokens' - defaults to 'TC'
   betting?: {
     ante?: {
       mode: string;
@@ -109,10 +110,12 @@ export abstract class GameBase {
   public gameState: GameState | null = null;
   protected sockets: Map<string, Socket> = new Map();
   protected tableConfig: TableConfig;
+  protected currency: string; // Currency symbol/name for display (e.g., 'TC', 'SC')
   protected connectedPlayers: Map<string, Player> = new Map(); // playerId -> Player
 
   constructor(config: TableConfig) {
     this.tableConfig = config;
+    this.currency = config.currency || 'TC'; // Default to 'TC' if not specified
   }
 
   // ============================================================

@@ -150,7 +150,7 @@ export class HouseRules extends GameBase {
     if (!buyInAmount || buyInAmount < this.minBuyIn || buyInAmount > this.maxBuyIn) {
       return {
         success: false,
-        error: `Buy-in must be between ${this.minBuyIn} and ${this.maxBuyIn} TC`
+        error: `Buy-in must be between ${this.minBuyIn} and ${this.maxBuyIn} ${this.currency}`
       };
     }
 
@@ -201,7 +201,7 @@ export class HouseRules extends GameBase {
     player.bankroll -= buyInAmount;
     player.tableStack = buyInAmount;
 
-    console.log(`🎰 ${player.name} sat down at seat ${targetSeat} with ${buyInAmount} TC`);
+    console.log(`🎰 ${player.name} sat down at seat ${targetSeat} with ${buyInAmount} ${this.currency}`);
 
     // Auto-start hand if we have 2+ players and game is in Lobby phase
     const seatedPlayers = this.gameState.seats.filter(s => s !== null && s.tableStack > 0);
@@ -336,7 +336,7 @@ export class HouseRules extends GameBase {
       return;
     }
 
-    console.log(`🎰 ${seat.name} action: ${action}${amount ? ` ${amount} TC` : ''}`);
+    console.log(`🎰 ${seat.name} action: ${action}${amount ? ` ${amount} ${this.currency}` : ''}`);
 
     switch (action) {
       case 'fold':
@@ -513,7 +513,7 @@ export class HouseRules extends GameBase {
       // Only one player left
       winnerSeat = activePlayers[0];
       winnerSeat.tableStack += this.gameState.pot;
-      console.log(`🎰 ${winnerSeat.name} wins ${this.gameState.pot} TC`);
+      console.log(`🎰 ${winnerSeat.name} wins ${this.gameState.pot} ${this.currency}`);
     } else {
       // Evaluate hands (use rules engine hook)
       const evaluateFunc = this.rulesEngine.hooks.evaluateHand || evaluateHand;
@@ -530,7 +530,7 @@ export class HouseRules extends GameBase {
       winnerSeat = winner.seat;
       winnerSeat.tableStack += this.gameState.pot;
 
-      console.log(`🎰 ${winnerSeat.name} wins ${this.gameState.pot} TC with ${handRankToString(winner.hand.rank)}`);
+      console.log(`🎰 ${winnerSeat.name} wins ${this.gameState.pot} ${this.currency} with ${handRankToString(winner.hand.rank)}`);
     }
 
     // Call rules engine pot win hook
@@ -811,7 +811,7 @@ export class HouseRules extends GameBase {
     // Evaluate hand strength (0-1 scale)
     const handStrength = this.evaluateHandStrength(seat.holeCards, this.gameState.phase);
 
-    console.log(`🤖 ${seat.name} (${personality}): strength=${handStrength.toFixed(2)}, call=${callAmount} TC`);
+    console.log(`🤖 ${seat.name} (${personality}): strength=${handStrength.toFixed(2)}, call=${callAmount} ${this.currency}`);
 
     // Check if we should even play this hand (based on tightness)
     // Tight players fold more weak hands
@@ -842,7 +842,7 @@ export class HouseRules extends GameBase {
       if (shouldBet) {
         const betSize = Math.floor(potSize * (0.5 + Math.random() * 0.5)); // 50-100% pot
         const betAmount = Math.min(betSize, seat.tableStack);
-        console.log(`🤖 ${seat.name} bets ${betAmount} TC`);
+        console.log(`🤖 ${seat.name} bets ${betAmount} ${this.currency}`);
         this.handlePlayerAction(seat.playerId, 'bet', betAmount);
       } else {
         console.log(`🤖 ${seat.name} checks`);
@@ -859,15 +859,15 @@ export class HouseRules extends GameBase {
 
         if (raiseAmount > this.gameState.currentBet) {
           const action = shouldBluff ? 'raise (bluff)' : 'raise';
-          console.log(`🤖 ${seat.name} ${action} to ${raiseAmount} TC`);
+          console.log(`🤖 ${seat.name} ${action} to ${raiseAmount} ${this.currency}`);
           this.handlePlayerAction(seat.playerId, 'raise', raiseAmount);
         } else {
-          console.log(`🤖 ${seat.name} calls ${callAmount} TC`);
+          console.log(`🤖 ${seat.name} calls ${callAmount} ${this.currency}`);
           this.handlePlayerAction(seat.playerId, 'call');
         }
       } else {
         // Just call
-        console.log(`🤖 ${seat.name} calls ${callAmount} TC`);
+        console.log(`🤖 ${seat.name} calls ${callAmount} ${this.currency}`);
         this.handlePlayerAction(seat.playerId, 'call');
       }
     }

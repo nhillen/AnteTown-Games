@@ -10,19 +10,20 @@ import { Server as SocketIOServer, Namespace, Socket } from 'socket.io';
 export interface PiratePlunderTableConfig {
   tableId: string;
   displayName: string;
-  ante: number;           // In TC (base currency unit)
-  minBuyIn: number;       // In TC (base currency unit)
+  ante: number;           // In base currency units
+  minBuyIn: number;       // In base currency units
   maxSeats: number;
   rake: number;           // Percentage (e.g., 5 for 5%)
   mode?: string;          // 'PVE' or 'PVP'
+  currency?: string;      // Currency symbol (e.g., 'TC', 'SC') - defaults to 'TC'
 }
 
 export interface Player {
   id: string;
   name: string;
   isAI: boolean;
-  bankroll: number;       // Player's total bankroll in TC
-  tableStack?: number;    // Money at the table when seated in TC
+  bankroll: number;       // Player's total bankroll in base currency units
+  tableStack?: number;    // Money at the table when seated in base currency units
   googleId?: string;
   cosmetics?: any;
 }
@@ -100,9 +101,10 @@ export class PiratePlunderTable {
 
     const { seatIndex, buyInAmount = this.config.minBuyIn } = payload;
 
-    // Validate buy-in amount (all values in TC - no conversion)
+    // Validate buy-in amount (all values in base currency - no conversion)
     if (buyInAmount < this.config.minBuyIn) {
-      socket.emit('error', `Minimum buy-in is ${this.config.minBuyIn} TC`);
+      const currency = this.config.currency || 'TC';
+      socket.emit('error', `Minimum buy-in is ${this.config.minBuyIn} ${currency}`);
       return;
     }
 
@@ -128,7 +130,8 @@ export class PiratePlunderTable {
     // Update player's bankroll
     player.bankroll -= buyInAmount;
 
-    console.log(`[${this.config.tableId}] ${player.name} sat at seat ${targetSeat} with ${buyInAmount} TC`);
+    const currency = this.config.currency || 'TC';
+    console.log(`[${this.config.tableId}] ${player.name} sat at seat ${targetSeat} with ${buyInAmount} ${currency}`);
 
     // Broadcast updated state
     this.broadcastTableState();
