@@ -30,6 +30,17 @@ type LobbyState = {
   players: Player[]
 }
 
+type Seat = {
+  playerId: string
+  name: string
+  isAI: boolean
+  tableStack: number
+  dice?: any[]
+  hasFolded?: boolean
+  lockAllowance?: number
+  currentBet?: number
+}
+
 type TableConfig = {
   minHumanPlayers: number
   targetTotalPlayers: number
@@ -39,8 +50,9 @@ type TableConfig = {
 }
 
 type TableState = {
-  seats: (Player | null)[]
+  seats: (Seat | null)[]
   config: TableConfig
+  cargoChest?: any
 }
 
 // TEMPORARILY DISABLED - Flipz package issues
@@ -239,12 +251,12 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
     const handleTableState = (state: TableState) => {
       console.log('🪑 TABLE_STATE received:', {
         seatedCount: state.seats.filter(s => s !== null).length,
-        seats: state.seats.map((s, i) => s ? `${i}: ${s.name} (${s.id.slice(0,6)})` : `${i}: empty`),
+        seats: state.seats.map((s, i) => s ? `${i}: ${s.name} (${s.playerId.slice(0,6)})` : `${i}: empty`),
         mySocketId: socket?.id?.slice(0,6)
       })
       setTable(state)
       // Check if we're seated using socket ID since me might not be set yet
-      const seated = state.seats.some(s => s?.id === socket?.id)
+      const seated = state.seats.some(s => s?.playerId === socket?.id)
       console.log('🪑 Am I seated?', seated, 'Socket ID:', socket?.id?.slice(0,6))
       setIsSeated(seated)
 
@@ -781,14 +793,14 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
                   
                   <div className="space-y-1">
                     {table?.seats.filter(s => s !== null).map((player) => (
-                      <div key={player!.id} className="flex justify-between items-center text-sm">
+                      <div key={player!.playerId} className="flex justify-between items-center text-sm">
                         <span className={player!.isAI ? "text-yellow-400" : "text-white"}>
                           {player!.name}
                           {player!.isAI && " (AI)"}
-                          {player!.id === me?.id && " (You)"}
+                          {player!.playerId === me?.id && " (You)"}
                         </span>
                         <span className="text-gray-400">
-                          ${(player!.bankroll / 100).toFixed(2)}
+                          ${(player!.tableStack / 100).toFixed(2)}
                         </span>
                       </div>
                     ))}

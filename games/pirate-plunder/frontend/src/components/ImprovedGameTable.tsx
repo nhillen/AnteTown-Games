@@ -900,12 +900,12 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    variant="primary" 
+                  <Button
+                    variant="primary"
                     onClick={confirmSitDown}
                     className="flex-1"
                   >
-                    Sit Down (${buyInAmount})
+                    Sit Down
                   </Button>
                 </div>
               </div>
