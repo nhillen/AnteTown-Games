@@ -407,6 +407,11 @@ export class PiratePlunderTable extends GameBase {
         seat.lockAllowance = Math.max(0, minLocksRequired - currentLocked);
         seat.minLocksRequired = minLocksRequired;
         seat.lockingDone = false;
+
+        // AI players automatically lock their best dice
+        if (seat.isAI) {
+          this.makeAILockingDecision(seat, minLocksRequired);
+        }
       }
     }
 
@@ -439,6 +444,34 @@ export class PiratePlunderTable extends GameBase {
       this.gameState.phase = this.nextPhase(this.gameState.phase);
       this.onEnterPhase();
     }, 30000);
+  }
+
+  private makeAILockingDecision(seat: PiratePlunderSeat, minLocksRequired: number): void {
+    // AI strategy: Lock highest value dice (prioritize 6s, then 5s, then 4s)
+    const currentLocked = seat.dice.filter(d => d.locked).length;
+    const needToLock = Math.max(0, minLocksRequired - currentLocked);
+
+    if (needToLock === 0) {
+      seat.lockingDone = true;
+      return;
+    }
+
+    // Sort unlocked dice by value (highest first)
+    const unlocked = seat.dice
+      .map((die, index) => ({ die, index }))
+      .filter(item => !item.die.locked)
+      .sort((a, b) => b.die.value - a.die.value);
+
+    // Lock the highest value dice
+    for (let i = 0; i < Math.min(needToLock, unlocked.length); i++) {
+      const item = unlocked[i];
+      if (item?.die) {
+        item.die.locked = true;
+      }
+    }
+
+    seat.lockingDone = true;
+    console.log(`[${seat.name}] AI locked ${needToLock} dice`);
   }
 
   private handleBettingPhase(): void {
