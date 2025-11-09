@@ -81,6 +81,8 @@ export class PiratePlunderTable extends GameBase {
     this.gameState.phase = 'Betting';
     this.gameState.pot = 0;
     this.gameState.currentBet = this.config.ante;
+    // Simultaneous play - no turns, so don't set currentTurnPlayerId
+    delete this.gameState.currentTurnPlayerId;
 
     // Reset all seats
     for (const seat of this.gameState.seats) {
