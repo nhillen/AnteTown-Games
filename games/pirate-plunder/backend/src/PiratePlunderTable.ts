@@ -77,9 +77,8 @@ export class PiratePlunderTable {
 
     // Send current state to player
     socket.emit('joined', {
-      playerId: socket.id,
-      tableState: this.tableState,
-      gameState: this.gameState
+      player: player,
+      isAdmin: false // TODO: Check if player is admin
     });
 
     // Broadcast lobby state to all players
@@ -180,15 +179,33 @@ export class PiratePlunderTable {
 
   // Helper methods
   private broadcastLobbyState() {
-    // TODO: Implement lobby state broadcast
+    // Broadcast lobby state to all connected players
+    const players = Array.from(this.socketIdToPlayer.values());
+    const lobbyState = { players };
+
+    // TODO: Emit to all connected sockets in this table's room
+    console.log(`[${this.config.tableId}] Broadcasting lobby state with ${players.length} players`);
   }
 
   private broadcastTableState() {
-    // TODO: Implement table state broadcast to all players
+    // Broadcast table state (seats) to all connected players
+    const tableState = {
+      seats: this.tableState.seats,
+      cargoChest: this.tableState.cargoChest,
+      config: this.config
+    };
+
+    // TODO: Emit to all connected sockets in this table's room
+    console.log(`[${this.config.tableId}] Broadcasting table state`);
   }
 
   private checkStartGame() {
-    // TODO: Implement game start logic
+    // Check if we have enough players to start
+    const seatedPlayers = this.tableState.seats.filter(s => s !== null).length;
+    if (seatedPlayers >= 2 && !this.gameState) {
+      console.log(`[${this.config.tableId}] Starting game with ${seatedPlayers} players`);
+      // TODO: Initialize game state and start first round
+    }
   }
 
   // Get current stats for this table
