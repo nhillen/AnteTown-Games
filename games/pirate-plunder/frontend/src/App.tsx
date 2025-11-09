@@ -8,9 +8,10 @@ import { useDiceCollections } from './hooks/useDiceCollections'
 
 interface AppContentProps {
   platformMode?: boolean
+  tableId?: string
 }
 
-function AppContent({ platformMode = false }: AppContentProps) {
+function AppContent({ platformMode = false, tableId }: AppContentProps) {
   const { user, loading } = useAuth()
   const [view, setView] = useState<'game' | 'backoffice'>('game')
   useDiceCollections()
@@ -47,17 +48,18 @@ function AppContent({ platformMode = false }: AppContentProps) {
     return <BackOffice />
   }
 
-  return <GameApp platformMode={platformMode} />
+  return <GameApp platformMode={platformMode} tableId={tableId} />
 }
 
 interface AppProps {
   platformMode?: boolean  // When true, hide platform-provided UI elements
+  tableId?: string        // Table ID to join (for multi-table platform mode)
 }
 
-export default function App({ platformMode = false }: AppProps = {}) {
+export default function App({ platformMode = false, tableId }: AppProps = {}) {
   return (
     <AuthProvider>
-      <AppContent platformMode={platformMode} />
+      <AppContent platformMode={platformMode} tableId={tableId} />
     </AuthProvider>
   )
 }

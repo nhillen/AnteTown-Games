@@ -78,9 +78,10 @@ type LogEntry = {
 
 interface GameAppProps {
   platformMode?: boolean  // When true, hide platform-provided UI (Profile, Store, Login, etc.)
+  tableId?: string        // Table ID to join (for multi-table platform mode)
 }
 
-export default function GameApp({ platformMode = false }: GameAppProps = {}) {
+export default function GameApp({ platformMode = false, tableId }: GameAppProps = {}) {
   const { user, loading, refreshUser } = useAuth()
   const [connected, setConnected] = useState(false)
   const [me, setMe] = useState<Player | null>(null)
@@ -159,11 +160,12 @@ export default function GameApp({ platformMode = false }: GameAppProps = {}) {
       
       // Join with authenticated user's name, cosmetics, and bankroll
       // NOTE: Backend expects bankroll in pennies, auth API returns dollars
-      console.log('📤 Emitting join with:', { name: user.name, bankroll: Math.round(user.bankroll * 100) });
+      console.log('📤 Emitting join with:', { name: user.name, bankroll: Math.round(user.bankroll * 100), tableId });
       socket.emit('join', {
         name: user.name,
         cosmetics: user.cosmetics,
-        bankroll: Math.round(user.bankroll * 100) // Convert dollars to pennies
+        bankroll: Math.round(user.bankroll * 100), // Convert dollars to pennies
+        tableId // Table ID for multi-table platform mode
       })
     }
 
