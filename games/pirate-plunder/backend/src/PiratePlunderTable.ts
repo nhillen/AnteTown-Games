@@ -1914,12 +1914,15 @@ export class PiratePlunderTable extends GameBase {
 
       seat.tableStack -= betAmount;
       seat.currentBet += betAmount;
-      this.gameState.pot += betAmount;
+
+      // Apply chest drip to call
+      const { mainPot, chestDrip } = this.processDripFromWager(betAmount);
+      this.gameState.pot += mainPot;
 
       if (seat.tableStack === 0) seat.isAllIn = true;
       seat.hasActed = true;
 
-      console.log(`[${seat.name}] Called ${betAmount} ${this.currency}`);
+      console.log(`[${seat.name}] Called ${betAmount} ${this.currency} (drip: ${chestDrip})`);
     } else if (action === 'raise' && raiseAmount) {
       // Apply street limits and rounding to raise amount
       const streetLimitedRaise = this.applyStreetLimits(raiseAmount, seat.name);
@@ -1929,7 +1932,10 @@ export class PiratePlunderTable extends GameBase {
 
       seat.tableStack -= betAmount;
       seat.currentBet += betAmount;
-      this.gameState.pot += betAmount;
+
+      // Apply chest drip to raise
+      const { mainPot, chestDrip } = this.processDripFromWager(betAmount);
+      this.gameState.pot += mainPot;
       this.gameState.currentBet = seat.currentBet;
 
       if (seat.tableStack === 0) seat.isAllIn = true;
@@ -1940,7 +1946,7 @@ export class PiratePlunderTable extends GameBase {
         if (s && s.playerId !== playerId) s.hasActed = false;
       }
 
-      console.log(`[${seat.name}] Raised to ${this.gameState.currentBet} ${this.currency}`);
+      console.log(`[${seat.name}] Raised to ${this.gameState.currentBet} ${this.currency} (drip: ${chestDrip})`);
     }
 
     this.advanceTurn();
