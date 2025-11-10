@@ -659,6 +659,347 @@ export class PiratePlunderTable extends GameBase {
   }
 
   /**
+   * Calculate bust fee amount based on configuration
+   * Ported from server.ts:5551-5574
+   */
+  private calculateBustFee(): number {
+    if (!this.fullConfig.bust_fee.enabled) return 0;
+
+    let amount = 0;
+    switch (this.fullConfig.bust_fee.basis) {
+      case 'S1':
+        amount = this.fullConfig.betting.streets.S1 * 100;
+        break;
+      case 'S2':
+        amount = this.fullConfig.betting.streets.S2 * 100;
+        break;
+      case 'S3':
+        amount = this.fullConfig.betting.streets.S3 * 100;
+        break;
+      case 'fixed':
+        amount = this.fullConfig.bust_fee.fixed_amount * 100;
+        break;
+    }
+
+    return amount;
+  }
+
+  /**
+   * Apply bust fee to player when they fold
+   * Fee can go to chest or be burned based on config
+   */
+  private applyBustFee(playerId: string): void {
+    if (!this.gameState) return;
+
+    const fee = this.calculateBustFee();
+    if (fee === 0) return;
+
+    const seat = this.gameState.seats.find(s => s?.playerId === playerId);
+    if (!seat) return;
+
+    const actualFee = Math.min(fee, seat.tableStack);
+    seat.tableStack -= actualFee;
+
+    if (this.fullConfig.bust_fee.to === 'chest') {
+      this.gameState.cargoChest = (this.gameState.cargoChest || 0) + actualFee;
+      console.log(`[${seat.name}] Bust fee ${actualFee} → Cargo Chest (now ${this.gameState.cargoChest})`);
+    } else {
+      // 'burn' - just remove from game
+      console.log(`[${seat.name}] Bust fee ${actualFee} burned`);
+    }
+  }
+
+  /**
+   * Calculate base bet amount (used as multiplier base for streets)
+   * Ported from server.ts:5719-5731
+   */
+  private calculateBaseBet(): number {
+    const anteAmount = this.fullConfig.betting.ante.amount;
+    if (anteAmount > 0) return anteAmount;
+
+    // Fallback: 1% of pot or 1 minimum
+    if (!this.gameState) return 1;
+    return Math.max(1, Math.floor(this.gameState.pot * 0.01));
+  }
+
+  /**
+   * Get street multiplier for current betting phase
+   * Ported from server.ts:5733-5752
+   */
+  private getStreetMultiplier(): number {
+    if (!this.fullConfig.betting.streets.enabled || !this.gameState) return 1;
+
+    switch (this.gameState.phase) {
+      case 'Bet1':
+        return this.fullConfig.betting.streets.S1;
+      case 'Bet2':
+        return this.fullConfig.betting.streets.S2;
+      case 'Bet3':
+        const s3Multiplier = parseInt(this.fullConfig.betting.streets.s3_multiplier.replace('x', ''));
+        return this.fullConfig.betting.streets.S3 * s3Multiplier;
+      default:
+        return 1; // No limits outside betting phases
+    }
+  }
+
+  /**
+   * Apply street limits to bet amount
+   * Ported from server.ts:5754-5772
+   */
+  private applyStreetLimits(requestedAmount: number, seatName: string): number {
+    if (!this.fullConfig.betting.streets.enabled) return requestedAmount;
+
+    const baseBet = this.calculateBaseBet();
+    const streetMultiplier = this.getStreetMultiplier();
+    const streetLimit = baseBet * streetMultiplier;
+
+    const limitedAmount = Math.min(requestedAmount, streetLimit);
+
+    if (limitedAmount !== requestedAmount && this.gameState) {
+      console.log(`[${seatName}] Street limit applied: ${requestedAmount} → ${limitedAmount} (${this.gameState.phase} limit: ${streetLimit})`);
+    }
+
+    return limitedAmount;
+  }
+
+  /**
+   * Calculate edge tier for player based on hand strength relative to leader
+   * Ported from server.ts:5654-5730
+   */
+  private calculateEdgeTier(seat: PiratePlunderSeat): 'behind' | 'co' | 'leader' | 'dominant' {
+    if (!this.gameState) return 'co';
+
+    const activePlayers = this.gameState.seats.filter(s => s && !s.hasFolded) as PiratePlunderSeat[];
+    if (activePlayers.length <= 1) return 'leader';
+
+    // Evaluate all hands
+    const handStrengths = activePlayers.map(s => {
+      const hand = this.evaluateHand(s.dice);
+      return {
+        playerId: s.playerId,
+        strength: hand.sixCount * 10000 + hand.fiveCount * 1000 + hand.fourCount * 100 + hand.threeCount * 10 + hand.twoCount * 1 + hand.oneCount * 0.1
+      };
+    });
+
+    const playerStrength = handStrengths.find(h => h.playerId === seat.playerId)?.strength || 0;
+    const maxStrength = Math.max(...handStrengths.map(h => h.strength));
+    const leadersCount = handStrengths.filter(h => h.strength === maxStrength).length;
+
+    // Leader or co-leader
+    if (playerStrength === maxStrength) {
+      if (leadersCount === 1) {
+        // Check if dominant (ahead by threshold)
+        const secondBest = Math.max(...handStrengths.filter(h => h.strength < maxStrength).map(h => h.strength));
+        const dominantThreshold = this.fullConfig.betting.dominant_threshold;
+        if (playerStrength >= secondBest + dominantThreshold) {
+          return 'dominant';
+        }
+        return 'leader';
+      } else {
+        return 'co'; // Tied for lead
+      }
+    }
+
+    // Behind
+    return 'behind';
+  }
+
+  /**
+   * Apply edge tier multiplier to bet amount (discount for weaker hands)
+   * Ported from server.ts:5706-5717
+   */
+  private applyEdgeTierMultiplier(baseAmount: number, seat: PiratePlunderSeat): number {
+    if (!this.fullConfig.betting.edge_tiers.enabled) return baseAmount;
+
+    const tier = this.calculateEdgeTier(seat);
+    const multiplier = this.fullConfig.betting.edge_tiers[tier];
+
+    return Math.floor(baseAmount * multiplier);
+  }
+
+  /**
+   * Apply betting rounding to amount
+   * Ported from server.ts:5582-5592
+   */
+  private applyBettingRounding(amount: number): number {
+    const rounding = this.fullConfig.betting.rounding;
+    if (rounding <= 1) return amount;
+
+    return Math.round(amount / rounding) * rounding;
+  }
+
+  /**
+   * Calculate comprehensive showdown results with all config features
+   * Ported from server.ts:5825-6050
+   */
+  private calculateShowdownResults(): ShowdownResult[] {
+    if (!this.gameState) return [];
+
+    const activePlayers = this.gameState.seats.filter(s => s && !s.hasFolded);
+    const grossPot = this.gameState.pot;
+
+    // Calculate rake
+    const rake = this.calculateRake(grossPot);
+    const netPot = grossPot - rake;
+
+    console.log(`[${this.config.tableId}] Showdown: Gross pot ${grossPot}, Rake ${rake}, Net ${netPot}`);
+
+    // Initialize results
+    const results: ShowdownResult[] = activePlayers.map(seat => ({
+      playerId: seat.playerId,
+      name: seat.name,
+      handResult: this.evaluateHand(seat.dice),
+      roles: [],
+      payout: 0,
+      isActive: true
+    }));
+
+    // Step 1: Assign roles with requirements
+    const roleReqs = this.fullConfig.payouts.role_requirements;
+    const maxSixes = Math.max(...results.map(r => r.handResult.sixCount));
+    const maxFives = Math.max(...results.map(r => r.handResult.fiveCount));
+    const maxFours = Math.max(...results.map(r => r.handResult.fourCount));
+
+    // Ship = Most 6s (unique) AND meets minimum requirement
+    const shipCandidates = results.filter(r =>
+      r.handResult.sixCount === maxSixes && maxSixes >= roleReqs.ship
+    );
+    const shipWinner = shipCandidates.length === 1 ? shipCandidates[0] : null;
+    if (shipWinner) shipWinner.roles.push('Ship');
+
+    // Captain = Most 5s (unique, not Ship) AND meets minimum requirement
+    const captainCandidates = results.filter(r =>
+      r.handResult.fiveCount === maxFives && maxFives >= roleReqs.captain && r !== shipWinner
+    );
+    const captainWinner = captainCandidates.length === 1 ? captainCandidates[0] : null;
+    if (captainWinner) captainWinner.roles.push('Captain');
+
+    // Crew = Most 4s (unique, not Ship/Captain) AND meets minimum requirement
+    const crewCandidates = results.filter(r =>
+      r.handResult.fourCount === maxFours && maxFours >= roleReqs.crew && r !== shipWinner && r !== captainWinner
+    );
+    const crewWinner = crewCandidates.length === 1 ? crewCandidates[0] : null;
+    if (crewWinner) crewWinner.roles.push('Crew');
+
+    // Step 2: Check for chest triggers (trips/quads/yahtzee of low dice)
+    if (this.gameState.cargoChest > 0) {
+      const chestCandidates = results.map(result => {
+        const seat = activePlayers.find(s => s.playerId === result.playerId);
+        return {
+          result,
+          lowDiceAnalysis: this.analyzeLowDice(seat?.dice || []),
+          timestamp: Date.now()
+        };
+      }).filter(c => c.lowDiceAnalysis !== null);
+
+      // Find best chest trigger (using tiebreak mode)
+      if (chestCandidates.length > 0) {
+        const tiebreakMode = this.fullConfig.chest.trigger_tiebreak;
+        const chestWinner = this.resolveChestTriggerWinner(chestCandidates, tiebreakMode);
+
+        if (chestWinner && chestWinner.lowDiceAnalysis) {
+          const { award } = this.calculateChestAward(this.gameState.cargoChest, chestWinner.lowDiceAnalysis);
+          chestWinner.result.payout += award;
+          this.gameState.cargoChest -= award;
+          if (this.gameState.cargoChest < 0) this.gameState.cargoChest = 0;
+
+          console.log(`[${chestWinner.result.name}] Won ${award} from chest for ${chestWinner.lowDiceAnalysis.type}`);
+        }
+      }
+    }
+
+    // Step 3: Calculate role payouts
+    const rolePayouts = this.fullConfig.payouts.role_payouts;
+    let shipPayout = Math.floor(netPot * rolePayouts.ship);
+    let captainPayout = Math.floor(netPot * rolePayouts.captain);
+    let crewPayout = Math.floor(netPot * rolePayouts.crew);
+
+    // Handle vacant roles with chest funnel
+    if (!crewWinner) {
+      const toChest = Math.floor(crewPayout * this.fullConfig.chest.unfilled_role_to_chest);
+      this.gameState.cargoChest = (this.gameState.cargoChest || 0) + toChest;
+      const remainder = crewPayout - toChest;
+      // Remainder goes to carryover for next hand
+      crewPayout = 0;
+      console.log(`[Vacant Crew] ${toChest} to chest, ${remainder} to carryover`);
+    }
+
+    if (!captainWinner) {
+      const toChest = Math.floor(captainPayout * this.fullConfig.chest.unfilled_role_to_chest);
+      this.gameState.cargoChest = (this.gameState.cargoChest || 0) + toChest;
+      const remainder = captainPayout - toChest;
+      if (shipWinner) {
+        shipPayout += remainder;
+      }
+      captainPayout = 0;
+      console.log(`[Vacant Captain] ${toChest} to chest, ${remainder} to ship`);
+    }
+
+    if (!shipWinner) {
+      const toChest = Math.floor(shipPayout * this.fullConfig.chest.unfilled_role_to_chest);
+      this.gameState.cargoChest = (this.gameState.cargoChest || 0) + toChest;
+      shipPayout = 0;
+      console.log(`[Vacant Ship] ${toChest} to chest`);
+    }
+
+    // Award payouts
+    if (shipWinner) shipWinner.payout += shipPayout;
+    if (captainWinner) captainWinner.payout += captainPayout;
+    if (crewWinner) crewWinner.payout += crewPayout;
+
+    return results;
+  }
+
+  /**
+   * Resolve chest trigger winner using tiebreak mode
+   */
+  private resolveChestTriggerWinner(
+    candidates: Array<{ result: ShowdownResult; lowDiceAnalysis: { type: string; value: number; count: number } | null; timestamp: number }>,
+    tiebreakMode: 'rank_then_time' | 'time_then_rank'
+  ): { result: ShowdownResult; lowDiceAnalysis: { type: string; value: number; count: number } | null; timestamp: number } | null {
+    if (candidates.length === 0) return null;
+    if (candidates.length === 1) return candidates[0] || null;
+
+    // Rank values: yahtzee > quads > trips
+    const rankValue = (type: string) => {
+      if (type === 'yahtzee') return 3;
+      if (type === 'quads') return 2;
+      if (type === 'trips') return 1;
+      return 0;
+    };
+
+    let best = candidates[0];
+    if (!best) return null;
+
+    if (tiebreakMode === 'rank_then_time') {
+      // Best trigger type first, then earliest timestamp
+      for (const curr of candidates.slice(1)) {
+        const bestRank = best.lowDiceAnalysis ? rankValue(best.lowDiceAnalysis.type) : 0;
+        const currRank = curr.lowDiceAnalysis ? rankValue(curr.lowDiceAnalysis.type) : 0;
+
+        if (currRank > bestRank || (currRank === bestRank && curr.timestamp < best.timestamp)) {
+          best = curr;
+        }
+      }
+    } else {
+      // Earliest timestamp first, then best trigger type
+      for (const curr of candidates.slice(1)) {
+        if (curr.timestamp < best.timestamp) {
+          best = curr;
+        } else if (curr.timestamp === best.timestamp) {
+          const bestRank = best.lowDiceAnalysis ? rankValue(best.lowDiceAnalysis.type) : 0;
+          const currRank = curr.lowDiceAnalysis ? rankValue(curr.lowDiceAnalysis.type) : 0;
+          if (currRank > bestRank) {
+            best = curr;
+          }
+        }
+      }
+    }
+
+    return best;
+  }
+
+  /**
    * Analyze low dice (1s, 2s, 3s) for cargo chest triggers
    */
   private analyzeLowDice(dice: Die[]): { type: string; value: number; count: number } | null {
@@ -907,19 +1248,58 @@ export class PiratePlunderTable extends GameBase {
   private handleAntePhase(): void {
     if (!this.gameState) return;
 
-    // Collect antes from all players (using fullConfig)
-    const anteAmount = this.fullConfig.betting.ante.amount;
-    for (const seat of this.gameState.seats) {
-      if (seat) {
-        const amt = Math.min(seat.tableStack, anteAmount);
-        seat.tableStack -= amt;
-        this.gameState.pot += amt;
-        seat.totalContribution = amt;
+    // Collect antes based on configuration
+    // Ported from server.ts:6798-6872
+    const anteConfig = this.fullConfig.betting.ante;
 
-        console.log(`[${seat.name}] Paid ante: ${amt} ${this.currency} (config: ${anteAmount})`);
+    if (anteConfig.mode !== 'none') {
+      for (const seat of this.gameState.seats) {
+        if (!seat) continue;
 
-        if (seat.tableStack === 0) {
-          seat.isAllIn = true;
+        let shouldPayAnte = false;
+
+        switch (anteConfig.mode) {
+          case 'per_player':
+            shouldPayAnte = true;
+            break;
+          case 'button':
+            // First player pays (button tracking not implemented)
+            shouldPayAnte = seat === this.gameState.seats[0];
+            break;
+          case 'every_nth':
+            // Pay ante every nth hand
+            const handNumber = this.gameState.handCount || 0;
+            shouldPayAnte = handNumber > 0 && handNumber % anteConfig.every_nth === 0;
+            break;
+        }
+
+        if (shouldPayAnte) {
+          const anteAmount = anteConfig.amount;
+          const amt = Math.min(seat.tableStack, anteAmount);
+          seat.tableStack -= amt;
+
+          // Process drip to cargo chest for antes
+          const { mainPot, chestDrip } = this.processDripFromWager(amt);
+          this.gameState.pot += mainPot;
+          seat.totalContribution = amt;
+
+          const streetInfo = anteConfig.progressive ? ' (progressive)' : '';
+          console.log(`[${seat.name}] Paid ante: ${amt} ${this.currency} (mode: ${anteConfig.mode}${streetInfo}, drip: ${chestDrip})`);
+
+          if (seat.tableStack === 0) {
+            seat.isAllIn = true;
+          }
+        } else {
+          seat.totalContribution = 0;
+          console.log(`[${seat.name}] No ante required (mode: ${anteConfig.mode})`);
+        }
+      }
+    } else {
+      // No ante mode - initialize totalContribution to 0
+      for (const seat of this.gameState.seats) {
+        if (seat) {
+          seat.totalContribution = 0;
+          console.log(`[${seat.name}] No ante required (mode: none)`);
         }
       }
     }
@@ -1459,15 +1839,17 @@ export class PiratePlunderTable extends GameBase {
   private handleShowdownPhase(): void {
     if (!this.gameState) return;
 
-    this.gameState.showdownResults = this.evaluateWinners() as ShowdownResult[];
+    // Use comprehensive showdown calculation with all config features
+    this.gameState.showdownResults = this.calculateShowdownResults();
     this.broadcastGameState();
 
-    // Move to payout after 3 seconds
+    // Move to payout after configured delay
+    const delay = this.fullConfig.timing.delays.showdown_display_seconds * 1000;
     setTimeout(() => {
       if (!this.gameState) return;
       this.gameState.phase = 'Payout';
       this.onEnterPhase();
-    }, 3000);
+    }, delay);
   }
 
   private handlePayoutPhase(): void {
@@ -1519,7 +1901,17 @@ export class PiratePlunderTable extends GameBase {
     const amountToCall = this.gameState.currentBet - (seat.currentBet || 0);
 
     if (action === 'call') {
-      const betAmount = Math.min(amountToCall, seat.tableStack);
+      // Apply edge tier discount (weaker hands pay less)
+      const discountedAmount = this.applyEdgeTierMultiplier(amountToCall, seat);
+      const roundedAmount = this.applyBettingRounding(discountedAmount);
+      const betAmount = Math.min(roundedAmount, seat.tableStack);
+
+      // Log edge tier discount if applied
+      if (discountedAmount !== amountToCall) {
+        const tier = this.calculateEdgeTier(seat);
+        console.log(`[${seat.name}] Edge tier ${tier}: ${amountToCall} → ${discountedAmount} → ${roundedAmount} (${Math.round((roundedAmount/amountToCall)*100)}%)`);
+      }
+
       seat.tableStack -= betAmount;
       seat.currentBet += betAmount;
       this.gameState.pot += betAmount;
@@ -1529,7 +1921,10 @@ export class PiratePlunderTable extends GameBase {
 
       console.log(`[${seat.name}] Called ${betAmount} ${this.currency}`);
     } else if (action === 'raise' && raiseAmount) {
-      const totalBet = amountToCall + raiseAmount;
+      // Apply street limits and rounding to raise amount
+      const streetLimitedRaise = this.applyStreetLimits(raiseAmount, seat.name);
+      const roundedRaise = this.applyBettingRounding(streetLimitedRaise);
+      const totalBet = amountToCall + roundedRaise;
       const betAmount = Math.min(totalBet, seat.tableStack);
 
       seat.tableStack -= betAmount;
@@ -1561,6 +1956,9 @@ export class PiratePlunderTable extends GameBase {
     seat.hasActed = true;
 
     console.log(`[${seat.name}] Folded`);
+
+    // Apply bust fee if configured
+    this.applyBustFee(playerId);
 
     // Check if only one player left
     const activePlayers = this.gameState.seats.filter(s => s && !s.hasFolded) as PiratePlunderSeat[];
