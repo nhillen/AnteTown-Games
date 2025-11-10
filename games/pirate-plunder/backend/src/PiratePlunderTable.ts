@@ -606,6 +606,94 @@ export class PiratePlunderTable extends GameBase {
     }
   }
 
+  // ============================================================
+  // CONFIG-DEPENDENT HELPER METHODS
+  // ============================================================
+
+  /**
+   * Process chest drip from wager amount
+   * Ported from server.ts:215-262
+   */
+  private processDripFromWager(wagerAmount: number): { mainPot: number; chestDrip: number } {
+    if (!this.gameState) return { mainPot: wagerAmount, chestDrip: 0 };
+
+    const exactDrip = wagerAmount * this.fullConfig.chest.drip_percent;
+    const accumulatedDrip = ((this.gameState as any).dripAccumulator || 0) + exactDrip;
+
+    const integerDrip = Math.floor(accumulatedDrip);
+    (this.gameState as any).dripAccumulator = accumulatedDrip - integerDrip;
+
+    const mainPotAmount = wagerAmount - integerDrip;
+    this.gameState.cargoChest = (this.gameState.cargoChest || 0) + integerDrip;
+
+    console.log(`[${this.config.tableId}] Chest drip: ${integerDrip} from ${wagerAmount} wager (${this.fullConfig.chest.drip_percent * 100}%)`);
+
+    return { mainPot: mainPotAmount, chestDrip: integerDrip };
+  }
+
+  /**
+   * Calculate house rake with cap
+   * Ported from server.ts:5783-5824
+   */
+  private calculateRake(pot: number): number {
+    if (!this.fullConfig.house.rake_enabled) return 0;
+    const calculatedRake = Math.floor(pot * this.fullConfig.house.rake_percent);
+    return Math.min(calculatedRake, this.fullConfig.house.rake_cap);
+  }
+
+  /**
+   * Calculate chest award based on low dice trigger
+   * Ported from server.ts:5798-5823
+   */
+  private calculateChestAward(chestAmount: number, lowDiceAnalysis: { type: string; value: number; count: number }): { award: number; carry: number } {
+    const triggers = this.fullConfig.chest.low_rank_triggers;
+    let percentage = 0;
+
+    if (lowDiceAnalysis.type === 'yahtzee') percentage = triggers.yahtzee;
+    else if (lowDiceAnalysis.type === 'quads') percentage = triggers.quads;
+    else if (lowDiceAnalysis.type === 'trips') percentage = triggers.trips;
+
+    const award = Math.floor(chestAmount * percentage);
+    const carry = chestAmount - award;
+    return { award, carry };
+  }
+
+  /**
+   * Analyze low dice (1s, 2s, 3s) for cargo chest triggers
+   */
+  private analyzeLowDice(dice: Die[]): { type: string; value: number; count: number } | null {
+    const counts = [0, 0, 0, 0]; // indices 0-3 for values 0-3 (0 unused)
+    for (const die of dice) {
+      if (die.value >= 1 && die.value <= 3) {
+        const idx = die.value;
+        counts[idx] = (counts[idx] || 0) + 1;
+      }
+    }
+
+    // Check for Yahtzee (5 of same low value)
+    for (let val = 1; val <= 3; val++) {
+      if (counts[val] === 5) {
+        return { type: 'yahtzee', value: val, count: 5 };
+      }
+    }
+
+    // Check for Quads (4 of same low value)
+    for (let val = 1; val <= 3; val++) {
+      if (counts[val] === 4) {
+        return { type: 'quads', value: val, count: 4 };
+      }
+    }
+
+    // Check for Trips (3 of same low value)
+    for (let val = 1; val <= 3; val++) {
+      if (counts[val] === 3) {
+        return { type: 'trips', value: val, count: 3 };
+      }
+    }
+
+    return null;
+  }
+
   private nextPhase(current: PiratePlunderPhase): PiratePlunderPhase {
     const order: PiratePlunderPhase[] = [
       'Ante', 'Roll1', 'Lock1', 'Bet1', 'Roll2', 'Lock2', 'Bet2',
@@ -700,7 +788,7 @@ export class PiratePlunderTable extends GameBase {
 
         if (needsToAct) {
           this.gameState.currentTurnPlayerId = nextPlayer.playerId;
-          this.gameState.phaseEndsAtMs = Date.now() + 30000; // 30 seconds
+          this.gameState.phaseEndsAtMs = Date.now() + (this.fullConfig.timing.phase_timers.turn_timeout_seconds * 1000);
           return;
         }
       }
@@ -720,7 +808,7 @@ export class PiratePlunderTable extends GameBase {
     return {
       emoji: '🎲',
       botNamePrefix: 'PirateBot',
-      defaultBuyIn: this.config.minBuyIn
+      defaultBuyIn: this.config.minBuyIn || (this.fullConfig.betting.ante.amount * 5)
     };
   }
 
@@ -819,15 +907,16 @@ export class PiratePlunderTable extends GameBase {
   private handleAntePhase(): void {
     if (!this.gameState) return;
 
-    // Collect antes from all players
+    // Collect antes from all players (using fullConfig)
+    const anteAmount = this.fullConfig.betting.ante.amount;
     for (const seat of this.gameState.seats) {
       if (seat) {
-        const amt = Math.min(seat.tableStack, this.config.ante);
+        const amt = Math.min(seat.tableStack, anteAmount);
         seat.tableStack -= amt;
         this.gameState.pot += amt;
         seat.totalContribution = amt;
 
-        console.log(`[${seat.name}] Paid ante: ${amt} ${this.currency}`);
+        console.log(`[${seat.name}] Paid ante: ${amt} ${this.currency} (config: ${anteAmount})`);
 
         if (seat.tableStack === 0) {
           seat.isAllIn = true;
@@ -895,8 +984,8 @@ export class PiratePlunderTable extends GameBase {
 
     this.gameState.allLockingComplete = false;
 
-    // Set phase timer for frontend progress bar
-    this.gameState.phaseEndsAtMs = Date.now() + 30000; // 30 seconds
+    // Set phase timer for frontend progress bar (from config)
+    this.gameState.phaseEndsAtMs = Date.now() + (this.fullConfig.timing.phase_timers.lock_phase_seconds * 1000);
 
     // Set lock requirements for each player
     for (const seat of this.gameState.seats) {
@@ -1203,7 +1292,7 @@ export class PiratePlunderTable extends GameBase {
       }
     }
 
-    this.gameState.phaseEndsAtMs = Date.now() + 30000; // 30 seconds
+    this.gameState.phaseEndsAtMs = Date.now() + (this.fullConfig.timing.phase_timers.betting_phase_seconds * 1000);
 
     this.broadcastGameState();
 
@@ -1756,11 +1845,12 @@ export class PiratePlunderTable extends GameBase {
       return;
     }
 
-    const { seatIndex, buyInAmount = this.config.minBuyIn } = payload;
+    const minBuyIn = this.config.minBuyIn || (this.fullConfig.betting.ante.amount * 5);
+    const { seatIndex, buyInAmount = minBuyIn } = payload;
 
     // Validate buy-in amount
-    if (buyInAmount < this.config.minBuyIn) {
-      socket.emit('error', `Minimum buy-in is ${this.config.minBuyIn} ${this.currency}`);
+    if (buyInAmount < minBuyIn) {
+      socket.emit('error', `Minimum buy-in is ${minBuyIn} ${this.currency}`);
       return;
     }
 
