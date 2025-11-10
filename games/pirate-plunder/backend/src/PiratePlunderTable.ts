@@ -13,15 +13,184 @@ import { GameBase, Player, Seat as SDKSeat, GameMetadata, GameState, WinnerResul
 import * as fs from 'fs';
 import * as path from 'path';
 
+// ============================================================
+// CONFIGURATION INTERFACES (matching table-config.ts)
+// ============================================================
+
+export interface TableSettings {
+  minHumanPlayers: number;
+  targetTotalPlayers: number;
+  maxSeats: number;
+  cargoChestLearningMode: boolean;
+  tableMinimumMultiplier: number;
+}
+
+export interface BettingStreets {
+  enabled: boolean;
+  S1: number;
+  S2: number;
+  S3: number;
+  s3_multiplier: '1x' | '2x' | '3x';
+}
+
+export interface AnteConfig {
+  mode: 'none' | 'per_player' | 'button' | 'every_nth';
+  amount: number;
+  every_nth: number;
+  progressive: boolean;
+  street_multiplier: number;
+}
+
+export interface EdgeTiers {
+  enabled: boolean;
+  behind: number;
+  co: number;
+  leader: number;
+  dominant: number;
+}
+
+export interface BettingConfig {
+  streets: BettingStreets;
+  ante: AnteConfig;
+  edge_tiers: EdgeTiers;
+  dominant_threshold: number;
+  rounding: number;
+}
+
+export interface RolePayouts {
+  ship: number;
+  captain: number;
+  crew: number;
+}
+
+export interface RoleRequirements {
+  ship: number;
+  captain: number;
+  crew: number;
+}
+
+export interface ComboKicker {
+  ship_captain?: number;
+  all_three?: number;
+}
+
+export interface PayoutsConfig {
+  role_payouts: RolePayouts;
+  multi_role_allowed: boolean;
+  combo_kicker: ComboKicker | null;
+  role_requirements: RoleRequirements;
+}
+
+export interface LowRankTriggers {
+  trips: number;
+  quads: number;
+  yahtzee: number;
+}
+
+export interface HouseConfig {
+  rake_percent: number;
+  rake_enabled: boolean;
+  rake_cap: number;
+}
+
+export interface ChestConfig {
+  drip_percent: number;
+  carryover: boolean;
+  unfilled_role_to_chest: number;
+  low_rank_triggers: LowRankTriggers;
+  trigger_tiebreak: 'rank_then_time' | 'time_then_rank';
+}
+
+export interface BustFeeConfig {
+  enabled: boolean;
+  basis: 'S1' | 'S2' | 'S3' | 'fixed';
+  fixed_amount: number;
+  to: 'chest' | 'burn';
+}
+
+export interface AdvancedConfig {
+  ties: 'split_share' | 'reroll_one_die' | 'earliest_leader_priority';
+  declare_role: boolean;
+  reveal_sequence: number[];
+}
+
+export interface PhaseTimers {
+  lock_phase_seconds: number;
+  betting_phase_seconds: number;
+  turn_timeout_seconds: number;
+}
+
+export interface GameDelays {
+  auto_start_seconds: number;
+  payout_display_seconds: number;
+  showdown_display_seconds: number;
+  hand_end_seconds: number;
+  countdown_seconds: number;
+}
+
+export interface SessionConfig {
+  max_age_days: number;
+  reconnect_timeout_minutes: number;
+  disconnect_action_timeout_seconds: number;
+  disconnect_fold_timeout_seconds: number;
+  disconnect_kick_timeout_minutes: number;
+}
+
+export interface TimingConfig {
+  phase_timers: PhaseTimers;
+  delays: GameDelays;
+  session: SessionConfig;
+}
+
+export interface HistoryConfig {
+  max_hands_stored: number;
+  recent_display_count: number;
+}
+
+export interface DisplayConfig {
+  history: HistoryConfig;
+}
+
+export interface RulesSectionConfig {
+  enabled: boolean;
+  weight: number;
+  type: 'static' | 'dynamic';
+  span: 1 | 2 | 3;
+}
+
+export interface RulesDisplayConfig {
+  sections: Record<string, RulesSectionConfig>;
+}
+
+// Full game configuration
+export interface PiratePlunderConfig {
+  table: TableSettings;
+  betting: BettingConfig;
+  payouts: PayoutsConfig;
+  house: HouseConfig;
+  chest: ChestConfig;
+  bust_fee: BustFeeConfig;
+  advanced: AdvancedConfig;
+  timing: TimingConfig;
+  display: DisplayConfig;
+  rules_display: RulesDisplayConfig;
+}
+
+// Table instance configuration
 export interface PiratePlunderTableConfig {
   tableId: string;
   displayName: string;
-  ante: number;           // In base currency units
-  minBuyIn: number;       // In base currency units
-  maxSeats: number;
-  rake: number;           // Percentage (e.g., 5 for 5%)
   mode?: string;          // 'PVE' or 'PVP'
-  currency?: string;      // Currency symbol (e.g., 'TC', 'SC') - defaults to 'TC'
+  currency?: string;      // Currency symbol (defaults to 'TC')
+
+  // Backwards-compatible simple fields (deprecated - use fullConfig instead)
+  ante?: number;
+  minBuyIn?: number;
+  maxSeats?: number;
+  rake?: number;
+
+  // Full game configuration
+  fullConfig?: Partial<PiratePlunderConfig>;
 }
 
 // Pirate Plunder specific game phases
@@ -119,30 +288,204 @@ export interface PiratePlunderGameState extends GameState {
   sidePots?: SidePot[];
 }
 
+// ============================================================
+// DEFAULT CONFIGURATION FACTORY
+// ============================================================
+
+export function createDefaultPiratePlunderConfig(): PiratePlunderConfig {
+  return {
+    table: {
+      minHumanPlayers: 2,
+      targetTotalPlayers: 4,
+      maxSeats: 8,
+      cargoChestLearningMode: false,
+      tableMinimumMultiplier: 2.0
+    },
+    betting: {
+      streets: {
+        enabled: false,
+        S1: 1,
+        S2: 3,
+        S3: 6,
+        s3_multiplier: '1x'
+      },
+      ante: {
+        mode: 'per_player',
+        amount: 1,
+        every_nth: 5,
+        progressive: false,
+        street_multiplier: 1.0
+      },
+      edge_tiers: {
+        enabled: false,
+        behind: 0.50,
+        co: 0.75,
+        leader: 1.00,
+        dominant: 1.25
+      },
+      dominant_threshold: 2,
+      rounding: 1
+    },
+    payouts: {
+      role_payouts: {
+        ship: 0.40,
+        captain: 0.30,
+        crew: 0.20
+      },
+      multi_role_allowed: true,
+      combo_kicker: null,
+      role_requirements: {
+        ship: 1,
+        captain: 1,
+        crew: 1
+      }
+    },
+    house: {
+      rake_percent: 0.05,
+      rake_enabled: true,
+      rake_cap: 1000
+    },
+    chest: {
+      drip_percent: 0.10,
+      carryover: true,
+      unfilled_role_to_chest: 0.50,
+      low_rank_triggers: {
+        trips: 0.30,
+        quads: 0.60,
+        yahtzee: 1.00
+      },
+      trigger_tiebreak: 'rank_then_time'
+    },
+    bust_fee: {
+      enabled: true,
+      basis: 'S2',
+      fixed_amount: 0,
+      to: 'chest'
+    },
+    advanced: {
+      ties: 'reroll_one_die',
+      declare_role: false,
+      reveal_sequence: [1, 2, 3]
+    },
+    timing: {
+      phase_timers: {
+        lock_phase_seconds: 30,
+        betting_phase_seconds: 30,
+        turn_timeout_seconds: 30
+      },
+      delays: {
+        auto_start_seconds: 3,
+        payout_display_seconds: 3,
+        showdown_display_seconds: 8,
+        hand_end_seconds: 3,
+        countdown_seconds: 5
+      },
+      session: {
+        max_age_days: 7,
+        reconnect_timeout_minutes: 2,
+        disconnect_action_timeout_seconds: 30,
+        disconnect_fold_timeout_seconds: 30,
+        disconnect_kick_timeout_minutes: 3
+      }
+    },
+    display: {
+      history: {
+        max_hands_stored: 100,
+        recent_display_count: 20
+      }
+    },
+    rules_display: {
+      sections: {
+        role_hierarchy: { enabled: true, weight: 10, type: 'static', span: 2 },
+        cargo_chest: { enabled: true, weight: 20, type: 'dynamic', span: 2 },
+        locking_rules: { enabled: true, weight: 30, type: 'static', span: 1 },
+        betting: { enabled: true, weight: 40, type: 'static', span: 1 },
+        bust_fee: { enabled: true, weight: 50, type: 'dynamic', span: 1 },
+        edge_tiers: { enabled: true, weight: 60, type: 'dynamic', span: 3 }
+      }
+    }
+  };
+}
+
+// Helper function to merge partial config with defaults
+function mergeConfig(partial: Partial<PiratePlunderConfig> | undefined): PiratePlunderConfig {
+  const defaults = createDefaultPiratePlunderConfig();
+  if (!partial) return defaults;
+
+  return {
+    table: { ...defaults.table, ...partial.table },
+    betting: {
+      streets: { ...defaults.betting.streets, ...partial.betting?.streets },
+      ante: { ...defaults.betting.ante, ...partial.betting?.ante },
+      edge_tiers: { ...defaults.betting.edge_tiers, ...partial.betting?.edge_tiers },
+      dominant_threshold: partial.betting?.dominant_threshold ?? defaults.betting.dominant_threshold,
+      rounding: partial.betting?.rounding ?? defaults.betting.rounding
+    },
+    payouts: {
+      role_payouts: { ...defaults.payouts.role_payouts, ...partial.payouts?.role_payouts },
+      multi_role_allowed: partial.payouts?.multi_role_allowed ?? defaults.payouts.multi_role_allowed,
+      combo_kicker: partial.payouts?.combo_kicker ?? defaults.payouts.combo_kicker,
+      role_requirements: { ...defaults.payouts.role_requirements, ...partial.payouts?.role_requirements }
+    },
+    house: { ...defaults.house, ...partial.house },
+    chest: {
+      ...defaults.chest,
+      low_rank_triggers: { ...defaults.chest.low_rank_triggers, ...partial.chest?.low_rank_triggers },
+      ...partial.chest
+    },
+    bust_fee: { ...defaults.bust_fee, ...partial.bust_fee },
+    advanced: { ...defaults.advanced, ...partial.advanced },
+    timing: {
+      phase_timers: { ...defaults.timing.phase_timers, ...partial.timing?.phase_timers },
+      delays: { ...defaults.timing.delays, ...partial.timing?.delays },
+      session: { ...defaults.timing.session, ...partial.timing?.session }
+    },
+    display: {
+      history: { ...defaults.display.history, ...partial.display?.history }
+    },
+    rules_display: {
+      sections: { ...defaults.rules_display.sections, ...partial.rules_display?.sections }
+    }
+  };
+}
+
 export class PiratePlunderTable extends GameBase {
   private config: PiratePlunderTableConfig;
+  private fullConfig: PiratePlunderConfig;  // Merged full configuration
   private namespace: Namespace;
   public gameState: PiratePlunderGameState | null = null;
   private phaseTimer: NodeJS.Timeout | null = null;
   private aiProfiles: AIProfile[] = [];
 
   constructor(config: PiratePlunderTableConfig, namespace: Namespace) {
+    // Merge incoming config with defaults
+    const fullConfig = mergeConfig(config.fullConfig);
+
+    // Override with backwards-compatible fields if provided
+    if (config.maxSeats !== undefined) fullConfig.table.maxSeats = config.maxSeats;
+    if (config.ante !== undefined) fullConfig.betting.ante.amount = config.ante;
+    if (config.rake !== undefined) fullConfig.house.rake_percent = config.rake / 100; // Convert percentage to decimal
+
+    // Store full config
+    const storedFullConfig = fullConfig;
+
     // Convert to GameBase TableConfig format
     const tableConfig: TableConfig = {
-      minHumanPlayers: config.mode?.toUpperCase() === 'PVE' ? 1 : 2,
-      targetTotalPlayers: config.mode?.toUpperCase() === 'PVE' ? 5 : 4, // PVE: 1 human + 4 AI, PVP: 4 humans
-      maxSeats: config.maxSeats,
+      minHumanPlayers: config.mode?.toUpperCase() === 'PVE' ? 1 : fullConfig.table.minHumanPlayers,
+      targetTotalPlayers: config.mode?.toUpperCase() === 'PVE' ? 5 : fullConfig.table.targetTotalPlayers,
+      maxSeats: fullConfig.table.maxSeats,
       currency: config.currency || 'TC',
       betting: {
         ante: {
-          mode: 'fixed',
-          amount: config.ante
+          mode: fullConfig.betting.ante.mode,
+          amount: fullConfig.betting.ante.amount
         }
       }
     };
 
     super(tableConfig);
     this.config = config;
+    this.fullConfig = storedFullConfig;
     this.namespace = namespace;
     this.gameType = 'pirate-plunder';
 
