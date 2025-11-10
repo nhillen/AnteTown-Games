@@ -7,6 +7,7 @@ import type { DiceConfig } from '../utils/diceRendererV2'
 type DieProps = {
   value: 1 | 2 | 3 | 4 | 5 | 6
   locked?: boolean
+  isPublic?: boolean   // Whether this locked die is public (green) or private (blue)
   size?: 'sm' | 'md' | 'lg'
   highSkin?: string    // Collection ID for high rolls (4-6)
   lowSkin?: string     // Collection ID for low rolls (1-3)
@@ -16,6 +17,7 @@ type DieProps = {
 export function Die({
   value,
   locked,
+  isPublic,
   size = 'md',
   highSkin = 'bone-classic',
   lowSkin = 'pearl-simple',
@@ -83,7 +85,13 @@ export function Die({
     // Fallback to simple default
     diceConfig.skin = 'bone'
     diceConfig.material = 'solid'
-    diceConfig.effects = locked ? [{ type: 'glow', color: '#10b981', strength: 'low' }] : []
+    // Green glow for public locked dice, blue for private locked dice
+    if (locked) {
+      const glowColor = isPublic ? '#10b981' : '#3b82f6'; // green : blue
+      diceConfig.effects = [{ type: 'glow', color: glowColor, strength: 'low' }];
+    } else {
+      diceConfig.effects = [];
+    }
   }
   
   const svgContent = renderDice(diceConfig)

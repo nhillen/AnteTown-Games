@@ -715,21 +715,6 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                       .filter(item => item.die.locked)
                       .sort((a, b) => (b.die.value || 0) - (a.die.value || 0));
 
-                    const minRequired = mySeat.minLocksRequired || 1;
-                    const willBePublic = die.locked && lockedDice.findIndex(item => item.index === i) < minRequired;
-
-                    // Use green ring for public dice, blue for private
-                    const ringColor = die.locked ? (willBePublic ? 'ring-green-500' : 'ring-blue-500') : 'ring-transparent';
-
-                    console.log(`🎨 Die ${i} styling:`, {
-                      value: die.value,
-                      locked: die.locked,
-                      willBePublic,
-                      ringColor,
-                      minRequired,
-                      totalLocked: lockedDice.length
-                    });
-
                     return (
                       <button
                         key={i}
@@ -737,18 +722,12 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                           console.log('🎲 DIE BUTTON CLICKED:', { index: i, value: die.value, locked: die.locked });
                           onLockSelect(i);
                         }}
-                        className={`
-                          transition-all transform hover:scale-110 relative
-                          cursor-pointer hover:shadow-lg hover:shadow-emerald-500/30
-                          active:scale-95 active:shadow-inner
-                          ring-4 ${ringColor}
-                          ${die.locked ? 'scale-105 shadow-xl' : ''}
-                        `}
-                        style={die.locked ? { filter: 'brightness(1.2)' } : {}}
+                        className="transition-all transform hover:scale-110 relative cursor-pointer"
                       >
                         <Die
                           value={(die.value || 1) as 1|2|3|4|5|6}
                           locked={die.locked}
+                          isPublic={die.isPublic}
                           highSkin={mySeat?.cosmetics?.highSkin}
                           lowSkin={mySeat?.cosmetics?.lowSkin}
                         />
