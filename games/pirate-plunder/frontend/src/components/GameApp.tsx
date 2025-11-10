@@ -133,7 +133,9 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
   // Restore socket useMemo to prevent connection spam
   const socket = useMemo(() => {
     if (!user) return null
-    return io(BACKEND_URL, {
+    // Connect to /pirateplunder namespace to avoid conflicts with other games on /
+    const socketUrl = BACKEND_URL ? `${BACKEND_URL}/pirateplunder` : '/pirateplunder'
+    return io(socketUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling'] // Disable WebRTC to prevent local network prompt
     })
