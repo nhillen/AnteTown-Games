@@ -709,12 +709,6 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                     return null;
                   })()}
                   {mySeat.dice.map((die, i) => {
-                    // Determine if this die will be public when locked
-                    const lockedDice = mySeat.dice
-                      .map((d, idx) => ({ die: d, index: idx }))
-                      .filter(item => item.die.locked)
-                      .sort((a, b) => (b.die.value || 0) - (a.die.value || 0));
-
                     return (
                       <button
                         key={i}
