@@ -7,6 +7,7 @@ export interface PokerTableConfig {
   tableId: string;           // unique identifier
   displayName: string;       // "High Stakes Hold'em"
   variant: GameVariant;      // 'holdem' | 'squidz-game' | 'omaha' | etc
+  mode?: 'PVP' | 'PVE';      // game mode (default: PVP)
   rules: RuleModifiers;      // variant-specific modifications
 
   // Table parameters
@@ -15,6 +16,10 @@ export interface PokerTableConfig {
   smallBlind: number;        // small blind in pennies
   bigBlind: number;          // big blind in pennies
   maxSeats: number;          // maximum number of seats at table
+
+  // Rake configuration
+  rakePercentage?: number;   // percentage of pot taken as rake (default: 5)
+  rakeCap?: number;          // maximum rake in pennies (optional)
 
   // Metadata
   emoji: string;             // "♠️", "🃏", "🎲"
@@ -33,11 +38,14 @@ export interface PokerTableInfo {
   tableId: string;
   displayName: string;
   variant: GameVariant;
+  mode?: 'PVP' | 'PVE';
   minBuyIn: number;
   maxBuyIn: number;
   smallBlind: number;
   bigBlind: number;
   maxSeats: number;
+  rakePercentage?: number;
+  rakeCap?: number;
   currentPlayers: number;
   emoji: string;
   description: string;

@@ -28,12 +28,19 @@ const pokerBaseSchema = z.object({
   // Variant selection
   variant: z.enum(['holdem', 'squidz-game', 'omaha', 'seven-card-stud'] as const),
 
+  // Game mode
+  mode: z.enum(['PVP', 'PVE']).optional().default('PVP'),
+
   // Core table parameters
   smallBlind: z.number().int().positive(),
   bigBlind: z.number().int().positive(),
   minBuyIn: z.number().int().positive(),
   maxBuyIn: z.number().int().positive(),
   maxSeats: z.number().int().min(2).max(10),
+
+  // Rake configuration
+  rakePercentage: z.number().min(0).max(100).optional().default(5),
+  rakeCap: z.number().int().positive().optional(),
 
   // Metadata
   emoji: z.string().emoji().optional().default('♠️'),
@@ -114,6 +121,12 @@ const fieldMetadata: Record<string, ConfigFieldMetadata> = {
     group: 'Identity',
     displayOrder: 3
   },
+  mode: {
+    label: 'Game Mode',
+    description: 'Player vs Player or Player vs Environment (bots)',
+    group: 'Identity',
+    displayOrder: 4
+  },
 
   // Stakes
   smallBlind: {
@@ -159,6 +172,26 @@ const fieldMetadata: Record<string, ConfigFieldMetadata> = {
     min: 2,
     max: 10,
     step: 1
+  },
+
+  // Rake configuration
+  rakePercentage: {
+    label: 'Rake Percentage',
+    description: 'Percentage of pot taken as house rake',
+    group: 'Betting',
+    displayOrder: 14,
+    unit: 'percentage',
+    min: 0,
+    max: 100,
+    step: 0.1
+  },
+  rakeCap: {
+    label: 'Rake Cap',
+    description: 'Maximum rake amount in pennies (optional)',
+    group: 'Betting',
+    displayOrder: 15,
+    unit: 'pennies',
+    min: 0
   },
 
   // Metadata

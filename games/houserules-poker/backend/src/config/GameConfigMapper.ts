@@ -29,6 +29,10 @@ export interface PlatformGameConfig {
   variant?: string;            // 'holdem', 'squidz-game', etc.
   mode: string;                // 'PVP', 'PVE'
 
+  // Rake configuration
+  rakePercentage?: number | null;
+  rakeCap?: number | null;
+
   // Game-specific overrides (JSON)
   paramOverrides?: string | null;  // Stringified JSON
 
@@ -49,6 +53,10 @@ interface PokerParamOverrides {
   minBuyIn?: number;
   maxBuyIn?: number;
   maxSeats?: number;
+
+  // Rake (can be stored in paramOverrides or platform fields)
+  rakePercentage?: number;
+  rakeCap?: number;
 
   // Metadata
   emoji?: string;
@@ -92,12 +100,17 @@ export function gameConfigToPokerConfig(dbConfig: PlatformGameConfig): PokerTabl
     tableId: dbConfig.gameId,
     displayName: dbConfig.displayName,
     variant: (dbConfig.variant || 'holdem') as GameVariant,
+    mode: dbConfig.mode as 'PVP' | 'PVE',
 
     // Betting
     bigBlind,
     smallBlind,
     minBuyIn: overrides.minBuyIn ?? bigBlind * 20,      // Default: 20 BB
     maxBuyIn: overrides.maxBuyIn ?? bigBlind * 100,     // Default: 100 BB
+
+    // Rake (prefer platform fields over overrides)
+    rakePercentage: dbConfig.rakePercentage ?? overrides.rakePercentage ?? 5,
+    rakeCap: dbConfig.rakeCap ?? overrides.rakeCap,
 
     // Table settings
     maxSeats: overrides.maxSeats ?? 9,
@@ -155,7 +168,11 @@ export function pokerConfigToGameConfig(
     // Use bigBlind as the primary anteAmount
     anteAmount: pokerConfig.bigBlind,
     variant: pokerConfig.variant,
-    mode: 'PVP',
+    mode: pokerConfig.mode ?? 'PVP',
+
+    // Rake configuration (stored in platform base fields)
+    rakePercentage: pokerConfig.rakePercentage ?? 5,
+    rakeCap: pokerConfig.rakeCap ?? null,
 
     // Store poker-specific fields in JSON
     paramOverrides: JSON.stringify(overrides),
