@@ -12,6 +12,9 @@ export { GameRegistry, gameRegistry } from './GameRegistry.js';
 // Export components
 export { MultiTableLobby } from './components/MultiTableLobby.js';
 
+// Export config schema system
+export * from './ConfigSchema.js';
+
 // Export types
 export type {
   GamePhase,

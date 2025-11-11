@@ -16,5 +16,8 @@ export * from './lobby/index.js';
 // Export rules engine
 export * from './rules/index.js';
 
+// Export configuration system
+export * from './config/index.js';
+
 // Export types
 export type { Card, Suit, Rank, HandRank, HandEvaluation, PokerPhase, PokerAction } from './types.js';
