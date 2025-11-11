@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import type { GameState, Seat } from '@antetown/game-sdk';
-import type { Card, PokerPhase, PokerAction } from './types';
+import type { Card, PokerPhase, PokerAction, ActiveSideGame } from './types';
 import clsx from 'clsx';
+import { PropBetProposalModal } from './components/PropBetProposalModal';
+import { PropBetNotification } from './components/PropBetNotification';
+import { ActivePropBets } from './components/ActivePropBets';
 
 interface PokerSeat extends Seat {
   holeCards?: Card[];
   lastAction?: PokerAction;
+  sidePot?: {
+    balance: number;
+    committed: number;
+  };
 }
 
 interface HouseRulesGameState extends GameState {
@@ -15,6 +22,7 @@ interface HouseRulesGameState extends GameState {
   smallBlind?: number;
   bigBlind?: number;
   dealerSeatIndex?: number;
+  activeSideGames?: ActiveSideGame[];
 }
 
 export interface PokerClientProps {
@@ -24,6 +32,8 @@ export interface PokerClientProps {
   onSitDown?: (seatIndex: number, buyInAmount: number) => void;
   onStandUp?: () => void;
   isSeated?: boolean;
+  onProposeSideGame?: (type: string, config: any) => void;
+  onRespondToSideGame?: (sideGameId: string, response: 'in' | 'out') => void;
 }
 
 const CardComponent: React.FC<{ card: Card; faceDown?: boolean }> = ({ card, faceDown }) => {
@@ -72,12 +82,22 @@ const CardComponent: React.FC<{ card: Card; faceDown?: boolean }> = ({ card, fac
   );
 };
 
-const PokerClient: React.FC<PokerClientProps> = ({ gameState, myPlayerId, onAction, onSitDown, onStandUp, isSeated }) => {
+const PokerClient: React.FC<PokerClientProps> = ({
+  gameState,
+  myPlayerId,
+  onAction,
+  onSitDown,
+  onStandUp,
+  isSeated,
+  onProposeSideGame,
+  onRespondToSideGame
+}) => {
   const [betAmount, setBetAmount] = useState<number>(gameState?.bigBlind || 100);
   const [showBuyInModal, setShowBuyInModal] = useState(false);
   const [buyInAmount, setBuyInAmount] = useState(2000); // Default $20 in pennies
   const [selectedSeatIndex, setSelectedSeatIndex] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [showPropBetModal, setShowPropBetModal] = useState(false);
 
   // Update turn timer countdown
   useEffect(() => {
@@ -428,8 +448,57 @@ const PokerClient: React.FC<PokerClientProps> = ({ gameState, myPlayerId, onActi
                 All In
               </button>
             </div>
+
+            {/* Prop Bet Button */}
+            {isSeated && onProposeSideGame && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowPropBetModal(true)}
+                  className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold px-6 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2 mx-auto"
+                >
+                  <span>🎴</span>
+                  <span>Propose Flipz Bet</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Prop Bet Components */}
+      {onProposeSideGame && (
+        <PropBetProposalModal
+          isOpen={showPropBetModal}
+          onClose={() => setShowPropBetModal(false)}
+          onPropose={(type, config) => {
+            onProposeSideGame(type, config);
+            setShowPropBetModal(false);
+          }}
+          myPlayerId={myPlayerId}
+          sidePotBalance={mySeat?.sidePot?.balance || 0}
+        />
+      )}
+
+      {gameState.activeSideGames?.map(sideGame => {
+        const proposerSeat = gameState.seats.find(s => s?.playerId === sideGame.proposedBy);
+        return (
+          <PropBetNotification
+            key={sideGame.id}
+            sideGame={sideGame}
+            proposerName={proposerSeat?.name || 'Unknown'}
+            myPlayerId={myPlayerId}
+            onRespond={(id, response) => onRespondToSideGame?.(id, response)}
+          />
+        );
+      })}
+
+      {gameState.activeSideGames && gameState.activeSideGames.length > 0 && (
+        <ActivePropBets
+          sideGames={gameState.activeSideGames}
+          communityCards={gameState.communityCards || []}
+          getPlayerName={(playerId) => gameState.seats.find(s => s?.playerId === playerId)?.name || 'Unknown'}
+          phase={gameState.phase}
+        />
       )}
     </div>
   );
