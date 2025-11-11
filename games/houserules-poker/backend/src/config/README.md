@@ -2,6 +2,13 @@
 
 This directory contains the configuration schema and mapping utilities for House Rules Poker.
 
+**📖 For backoffice integration and UI generation, see the canonical guide:**
+[`/BACKOFFICE_CONFIG_GUIDE.md`](../../../../BACKOFFICE_CONFIG_GUIDE.md) in the AnteTown-Games repository root.
+
+This README documents the internal game package architecture. The backoffice guide shows how to integrate with the platform.
+
+---
+
 ## Architecture Overview
 
 ```
@@ -320,3 +327,25 @@ async function migrateDefaultTables() {
   }
 }
 ```
+
+---
+
+## Integration with Platform Backoffice
+
+This README documents the game package's internal config architecture. For implementing backoffice UI that uses this schema:
+
+**See:** [`/BACKOFFICE_CONFIG_GUIDE.md`](../../../../BACKOFFICE_CONFIG_GUIDE.md)
+
+The backoffice guide covers:
+- Schema-driven dynamic UI generation
+- Fetching schemas via API
+- Grouping and sorting fields
+- Variant-specific field handling
+- Complete React examples
+
+**Key Pattern:**
+1. Game package exports `POKER_CONFIG_METADATA` (defined here)
+2. Platform backend exposes schema via `/api/admin/games/schemas/houserules-poker`
+3. Platform frontend fetches schema and generates UI dynamically
+
+This ensures the game package is the single source of truth for configuration structure.
