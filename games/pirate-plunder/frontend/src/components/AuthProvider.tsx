@@ -9,6 +9,25 @@ export interface PlayerCosmetics {
   lowSkin?: string;
 }
 
+export interface GameCosmetics {
+  'pirate-plunder'?: {
+    dice?: string;
+    felt?: string;
+  };
+  'houserules-poker'?: {
+    cardBack?: string;
+    felt?: string;
+  };
+  'ck-flipz'?: {
+    cardBack?: string;
+    coin?: string;
+  };
+  'warfaire'?: {
+    cardBack?: string;
+    felt?: string;
+  };
+}
+
 export interface User {
   id: string;
   name: string;
@@ -17,6 +36,7 @@ export interface User {
   bankroll: number;
   cosmetics: PlayerCosmetics;
   unlockedCosmetics: string[];
+  gameCosmetics?: GameCosmetics;
   totalGamesPlayed: number;
   totalWinnings: number;
   isAdmin: boolean;

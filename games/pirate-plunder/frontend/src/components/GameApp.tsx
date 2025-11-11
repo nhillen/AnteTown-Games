@@ -126,7 +126,15 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
   // Update cosmetics when user changes
   useEffect(() => {
     if (user?.cosmetics) {
-      setCosmetics(user.cosmetics)
+      // Use gameCosmetics if available, otherwise fall back to old cosmetics system
+      const diceCosmetic = user.gameCosmetics?.['pirate-plunder']?.dice
+
+      setCosmetics({
+        ...user.cosmetics,
+        // Map new dice cosmetic to both highSkin and lowSkin for backwards compatibility
+        highSkin: diceCosmetic || user.cosmetics.highSkin || 'bone-classic',
+        lowSkin: diceCosmetic || user.cosmetics.lowSkin || 'pearl-simple'
+      })
     }
   }, [user])
 
