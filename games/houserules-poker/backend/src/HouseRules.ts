@@ -1,8 +1,9 @@
 import { GameBase, GameState, Seat, Player, WinnerResult, GameMetadata } from '@antetown/game-sdk';
-import { Card, PokerPhase, PokerAction, PokerSeat, AIPersonality, AIPersonalityProfile } from './types.js';
+import { Card, PokerPhase, PokerAction, PokerSeat, AIPersonality, AIPersonalityProfile, ActiveSideGame, SideGameParticipant, SidePotCommitment } from './types.js';
 import { createDeck, shuffleDeck, dealCards } from './deck.js';
 import { evaluateHand, handRankToString } from './hand-evaluator.js';
 import { loadRulesEngine, PokerRulesEngine, GameVariant } from './rules/index.js';
+import { SideGameRegistry, SideGameDefinition } from './side-games/index.js';
 
 interface HouseRulesGameState extends GameState {
   phase: PokerPhase;
@@ -19,6 +20,9 @@ interface HouseRulesGameState extends GameState {
   squidzDistributed?: number;      // Number of squidz distributed so far
   isSquidzRound?: boolean;         // Whether this is a Squidz Game round
   roundLocked?: boolean;           // Prevent new players joining mid-round
+
+  // Side games
+  activeSideGames?: ActiveSideGame[];  // Player-proposed side games
 }
 
 // AI Personality Profiles
@@ -126,7 +130,8 @@ export class HouseRules extends GameBase {
       deck: [],
       smallBlind: this.smallBlindAmount,
       bigBlind: this.bigBlindAmount,
-      propBets: []  // Active prop bets
+      propBets: [],  // Active prop bets
+      activeSideGames: []  // Active side games
     };
   }
 
@@ -670,6 +675,378 @@ export class HouseRules extends GameBase {
     }
   }
 
+  // ============================================================
+  // SIDE GAME PROPOSAL & MANAGEMENT
+  // ============================================================
+
+  /**
+   * Propose a new side game mid-session
+   */
+  public proposeSideGame(playerId: string, sideGameType: string, config?: any): { success: boolean; error?: string; sideGameId?: string } {
+    if (!this.gameState) {
+      return { success: false, error: 'Game not initialized' };
+    }
+
+    // Get side game definition
+    const definition = SideGameRegistry.get(sideGameType);
+    if (!definition) {
+      return { success: false, error: 'Unknown side game type' };
+    }
+
+    if (!definition.isOptional) {
+      return { success: false, error: 'This side game cannot be proposed mid-game (table-level only)' };
+    }
+
+    // Validate config
+    const finalConfig = { ...definition.defaultConfig, ...config };
+    if (definition.validateConfig) {
+      const validation = definition.validateConfig(finalConfig);
+      if (!validation.valid) {
+        return { success: false, error: validation.error || 'Invalid configuration' };
+      }
+    }
+
+    const proposer = this.findSeat(playerId);
+    if (!proposer) {
+      return { success: false, error: 'Player not seated' };
+    }
+
+    // Generate side game ID
+    const sideGameId = `sidegame-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    const sideGame: ActiveSideGame = {
+      id: sideGameId,
+      type: sideGameType,
+      displayName: definition.displayName,
+      description: definition.description,
+      config: finalConfig,
+      participants: [{
+        playerId,
+        opted: 'in',
+        buyInAmount: definition.requiresUpfrontBuyIn ? finalConfig.buyIn : undefined
+      }],
+      proposedBy: playerId,
+      proposedAt: Date.now(),
+      status: 'proposed',
+      isOptional: definition.isOptional,
+      requiresUpfrontBuyIn: definition.requiresUpfrontBuyIn,
+      contributionPerHand: !definition.requiresUpfrontBuyIn ? finalConfig.contributionPerHand : undefined,
+      potBalance: 0,
+      handsPlayed: 0,
+      totalPayouts: 0
+    };
+
+    if (!this.gameState.activeSideGames) {
+      this.gameState.activeSideGames = [];
+    }
+
+    this.gameState.activeSideGames.push(sideGame);
+
+    console.log(`🎲 ${proposer.name} proposed side game: ${definition.displayName}`);
+
+    this.broadcastGameState();
+    return { success: true, sideGameId };
+  }
+
+  /**
+   * Respond to a side game proposal (opt in or out)
+   */
+  public respondToSideGame(playerId: string, sideGameId: string, response: 'in' | 'out', config?: any): { success: boolean; error?: string } {
+    if (!this.gameState) {
+      return { success: false, error: 'Game not initialized' };
+    }
+
+    const sideGame = this.gameState.activeSideGames?.find(sg => sg.id === sideGameId);
+    if (!sideGame) {
+      return { success: false, error: 'Side game not found' };
+    }
+
+    if (sideGame.status !== 'proposed') {
+      return { success: false, error: 'Side game is not open for responses' };
+    }
+
+    const seat = this.findSeat(playerId);
+    if (!seat) {
+      return { success: false, error: 'Player not seated' };
+    }
+
+    // Check if already responded
+    const existingResponse = sideGame.participants.find(p => p.playerId === playerId);
+    if (existingResponse) {
+      return { success: false, error: 'Already responded to this side game' };
+    }
+
+    if (response === 'in') {
+      // Opting in
+      if (sideGame.requiresUpfrontBuyIn) {
+        // Need to deduct buy-in from side pot
+        if (!seat.sidePot) {
+          return { success: false, error: 'No side pot account' };
+        }
+
+        const buyIn = config?.buyIn || sideGame.config.buyIn;
+        const available = seat.sidePot.balance - seat.sidePot.committed;
+
+        if (available < buyIn) {
+          return { success: false, error: `Insufficient side pot funds. Need ${buyIn}, have ${available}` };
+        }
+
+        // Deduct from side pot
+        seat.sidePot.balance -= buyIn;
+        sideGame.potBalance = (sideGame.potBalance || 0) + buyIn;
+
+        sideGame.participants.push({
+          playerId,
+          opted: 'in',
+          buyInAmount: buyIn
+        });
+
+        console.log(`🎲 ${seat.name} opted into ${sideGame.displayName} (buy-in: ${buyIn})`);
+      } else {
+        // Per-hand contribution - just mark as opted in
+        sideGame.participants.push({
+          playerId,
+          opted: 'in'
+        });
+
+        console.log(`🎲 ${seat.name} opted into ${sideGame.displayName}`);
+      }
+    } else {
+      // Opting out
+      sideGame.participants.push({
+        playerId,
+        opted: 'out'
+      });
+
+      console.log(`🎲 ${seat.name} declined ${sideGame.displayName}`);
+    }
+
+    this.broadcastGameState();
+    return { success: true };
+  }
+
+  /**
+   * Activate a side game (start playing it)
+   */
+  public activateSideGame(sideGameId: string): { success: boolean; error?: string } {
+    if (!this.gameState) {
+      return { success: false, error: 'Game not initialized' };
+    }
+
+    const sideGame = this.gameState.activeSideGames?.find(sg => sg.id === sideGameId);
+    if (!sideGame) {
+      return { success: false, error: 'Side game not found' };
+    }
+
+    if (sideGame.status !== 'proposed') {
+      return { success: false, error: 'Side game is not in proposed state' };
+    }
+
+    // Check minimum participants
+    const definition = SideGameRegistry.get(sideGame.type);
+    const optedIn = sideGame.participants.filter(p => p.opted === 'in');
+
+    if (definition?.minParticipants && optedIn.length < definition.minParticipants) {
+      return { success: false, error: `Need at least ${definition.minParticipants} participants` };
+    }
+
+    sideGame.status = 'active';
+
+    console.log(`🎲 Side game activated: ${sideGame.displayName} (${optedIn.length} participants)`);
+
+    this.broadcastGameState();
+    return { success: true };
+  }
+
+  /**
+   * Allow new players joining to opt into active side games
+   */
+  public optIntoActiveSideGame(playerId: string, sideGameId: string, config?: any): { success: boolean; error?: string } {
+    if (!this.gameState) {
+      return { success: false, error: 'Game not initialized' };
+    }
+
+    const sideGame = this.gameState.activeSideGames?.find(sg => sg.id === sideGameId);
+    if (!sideGame || sideGame.status !== 'active') {
+      return { success: false, error: 'Side game not found or not active' };
+    }
+
+    // Check if already participating
+    if (sideGame.participants.find(p => p.playerId === playerId)) {
+      return { success: false, error: 'Already participating in this side game' };
+    }
+
+    const seat = this.findSeat(playerId);
+    if (!seat) {
+      return { success: false, error: 'Player not seated' };
+    }
+
+    if (sideGame.requiresUpfrontBuyIn) {
+      // Need to deduct buy-in from side pot
+      if (!seat.sidePot) {
+        return { success: false, error: 'No side pot account' };
+      }
+
+      const buyIn = config?.buyIn || sideGame.config.buyIn;
+      const available = seat.sidePot.balance - seat.sidePot.committed;
+
+      if (available < buyIn) {
+        return { success: false, error: `Insufficient side pot funds. Need ${buyIn}, have ${available}` };
+      }
+
+      // Deduct from side pot
+      seat.sidePot.balance -= buyIn;
+      sideGame.potBalance = (sideGame.potBalance || 0) + buyIn;
+
+      sideGame.participants.push({
+        playerId,
+        opted: 'in',
+        buyInAmount: buyIn
+      });
+
+      console.log(`🎲 ${seat.name} joined ${sideGame.displayName} (buy-in: ${buyIn})`);
+    } else {
+      // Per-hand contribution - just mark as opted in
+      sideGame.participants.push({
+        playerId,
+        opted: 'in'
+      });
+
+      console.log(`🎲 ${seat.name} joined ${sideGame.displayName}`);
+    }
+
+    this.broadcastGameState();
+    return { success: true };
+  }
+
+  /**
+   * Commit funds for active side games at start of hand
+   */
+  private commitSideGameFunds(): void {
+    if (!this.gameState || !this.gameState.activeSideGames) return;
+
+    for (const sideGame of this.gameState.activeSideGames) {
+      if (sideGame.status !== 'active') continue;
+      if (!sideGame.contributionPerHand) continue;  // Skip upfront buy-in games
+
+      const amount = sideGame.contributionPerHand;
+
+      for (const participant of sideGame.participants) {
+        if (participant.opted !== 'in') continue;
+
+        const seat = this.findSeat(participant.playerId);
+        if (!seat?.sidePot) continue;
+
+        const available = seat.sidePot.balance - seat.sidePot.committed;
+        if (available < amount) {
+          // Can't cover - skip this hand
+          participant.skippedHands = (participant.skippedHands || 0) + 1;
+          console.log(`🎲 ${seat.name} can't cover ${sideGame.displayName} contribution this hand (skipped ${participant.skippedHands} hands)`);
+          continue;
+        }
+
+        // Commit funds
+        seat.sidePot.committed += amount;
+
+        if (!seat.sidePot.commitments) {
+          seat.sidePot.commitments = [];
+        }
+
+        seat.sidePot.commitments.push({
+          amount,
+          reason: `${sideGame.displayName} - Hand contribution`,
+          type: 'side-game',
+          metadata: { sideGameId: sideGame.id }
+        });
+      }
+    }
+  }
+
+  /**
+   * Resolve active side games after hand completes
+   */
+  private resolveSideGames(winner: Seat & PokerSeat, winningHand?: any): void {
+    if (!this.gameState || !this.gameState.activeSideGames) return;
+
+    for (const sideGame of this.gameState.activeSideGames) {
+      if (sideGame.status !== 'active') continue;
+
+      const definition = SideGameRegistry.get(sideGame.type);
+      if (!definition?.onHandComplete) continue;
+
+      // Call side game hook to determine payouts
+      const payouts = definition.onHandComplete({
+        winner,
+        winningHand,
+        sideGame,
+        participants: sideGame.participants,
+        allSeats: this.gameState.seats.filter((s): s is Seat & PokerSeat => s !== null),
+        gameState: this.gameState
+      });
+
+      if (payouts.length === 0) {
+        // No payout this hand - release commitments
+        this.releaseSideGameCommitments(sideGame.id);
+        continue;
+      }
+
+      // Process payouts from committed funds
+      for (const payout of payouts) {
+        const fromSeat = this.findSeat(payout.fromPlayerId);
+        const toSeat = this.findSeat(payout.toPlayerId);
+
+        if (!fromSeat?.sidePot || !toSeat?.sidePot) continue;
+
+        // Transfer from committed funds
+        const transferAmount = Math.min(payout.amount, fromSeat.sidePot.committed, fromSeat.sidePot.balance);
+
+        if (transferAmount > 0) {
+          fromSeat.sidePot.balance -= transferAmount;
+          fromSeat.sidePot.committed -= transferAmount;
+          toSeat.sidePot.balance += transferAmount;
+
+          sideGame.totalPayouts = (sideGame.totalPayouts || 0) + transferAmount;
+
+          console.log(`🎲 ${fromSeat.name} pays ${transferAmount} ${this.currency} to ${toSeat.name} (${payout.reason})`);
+
+          // Remove commitment
+          fromSeat.sidePot.commitments = fromSeat.sidePot.commitments?.filter(
+            (c: SidePotCommitment) => !(c.type === 'side-game' && c.metadata?.sideGameId === sideGame.id)
+          );
+        }
+      }
+
+      // Release all other commitments for this side game
+      this.releaseSideGameCommitments(sideGame.id);
+
+      sideGame.handsPlayed = (sideGame.handsPlayed || 0) + 1;
+    }
+  }
+
+  /**
+   * Release all commitments for a specific side game
+   */
+  private releaseSideGameCommitments(sideGameId: string): void {
+    if (!this.gameState) return;
+
+    const seatedPlayers = this.gameState.seats.filter((s): s is Seat & PokerSeat => s !== null);
+
+    for (const seat of seatedPlayers) {
+      if (!seat.sidePot?.commitments) continue;
+
+      const commitment = seat.sidePot.commitments.find(
+        c => c.type === 'side-game' && c.metadata?.sideGameId === sideGameId
+      );
+
+      if (commitment) {
+        seat.sidePot.committed -= commitment.amount;
+        seat.sidePot.commitments = seat.sidePot.commitments.filter(
+          c => !(c.type === 'side-game' && c.metadata?.sideGameId === sideGameId)
+        );
+      }
+    }
+  }
+
   startHand(): void {
     if (!this.gameState) return;
 
@@ -683,6 +1060,9 @@ export class HouseRules extends GameBase {
     if (this.variant === 'squidz-game') {
       this.commitSquidzFunds();
     }
+
+    // Commit funds for active side games
+    this.commitSideGameFunds();
 
     // Call rules engine round start hook
     if (this.rulesEngine.hooks.onRoundStart) {
@@ -974,6 +1354,7 @@ export class HouseRules extends GameBase {
     const activePlayers = this.gameState.seats.filter(s => s !== null && !s.hasFolded);
 
     let winnerSeat: Seat & PokerSeat;
+    let winningHand: any = undefined;
 
     if (activePlayers.length === 1) {
       // Only one player left
@@ -994,6 +1375,7 @@ export class HouseRules extends GameBase {
 
       const winner = evaluations[0];
       winnerSeat = winner.seat;
+      winningHand = winner.hand;
       winnerSeat.tableStack += this.gameState.pot;
 
       console.log(`🎰 ${winnerSeat.name} wins ${this.gameState.pot} ${this.currency} with ${handRankToString(winner.hand.rank)}`);
@@ -1028,6 +1410,9 @@ export class HouseRules extends GameBase {
         this.updateSquidzCommitments();
       }
     }
+
+    // Resolve active side games (7-2 game, etc.)
+    this.resolveSideGames(winnerSeat, winningHand);
 
     this.gameState.phase = 'PreHand';
     this.gameState.pot = 0;

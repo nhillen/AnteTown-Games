@@ -19,5 +19,21 @@ export * from './rules/index.js';
 // Export configuration system
 export * from './config/index.js';
 
+// Export side games system
+export * from './side-games/index.js';
+
 // Export types
-export type { Card, Suit, Rank, HandRank, HandEvaluation, PokerPhase, PokerAction } from './types.js';
+export type {
+  Card,
+  Suit,
+  Rank,
+  HandRank,
+  HandEvaluation,
+  PokerPhase,
+  PokerAction,
+  SidePotAccount,
+  SidePotCommitment,
+  ActiveSideGame,
+  SideGameParticipant,
+  SideGamePayout
+} from './types.js';

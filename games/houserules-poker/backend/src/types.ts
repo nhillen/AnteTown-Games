@@ -87,6 +87,52 @@ export interface PropBet {
   };
 }
 
+/**
+ * Side game participant
+ */
+export interface SideGameParticipant {
+  playerId: string;
+  buyInAmount?: number;      // For upfront buy-in games
+  opted: 'in' | 'out';
+  skippedHands?: number;     // Count of hands skipped due to insufficient funds
+}
+
+/**
+ * Active side game at the table
+ */
+export interface ActiveSideGame {
+  id: string;
+  type: string;              // 'seven-two-game', 'custom-prop', etc.
+  displayName: string;
+  description: string;
+  config: any;               // Game-specific config
+  participants: SideGameParticipant[];
+  proposedBy: string;
+  proposedAt: number;        // Timestamp
+  status: 'proposed' | 'active' | 'completed';
+
+  // Game rules
+  isOptional: boolean;       // Can players opt out?
+  requiresUpfrontBuyIn: boolean;  // Or per-hand contribution?
+  minBuyIn?: number;
+  contributionPerHand?: number;
+
+  // State tracking
+  potBalance?: number;       // For progressive pots
+  handsPlayed?: number;
+  totalPayouts?: number;
+}
+
+/**
+ * Side game payout result
+ */
+export interface SideGamePayout {
+  fromPlayerId: string;
+  toPlayerId: string;
+  amount: number;
+  reason: string;
+}
+
 export interface PokerSeat {
   holeCards: Card[];
   lastAction?: PokerAction;
