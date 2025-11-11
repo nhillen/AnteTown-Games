@@ -53,12 +53,50 @@ export interface AIPersonalityProfile {
   foldThreshold: number;  // 0-1: stack % threshold for folding to large bets
 }
 
+export interface SidePotCommitment {
+  amount: number;
+  reason: string;
+  type: 'squidz-game' | 'prop-bet' | 'side-game';
+  metadata?: any;
+}
+
+export interface SidePotAccount {
+  balance: number;       // Total funds in side pot
+  committed: number;     // Locked for active bets/games
+  commitments?: SidePotCommitment[];  // Track what funds are committed to
+}
+
+export interface PropBet {
+  id: string;
+  description: string;
+  amount: number;
+  initiator: {
+    playerId: string;
+    position: 'for' | 'against';
+    committed: number;
+  };
+  acceptor?: {
+    playerId: string;
+    position: 'for' | 'against';
+    committed: number;
+  };
+  status: 'open' | 'matched' | 'resolved' | 'cancelled';
+  resolution?: {
+    winner: 'for' | 'against';
+    payout: { playerId: string; amount: number }[];
+  };
+}
+
 export interface PokerSeat {
   holeCards: Card[];
   lastAction?: PokerAction;
   personality?: AIPersonality;
 
+  // Side pot account for bounties, prop bets, etc.
+  sidePot?: SidePotAccount;
+
   // Squidz Game specific fields
   squidCount?: number;           // Number of squidz this player has
   handsRevealed?: boolean;       // Whether this player's hands are revealed to all
+  squidzEligible?: boolean;      // Can participate in squidz this hand
 }

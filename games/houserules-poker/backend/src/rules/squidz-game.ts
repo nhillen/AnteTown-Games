@@ -146,30 +146,31 @@ export const SQUIDZ_GAME_RULES: PokerRulesEngine = {
       const playersWithSquidz = seatedPlayers.filter(s => (s.squidCount || 0) > 0);
       const playersWithoutSquidz = seatedPlayers.filter(s => (s.squidCount || 0) === 0);
 
+      const sidePotPayments: any[] = [];
+
       if (playersWithSquidz.length === 0 || playersWithoutSquidz.length === 0) {
         console.log(`🦑 No bounty payouts needed (${playersWithSquidz.length} winners, ${playersWithoutSquidz.length} losers)`);
       } else {
         console.log(`🦑 Bounty payout: ${playersWithoutSquidz.length} losers will pay ${playersWithSquidz.length} winners`);
 
-        // Calculate and distribute bounties
+        // Calculate and generate payment requests (payments come from side pot)
         playersWithSquidz.forEach(winner => {
           const squidCount = winner.squidCount || 0;
           const bountyPerLoser = calculateBountyPerPlayer(squidCount, squidzConfig, tableConfig.bigBlind);
 
           console.log(`🦑 ${winner.name} has ${squidCount} squidz (value: $${bountyPerLoser / 100} per loser)`);
 
-          let totalBountyReceived = 0;
-
           playersWithoutSquidz.forEach(loser => {
-            const actualBounty = Math.min(bountyPerLoser, loser.tableStack);
-            loser.tableStack -= actualBounty;
-            totalBountyReceived += actualBounty;
+            // Payment comes from side pot
+            sidePotPayments.push({
+              fromPlayerId: loser.playerId,
+              toPlayerId: winner.playerId,
+              amount: bountyPerLoser,
+              reason: `Squidz bounty: ${squidCount} squids`
+            });
 
-            console.log(`🦑   ${loser.name} pays $${actualBounty / 100} to ${winner.name}`);
+            console.log(`🦑   ${loser.name} will pay $${bountyPerLoser / 100} from side pot to ${winner.name}`);
           });
-
-          winner.tableStack += totalBountyReceived;
-          console.log(`🦑 ${winner.name} receives total bounty: $${totalBountyReceived / 100}`);
         });
       }
 
@@ -184,7 +185,8 @@ export const SQUIDZ_GAME_RULES: PokerRulesEngine = {
       return {
         delayNextRound: 5000, // 5 second delay to show results
         shouldResetTable: true,
-        customMessage: 'Squidz round complete - starting new round'
+        customMessage: 'Squidz round complete - starting new round',
+        sidePotPayments  // Return payments to be processed from side pots
       };
     },
 
@@ -311,4 +313,39 @@ export function shouldEndSquidzRound(
   }
 
   return { shouldEnd: false };
+}
+
+/**
+ * Calculate maximum liability for a player in Squidz Game
+ *
+ * Worst case: One other player gets ALL the squids and this player has NONE
+ * Liability = 0 if player has any squids (they GET PAID, not pay)
+ *
+ * @param playerId - Player to calculate liability for
+ * @param playerCount - Total number of players
+ * @param currentSquidCount - Current squid count for this player
+ * @param config - Squidz configuration
+ * @param bigBlind - Big blind amount
+ * @returns Maximum amount this player might need to pay
+ */
+export function calculateMaxSquidzLiability(
+  playerId: string,
+  playerCount: number,
+  currentSquidCount: number,
+  config: SquidzConfig,
+  bigBlind: number
+): number {
+  // If this player has any squids, they have ZERO liability (they get paid, not pay)
+  if (currentSquidCount > 0) {
+    return 0;
+  }
+
+  // Calculate total squids in play
+  const totalSquids = getTotalSquidzCount(playerCount, config);
+
+  // Worst case: One opponent has ALL the squids, I have none
+  // I need to pay them the value of all squids
+  const maxValue = calculateSquidValue(totalSquids, config, bigBlind);
+
+  return maxValue;
 }

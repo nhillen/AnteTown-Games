@@ -33,7 +33,7 @@ export class TableManager {
   /**
    * Route player to a specific table
    */
-  routePlayerToTable(player: Player, tableId: string, seatIndex?: number, buyInAmount?: number): {
+  routePlayerToTable(player: Player, tableId: string, seatIndex?: number, buyInAmount?: number, sidePotBuyIn?: number): {
     success: boolean;
     error?: string;
     seatIndex?: number;
@@ -54,7 +54,7 @@ export class TableManager {
     }
 
     // Attempt to sit player at table
-    const result = table.sitPlayer(player, seatIndex, buyInAmount);
+    const result = table.sitPlayer(player, seatIndex, buyInAmount, sidePotBuyIn);
 
     if (result.success) {
       // Track player's table

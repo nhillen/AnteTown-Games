@@ -128,12 +128,23 @@ export interface PotWinResult {
 }
 
 /**
+ * Side pot payment request
+ */
+export interface SidePotPayment {
+  fromPlayerId: string;
+  toPlayerId: string;
+  amount: number;
+  reason: string;
+}
+
+/**
  * Result from round end hook
  */
 export interface RoundEndResult {
   delayNextRound?: number;        // Milliseconds to delay before next round
   shouldResetTable?: boolean;     // Whether to reset table state
   customMessage?: string;         // Custom message to log/display
+  sidePotPayments?: SidePotPayment[];  // Payments to make from side pots
 }
 
 /**

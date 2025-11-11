@@ -125,14 +125,15 @@ export class HouseRules extends GameBase {
       communityCards: [],
       deck: [],
       smallBlind: this.smallBlindAmount,
-      bigBlind: this.bigBlindAmount
+      bigBlind: this.bigBlindAmount,
+      propBets: []  // Active prop bets
     };
   }
 
   /**
    * Override sitPlayer to enforce buy-in requirements for poker
    */
-  public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number): { success: boolean; error?: string; seatIndex?: number } {
+  public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number, sidePotBuyIn?: number): { success: boolean; error?: string; seatIndex?: number } {
     if (!this.gameState) {
       return { success: false, error: 'Game not initialized' };
     }
@@ -156,8 +157,20 @@ export class HouseRules extends GameBase {
       };
     }
 
+    // For Squidz Game, side pot is required
+    if (this.variant === 'squidz-game' && !sidePotBuyIn) {
+      const suggestedSidePot = this.bigBlindAmount * 20;
+      return {
+        success: false,
+        error: `Side pot required for Squidz Game (suggested: ${suggestedSidePot} ${this.currency})`
+      };
+    }
+
+    // Calculate total cost
+    const totalCost = buyInAmount + (sidePotBuyIn || 0);
+
     // Check player has sufficient bankroll
-    if (!player.bankroll || player.bankroll < buyInAmount) {
+    if (!player.bankroll || player.bankroll < totalCost) {
       return { success: false, error: 'Insufficient bankroll' };
     }
 
@@ -190,6 +203,15 @@ export class HouseRules extends GameBase {
       ...(player.googleId && { googleId: player.googleId }),
     };
 
+    // Add side pot if provided
+    if (sidePotBuyIn && sidePotBuyIn > 0) {
+      seat.sidePot = {
+        balance: sidePotBuyIn,
+        committed: 0,
+        commitments: []
+      };
+    }
+
     // Assign random personality to AI players
     if (player.isAI) {
       const personalities: AIPersonality[] = ['GTO', 'Grinder', 'Donkey'];
@@ -199,8 +221,8 @@ export class HouseRules extends GameBase {
 
     this.gameState.seats[targetSeat] = seat;
 
-    // Deduct buy-in from player's bankroll
-    player.bankroll -= buyInAmount;
+    // Deduct total cost from player's bankroll
+    player.bankroll -= totalCost;
     player.tableStack = buyInAmount;
 
     console.log(`🎰 ${player.name} sat down at seat ${targetSeat} with ${buyInAmount} ${this.currency}`);
@@ -216,6 +238,438 @@ export class HouseRules extends GameBase {
     return { success: true, seatIndex: targetSeat };
   }
 
+  /**
+   * Add funds to a player's side pot
+   */
+  public addToSidePot(playerId: string, amount: number): { success: boolean; error?: string } {
+    if (!this.gameState) {
+      return { success: false, error: 'Game not initialized' };
+    }
+
+    const player = this.getPlayer(playerId);
+    if (!player) {
+      return { success: false, error: 'Player not found' };
+    }
+
+    const seat = this.findSeat(playerId);
+    if (!seat) {
+      return { success: false, error: 'Player not seated' };
+    }
+
+    // Check player has sufficient bankroll
+    if (!player.bankroll || player.bankroll < amount) {
+      return { success: false, error: 'Insufficient bankroll' };
+    }
+
+    // Deduct from bankroll
+    player.bankroll -= amount;
+
+    // Add to side pot (or create if doesn't exist)
+    if (!seat.sidePot) {
+      seat.sidePot = {
+        balance: amount,
+        committed: 0,
+        commitments: []
+      };
+    } else {
+      seat.sidePot.balance += amount;
+    }
+
+    console.log(`💰 ${player.name} added ${amount} ${this.currency} to side pot (new balance: ${seat.sidePot.balance})`);
+
+    this.broadcastGameState();
+    return { success: true };
+  }
+
+  /**
+   * Commit side pot funds for Squidz Game before hand starts
+   */
+  private commitSquidzFunds(): void {
+    if (!this.gameState) return;
+
+    // Import calculateMaxSquidzLiability from squidz-game module
+    const { calculateMaxSquidzLiability, DEFAULT_SQUIDZ_CONFIG } = require('./rules/squidz-game.js');
+
+    const seatedPlayers = this.gameState.seats.filter((s: any) => s !== null && s.tableStack > 0);
+    const playerCount = seatedPlayers.length;
+
+    // Get squidz config from table rules or use defaults
+    const squidzConfig = this.ruleModifiers.squidzConfig
+      ? { ...DEFAULT_SQUIDZ_CONFIG, ...this.ruleModifiers.squidzConfig }
+      : DEFAULT_SQUIDZ_CONFIG;
+
+    for (const seat of seatedPlayers) {
+      if (!seat.sidePot) {
+        // No side pot - kick from squidz game
+        seat.squidzEligible = false;
+        console.log(`🦑 ${seat.name} has no side pot - excluded from Squidz Game`);
+        continue;
+      }
+
+      // Calculate max liability for this player
+      const currentSquidCount = seat.squidCount || 0;
+      const maxLiability = calculateMaxSquidzLiability(
+        seat.playerId,
+        playerCount,
+        currentSquidCount,
+        squidzConfig,
+        this.bigBlindAmount
+      );
+
+      const available = seat.sidePot.balance - seat.sidePot.committed;
+
+      if (available < maxLiability) {
+        // Can't cover worst case - try to top up from bankroll
+        const shortfall = maxLiability - available;
+        const player = this.getPlayer(seat.playerId);
+
+        if (player && player.bankroll >= shortfall) {
+          // Auto top-up from bankroll
+          player.bankroll -= shortfall;
+          seat.sidePot.balance += shortfall;
+          console.log(`💰 Auto-topped up ${seat.name}'s side pot by ${shortfall} ${this.currency}`);
+        } else {
+          // Can't cover - kick from squidz game
+          seat.squidzEligible = false;
+          console.log(`🦑 ${seat.name} has insufficient side pot funds - excluded from Squidz Game`);
+          continue;
+        }
+      }
+
+      // Commit the funds
+      seat.sidePot.committed += maxLiability;
+
+      if (!seat.sidePot.commitments) {
+        seat.sidePot.commitments = [];
+      }
+
+      seat.sidePot.commitments.push({
+        amount: maxLiability,
+        reason: `Squidz Game - Round max liability`,
+        type: 'squidz-game',
+        metadata: {
+          playerCount,
+          currentSquidCount
+        }
+      });
+
+      // Mark player as eligible for squidz
+      seat.squidzEligible = true;
+
+      console.log(`🦑 ${seat.name} committed ${maxLiability} ${this.currency} to side pot (available: ${available - maxLiability})`);
+    }
+
+    this.broadcastGameState();
+  }
+
+  /**
+   * Update Squidz commitments based on current squid counts
+   * When a player gets squids, their liability drops to 0, so release funds
+   */
+  private updateSquidzCommitments(): void {
+    if (!this.gameState || this.variant !== 'squidz-game') return;
+
+    // Import calculateMaxSquidzLiability from squidz-game module
+    const { calculateMaxSquidzLiability, DEFAULT_SQUIDZ_CONFIG } = require('./rules/squidz-game.js');
+
+    const seatedPlayers = this.gameState.seats.filter((s: any) => s !== null && s.tableStack > 0);
+    const playerCount = seatedPlayers.length;
+
+    // Get squidz config from table rules or use defaults
+    const squidzConfig = this.ruleModifiers.squidzConfig
+      ? { ...DEFAULT_SQUIDZ_CONFIG, ...this.ruleModifiers.squidzConfig }
+      : DEFAULT_SQUIDZ_CONFIG;
+
+    for (const seat of seatedPlayers) {
+      if (!seat.sidePot || !seat.squidzEligible) continue;
+
+      // Recalculate liability with current squid counts
+      const currentSquidCount = seat.squidCount || 0;
+      const newLiability = calculateMaxSquidzLiability(
+        seat.playerId,
+        playerCount,
+        currentSquidCount,
+        squidzConfig,
+        this.bigBlindAmount
+      );
+
+      // Find existing squidz commitment
+      const commitmentIndex = seat.sidePot.commitments?.findIndex(
+        (c: any) => c.type === 'squidz-game'
+      );
+
+      if (commitmentIndex !== undefined && commitmentIndex >= 0 && seat.sidePot.commitments) {
+        const oldCommitment = seat.sidePot.commitments[commitmentIndex];
+        const difference = oldCommitment.amount - newLiability;
+
+        if (difference > 0) {
+          // Liability decreased (player got squids!) - release some funds
+          seat.sidePot.committed -= difference;
+          seat.sidePot.commitments[commitmentIndex].amount = newLiability;
+
+          console.log(`🦑 ${seat.name} liability reduced by ${difference} ${this.currency} (got squids!)`);
+
+          // If liability is now 0 (player has squids), they can make prop bets
+          if (newLiability === 0) {
+            const available = seat.sidePot.balance - seat.sidePot.committed;
+            console.log(`🦑 ${seat.name} has squids! Side pot funds available: ${available} ${this.currency}`);
+          }
+        }
+      }
+    }
+
+    this.broadcastGameState();
+  }
+
+  /**
+   * Process side pot payments from rules engine results
+   */
+  private processSidePotPayments(payments: any[]): void {
+    if (!this.gameState) return;
+
+    console.log(`💰 Processing ${payments.length} side pot payments...`);
+
+    for (const payment of payments) {
+      const fromSeat = this.findSeat(payment.fromPlayerId);
+      const toSeat = this.findSeat(payment.toPlayerId);
+
+      if (!fromSeat?.sidePot || !toSeat?.sidePot) {
+        console.log(`⚠️ Cannot process payment: ${payment.fromPlayerId} → ${payment.toPlayerId} (missing side pot)`);
+        continue;
+      }
+
+      // Transfer from committed funds
+      const transferAmount = Math.min(payment.amount, fromSeat.sidePot.committed, fromSeat.sidePot.balance);
+
+      if (transferAmount > 0) {
+        fromSeat.sidePot.balance -= transferAmount;
+        fromSeat.sidePot.committed -= transferAmount;
+
+        toSeat.sidePot.balance += transferAmount;
+
+        console.log(`💰 ${fromSeat.name} pays ${transferAmount} ${this.currency} from side pot to ${toSeat.name} (${payment.reason})`);
+      } else {
+        console.log(`⚠️ ${fromSeat.name} has insufficient side pot funds to pay ${payment.amount} to ${toSeat.name}`);
+      }
+    }
+
+    // Release all squidz commitments for the round
+    const seatedPlayers = this.gameState.seats.filter((s: any) => s !== null && s.tableStack > 0);
+    for (const seat of seatedPlayers) {
+      if (!seat.sidePot?.commitments) continue;
+
+      const initialCommitted = seat.sidePot.committed;
+
+      seat.sidePot.commitments = seat.sidePot.commitments.filter((c: any) => {
+        if (c.type === 'squidz-game') {
+          // Release this commitment
+          seat.sidePot!.committed -= c.amount;
+          return false;  // Remove from array
+        }
+        return true;  // Keep other commitments
+      });
+
+      if (initialCommitted !== seat.sidePot.committed) {
+        console.log(`🦑 Released ${initialCommitted - seat.sidePot.committed} ${this.currency} from ${seat.name}'s commitments`);
+      }
+    }
+
+    this.broadcastGameState();
+  }
+
+  /**
+   * Create a new prop bet
+   */
+  public createPropBet(playerId: string, description: string, amount: number, position: 'for' | 'against'): { success: boolean; error?: string; propBetId?: string } {
+    if (!this.gameState) {
+      return { success: false, error: 'Game not initialized' };
+    }
+
+    const seat = this.findSeat(playerId);
+    if (!seat?.sidePot) {
+      return { success: false, error: 'No side pot account' };
+    }
+
+    const available = seat.sidePot.balance - seat.sidePot.committed;
+    if (available < amount) {
+      return { success: false, error: `Insufficient available funds. Have ${available}, need ${amount}` };
+    }
+
+    // Generate prop bet ID
+    const propBetId = `propbet-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    // Commit funds
+    seat.sidePot.committed += amount;
+
+    const propBet: any = {
+      id: propBetId,
+      description,
+      amount,
+      initiator: {
+        playerId,
+        position,
+        committed: amount
+      },
+      status: 'open'
+    };
+
+    if (!seat.sidePot.commitments) {
+      seat.sidePot.commitments = [];
+    }
+
+    seat.sidePot.commitments.push({
+      amount,
+      reason: `Prop bet: ${description}`,
+      type: 'prop-bet',
+      metadata: { propBetId }
+    });
+
+    if (!this.gameState.propBets) {
+      this.gameState.propBets = [];
+    }
+
+    this.gameState.propBets.push(propBet);
+
+    console.log(`🎲 ${seat.name} created prop bet: ${description} (${amount} ${this.currency})`);
+
+    this.broadcastGameState();
+    return { success: true, propBetId };
+  }
+
+  /**
+   * Accept an open prop bet
+   */
+  public acceptPropBet(playerId: string, propBetId: string): { success: boolean; error?: string } {
+    if (!this.gameState) {
+      return { success: false, error: 'Game not initialized' };
+    }
+
+    const propBet = this.gameState.propBets?.find((pb: any) => pb.id === propBetId);
+    if (!propBet) {
+      return { success: false, error: 'Prop bet not found' };
+    }
+
+    if (propBet.status !== 'open') {
+      return { success: false, error: 'Prop bet is not open' };
+    }
+
+    if (propBet.initiator.playerId === playerId) {
+      return { success: false, error: 'Cannot accept your own prop bet' };
+    }
+
+    const seat = this.findSeat(playerId);
+    if (!seat?.sidePot) {
+      return { success: false, error: 'No side pot account' };
+    }
+
+    const available = seat.sidePot.balance - seat.sidePot.committed;
+    if (available < propBet.amount) {
+      return { success: false, error: `Insufficient available funds. Have ${available}, need ${propBet.amount}` };
+    }
+
+    // Commit funds
+    seat.sidePot.committed += propBet.amount;
+
+    // Opposite position of initiator
+    const position = propBet.initiator.position === 'for' ? 'against' : 'for';
+
+    propBet.acceptor = {
+      playerId,
+      position,
+      committed: propBet.amount
+    };
+
+    propBet.status = 'matched';
+
+    if (!seat.sidePot.commitments) {
+      seat.sidePot.commitments = [];
+    }
+
+    seat.sidePot.commitments.push({
+      amount: propBet.amount,
+      reason: `Prop bet: ${propBet.description}`,
+      type: 'prop-bet',
+      metadata: { propBetId }
+    });
+
+    console.log(`🎲 ${seat.name} accepted prop bet: ${propBet.description}`);
+
+    this.broadcastGameState();
+    return { success: true };
+  }
+
+  /**
+   * Resolve a prop bet
+   */
+  public resolvePropBet(propBetId: string, winner: 'for' | 'against'): { success: boolean; error?: string } {
+    if (!this.gameState) {
+      return { success: false, error: 'Game not initialized' };
+    }
+
+    const propBet = this.gameState.propBets?.find((pb: any) => pb.id === propBetId);
+    if (!propBet) {
+      return { success: false, error: 'Prop bet not found' };
+    }
+
+    if (propBet.status !== 'matched') {
+      return { success: false, error: 'Prop bet is not matched' };
+    }
+
+    // Determine winner and loser
+    const winnerParticipant = propBet.initiator.position === winner ? propBet.initiator : propBet.acceptor;
+    const loserParticipant = propBet.initiator.position !== winner ? propBet.initiator : propBet.acceptor;
+
+    if (!winnerParticipant || !loserParticipant) {
+      return { success: false, error: 'Invalid prop bet participants' };
+    }
+
+    const winnerSeat = this.findSeat(winnerParticipant.playerId);
+    const loserSeat = this.findSeat(loserParticipant.playerId);
+
+    if (!winnerSeat?.sidePot || !loserSeat?.sidePot) {
+      return { success: false, error: 'Missing side pot accounts' };
+    }
+
+    // Transfer funds
+    const totalPayout = propBet.amount * 2;
+
+    // Release both commitments
+    this.releasePropBetCommitment(winnerSeat, propBetId);
+    this.releasePropBetCommitment(loserSeat, propBetId);
+
+    // Loser pays, winner receives
+    loserSeat.sidePot.balance -= propBet.amount;
+    winnerSeat.sidePot.balance += totalPayout;
+
+    propBet.status = 'resolved';
+    propBet.resolution = {
+      winner,
+      payout: [{ playerId: winnerParticipant.playerId, amount: totalPayout }]
+    };
+
+    console.log(`🎲 Prop bet resolved: ${propBet.description} - ${winnerSeat.name} wins ${totalPayout} ${this.currency}`);
+
+    this.broadcastGameState();
+    return { success: true };
+  }
+
+  /**
+   * Release commitment for a specific prop bet
+   */
+  private releasePropBetCommitment(seat: any, propBetId: string): void {
+    if (!seat.sidePot?.commitments) return;
+
+    const commitmentIndex = seat.sidePot.commitments.findIndex(
+      (c: any) => c.type === 'prop-bet' && c.metadata?.propBetId === propBetId
+    );
+
+    if (commitmentIndex >= 0) {
+      const commitment = seat.sidePot.commitments[commitmentIndex];
+      seat.sidePot.committed -= commitment.amount;
+      seat.sidePot.commitments.splice(commitmentIndex, 1);
+    }
+  }
+
   startHand(): void {
     if (!this.gameState) return;
 
@@ -223,6 +677,11 @@ export class HouseRules extends GameBase {
     if (seatedPlayers.length < 2) {
       console.log('🎰 Not enough players to start poker hand');
       return;
+    }
+
+    // For Squidz Game, commit side pot funds before hand starts
+    if (this.variant === 'squidz-game') {
+      this.commitSquidzFunds();
     }
 
     // Call rules engine round start hook
@@ -562,6 +1021,12 @@ export class HouseRules extends GameBase {
           return; // handleRoundEnd will handle next steps
         }
       }
+
+      // Update squidz commitments if variant is squidz-game
+      // (Pot win may have given player squids, reducing their liability)
+      if (this.variant === 'squidz-game') {
+        this.updateSquidzCommitments();
+      }
     }
 
     this.gameState.phase = 'PreHand';
@@ -616,6 +1081,11 @@ export class HouseRules extends GameBase {
 
         if (result.customMessage) {
           console.log(`🎮 ${result.customMessage}`);
+        }
+
+        // Process side pot payments if any
+        if (result.sidePotPayments && result.sidePotPayments.length > 0) {
+          this.processSidePotPayments(result.sidePotPayments);
         }
       }
     }
