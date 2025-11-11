@@ -736,6 +736,32 @@ export class HouseRules extends GameBase {
       totalPayouts: 0
     };
 
+    // Special handling for Flipz prop bet - commit proposer's funds
+    if (sideGameType === 'flipz-prop-bet') {
+      const maxRisk = finalConfig.amountPerCard * 6;
+
+      if (!proposer.sidePot) {
+        return { success: false, error: 'No side pot account' };
+      }
+
+      const available = proposer.sidePot.balance - proposer.sidePot.committed;
+      if (available < maxRisk) {
+        return { success: false, error: `Insufficient side pot funds. Need ${maxRisk}, have ${available}` };
+      }
+
+      // Commit proposer's funds
+      proposer.sidePot.committed += maxRisk;
+      proposer.sidePot.commitments.push({
+        amount: maxRisk,
+        reason: `Flipz prop bet (proposer)`,
+        type: 'side-game',
+        metadata: { sideGameId }
+      });
+
+      sideGame.participants[0].buyInAmount = maxRisk;
+      console.log(`🎴 ${proposer.name} proposed Flipz for ${finalConfig.proposerColor} (max risk: ${maxRisk})`);
+    }
+
     if (!this.gameState.activeSideGames) {
       this.gameState.activeSideGames = [];
     }
@@ -777,9 +803,42 @@ export class HouseRules extends GameBase {
     }
 
     if (response === 'in') {
-      // Opting in
-      if (sideGame.requiresUpfrontBuyIn) {
-        // Need to deduct buy-in from side pot
+      // Special handling for Flipz prop bet
+      if (sideGame.type === 'flipz-prop-bet') {
+        // Set acceptor in config
+        sideGame.config.acceptorPlayerId = playerId;
+        sideGame.config.acceptorColor = sideGame.config.proposerColor === 'red' ? 'black' : 'red';
+
+        // Calculate max risk (6x amountPerCard)
+        const maxRisk = sideGame.config.amountPerCard * 6;
+
+        if (!seat.sidePot) {
+          return { success: false, error: 'No side pot account' };
+        }
+
+        const available = seat.sidePot.balance - seat.sidePot.committed;
+        if (available < maxRisk) {
+          return { success: false, error: `Insufficient side pot funds. Need ${maxRisk}, have ${available}` };
+        }
+
+        // Commit funds (will be resolved on flop)
+        seat.sidePot.committed += maxRisk;
+        seat.sidePot.commitments.push({
+          amount: maxRisk,
+          reason: `Flipz prop bet`,
+          type: 'side-game',
+          metadata: { sideGameId: sideGame.id }
+        });
+
+        sideGame.participants.push({
+          playerId,
+          opted: 'in',
+          buyInAmount: maxRisk
+        });
+
+        console.log(`🎴 ${seat.name} accepted Flipz prop bet for ${sideGame.config.acceptorColor} (max risk: ${maxRisk})`);
+      } else if (sideGame.requiresUpfrontBuyIn) {
+        // Standard upfront buy-in handling
         if (!seat.sidePot) {
           return { success: false, error: 'No side pot account' };
         }
@@ -959,6 +1018,68 @@ export class HouseRules extends GameBase {
           metadata: { sideGameId: sideGame.id }
         });
       }
+    }
+  }
+
+  /**
+   * Resolve prop bets that trigger when flop is dealt
+   */
+  private resolveSideGamesOnFlop(): void {
+    if (!this.gameState || !this.gameState.activeSideGames) return;
+
+    for (const sideGame of this.gameState.activeSideGames) {
+      if (sideGame.status !== 'active') continue;
+
+      const definition = SideGameRegistry.get(sideGame.type);
+      if (!definition?.onFlop) continue;
+
+      // Call side game hook to determine payouts
+      const payouts = definition.onFlop({
+        communityCards: this.gameState.communityCards,
+        sideGame,
+        participants: sideGame.participants,
+        allSeats: this.gameState.seats.filter((s): s is Seat & PokerSeat => s !== null),
+        gameState: this.gameState
+      });
+
+      if (payouts.length === 0) {
+        // No payout - release commitments
+        this.releaseSideGameCommitments(sideGame.id);
+        continue;
+      }
+
+      // Process payouts from committed funds
+      for (const payout of payouts) {
+        const fromSeat = this.findSeat(payout.fromPlayerId);
+        const toSeat = this.findSeat(payout.toPlayerId);
+
+        if (!fromSeat?.sidePot || !toSeat?.sidePot) continue;
+
+        // Transfer from committed funds
+        const transferAmount = Math.min(payout.amount, fromSeat.sidePot.committed, fromSeat.sidePot.balance);
+
+        if (transferAmount > 0) {
+          fromSeat.sidePot.balance -= transferAmount;
+          fromSeat.sidePot.committed -= transferAmount;
+          toSeat.sidePot.balance += transferAmount;
+
+          sideGame.totalPayouts = (sideGame.totalPayouts || 0) + transferAmount;
+
+          console.log(`🎴 ${fromSeat.name} pays ${transferAmount} ${this.currency} to ${toSeat.name} (${payout.reason})`);
+
+          // Remove commitment
+          fromSeat.sidePot.commitments = fromSeat.sidePot.commitments?.filter(
+            (c: SidePotCommitment) => !(c.type === 'side-game' && c.metadata?.sideGameId === sideGame.id)
+          );
+        }
+      }
+
+      // Release all other commitments for this side game
+      this.releaseSideGameCommitments(sideGame.id);
+
+      // Mark prop bet as completed (one-time resolution)
+      sideGame.status = 'completed';
+      console.log(`🎴 ${sideGame.displayName} prop bet completed`);
     }
   }
 
@@ -1327,6 +1448,9 @@ export class HouseRules extends GameBase {
       if (nextPhase === 'Flop') {
         // Flop replaces community cards
         this.gameState.communityCards = cards;
+
+        // Resolve prop bets that trigger on flop (e.g., Flipz)
+        this.resolveSideGamesOnFlop();
       } else {
         // Turn/River add to existing community cards
         this.gameState.communityCards.push(...cards);

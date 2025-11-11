@@ -60,6 +60,8 @@ export const SEVEN_TWO_GAME: SideGameDefinition = {
    */
   onHandComplete: (context: SideGameContext): SideGamePayout[] => {
     const { winner, sideGame } = context;
+    if (!winner) return [];  // No winner yet
+
     const config: SevenTwoConfig = {
       ...SEVEN_TWO_GAME.defaultConfig,
       ...sideGame.config

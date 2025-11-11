@@ -6,8 +6,9 @@ import { PokerSeat } from '../types.js';
  * Context passed to side game hooks
  */
 export interface SideGameContext {
-  winner: Seat & PokerSeat;
+  winner?: Seat & PokerSeat;       // Only present in onHandComplete/onRoundEnd
   winningHand?: HandEvaluation;
+  communityCards?: Card[];          // Present in onFlop and later hooks
   sideGame: any;  // ActiveSideGame
   participants: any[];  // SideGameParticipant[]
   allSeats: (Seat & PokerSeat)[];
@@ -34,8 +35,9 @@ export interface SideGameDefinition {
   maxParticipants?: number;
 
   // Hooks
-  onHandComplete?: (context: SideGameContext) => SideGamePayout[];
-  onRoundEnd?: (context: SideGameContext) => SideGamePayout[];
+  onFlop?: (context: SideGameContext) => SideGamePayout[];          // Called when flop is dealt (prop bets)
+  onHandComplete?: (context: SideGameContext) => SideGamePayout[];  // Called when hand ends
+  onRoundEnd?: (context: SideGameContext) => SideGamePayout[];      // Called when round ends
 
   // Configuration validation
   validateConfig?: (config: any) => { valid: boolean; error?: string };

@@ -6,3 +6,4 @@
 
 export * from './SideGameDefinition.js';
 export * from './seven-two-game.js';
+export * from './flipz-prop-bet.js';
