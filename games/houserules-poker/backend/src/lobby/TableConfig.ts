@@ -101,7 +101,11 @@ export const DEFAULT_TABLES: PokerTableConfig[] = [
     displayName: 'Squidz Game',
     variant: 'squidz-game',
     rules: {
-      // Squidz config will be handled by HouseRules constructor
+      squidzConfig: {
+        baseSquidValueType: 'bigBlind',  // Use big blind as base
+        baseSquidValue: 1,               // 1x BB per squid (1-2 squidz = 1BB, 3-4 = 2BB, 5+ = 3BB)
+        squidzFormula: 'players + 3',    // Total squidz = player count + 3
+      }
     },
     minBuyIn: 10000,    // $100 (larger buy-in required)
     maxBuyIn: 10000,    // $100 (fixed buy-in for fairness)

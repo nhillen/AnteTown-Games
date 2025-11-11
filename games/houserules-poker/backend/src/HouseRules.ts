@@ -55,6 +55,7 @@ export class HouseRules extends GameBase {
 
   private variant: GameVariant;
   private rulesEngine: PokerRulesEngine;
+  private ruleModifiers: any; // Store rule modifiers from table config
   private smallBlindAmount = 50;  // Default small blind in currency units
   private bigBlindAmount = 100;   // Default big blind in currency units
   private minBuyIn = 2000;  // Default minimum buy-in in currency units
@@ -66,6 +67,7 @@ export class HouseRules extends GameBase {
     super(tableConfig);
     this.variant = tableConfig.variant || 'holdem'; // Default to Hold'em for backward compatibility
     this.rulesEngine = loadRulesEngine(this.variant);
+    this.ruleModifiers = tableConfig.rules || {}; // Store rule modifiers
     this.tableConfig.maxSeats = tableConfig.maxSeats || 7; // 7-max poker table
 
     // Override defaults from table config
@@ -228,7 +230,12 @@ export class HouseRules extends GameBase {
       const result = this.rulesEngine.hooks.onRoundStart({
         playerCount: seatedPlayers.length,
         seatedPlayers,
-        gameState: this.gameState
+        gameState: this.gameState,
+        tableConfig: {
+          bigBlind: this.bigBlindAmount,
+          smallBlind: this.smallBlindAmount,
+          rules: this.ruleModifiers
+        }
       });
 
       if (result) {
@@ -539,7 +546,12 @@ export class HouseRules extends GameBase {
       const result = this.rulesEngine.hooks.onPotWin({
         winner: winnerSeat,
         potAmount,
-        gameState: this.gameState
+        gameState: this.gameState,
+        tableConfig: {
+          bigBlind: this.bigBlindAmount,
+          smallBlind: this.smallBlindAmount,
+          rules: this.ruleModifiers
+        }
       });
 
       if (result) {
@@ -590,7 +602,12 @@ export class HouseRules extends GameBase {
       const result = this.rulesEngine.hooks.onRoundEnd({
         playerCount: seatedPlayers.length,
         seatedPlayers,
-        gameState: this.gameState
+        gameState: this.gameState,
+        tableConfig: {
+          bigBlind: this.bigBlindAmount,
+          smallBlind: this.smallBlindAmount,
+          rules: this.ruleModifiers
+        }
       });
 
       if (result) {

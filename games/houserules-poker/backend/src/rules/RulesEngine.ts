@@ -40,6 +40,15 @@ export interface RuleModifiers {
   customPhases?: PokerPhase[];             // Add or replace phases
   skipStandardPhases?: PokerPhase[];       // Skip certain phases
 
+  // Squidz Game configuration
+  squidzConfig?: {
+    baseSquidValueType: 'flat' | 'bigBlind';  // Either flat amount or BB multiplier
+    baseSquidValue: number;                    // If flat: pennies (e.g., 500 = $5)
+                                               // If bigBlind: multiplier (e.g., 1 = 1BB)
+    squidzFormula?: string;                    // Formula for total squidz (default: 'players + 3')
+    squidzCount?: number;                      // Alternative: fixed number of squidz
+  };
+
   // Roguelike additions (for future)
   relicsEnabled?: boolean;
   rogueBreaks?: boolean;
@@ -78,6 +87,11 @@ export interface RoundContext {
   playerCount: number;
   seatedPlayers: (Seat & PokerSeat)[];
   gameState: any; // HouseRulesGameState
+  tableConfig: {
+    bigBlind: number;
+    smallBlind: number;
+    rules: RuleModifiers;
+  };
 }
 
 /**
@@ -87,6 +101,11 @@ export interface PotWinContext {
   winner: Seat & PokerSeat;
   potAmount: number;
   gameState: any; // HouseRulesGameState
+  tableConfig: {
+    bigBlind: number;
+    smallBlind: number;
+    rules: RuleModifiers;
+  };
 }
 
 /**

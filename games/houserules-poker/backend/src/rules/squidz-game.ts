@@ -5,21 +5,16 @@ import { HOLDEM_RULES } from './holdem.js';
  * Squidz Game Configuration
  */
 export interface SquidzConfig {
-  baseSquidValue: number;      // Base value per squid (e.g., $5 = 500 pennies)
-  minPlayers: number;          // Minimum players to start
-  maxPlayers: number;          // Maximum players
-  largeBuyIn: number;          // Required buy-in (larger than normal)
-  squidBonusAt3: number;       // Bonus per squid at 3+ squidz
-  squidBonusAt5: number;       // Bonus per squid at 5+ squidz
+  baseSquidValueType: 'flat' | 'bigBlind';  // Either flat amount or BB multiplier
+  baseSquidValue: number;                    // If flat: pennies, if bigBlind: multiplier
+  squidzFormula?: string;                    // Formula for squidz count (default: 'players + 3')
+  squidzCount?: number;                      // Alternative: fixed number of squidz
 }
 
 export const DEFAULT_SQUIDZ_CONFIG: SquidzConfig = {
-  baseSquidValue: 500,         // $5.00 per squid (1-2 squidz)
-  minPlayers: 4,
-  maxPlayers: 8,
-  largeBuyIn: 10000,           // $100
-  squidBonusAt3: 500,          // +$5 bonus (= $10 each at 3-4 squidz)
-  squidBonusAt5: 1000,         // +$10 bonus (= $15 each at 5+ squidz)
+  baseSquidValueType: 'bigBlind',   // Use big blind as base
+  baseSquidValue: 1,                // 1x BB per squid (1-2 squidz)
+  squidzFormula: 'players + 3',     // Default formula
 };
 
 /**
@@ -52,11 +47,16 @@ export const SQUIDZ_GAME_RULES: PokerRulesEngine = {
      * Initialize Squidz round when first hand starts
      */
     onRoundStart: (context) => {
-      const { playerCount, gameState } = context;
+      const { playerCount, gameState, tableConfig } = context;
 
       // Check if we need to start a new round
       if (!gameState.isSquidzRound) {
-        const totalSquidz = getTotalSquidzCount(playerCount);
+        // Get squidz config from table config or use defaults
+        const squidzConfig = tableConfig.rules.squidzConfig
+          ? { ...DEFAULT_SQUIDZ_CONFIG, ...tableConfig.rules.squidzConfig }
+          : DEFAULT_SQUIDZ_CONFIG;
+
+        const totalSquidz = getTotalSquidzCount(playerCount, squidzConfig);
 
         console.log(`🦑 Starting Squidz Game round with ${playerCount} players, ${totalSquidz} squidz in play`);
 
@@ -131,11 +131,16 @@ export const SQUIDZ_GAME_RULES: PokerRulesEngine = {
      * Handle bounty payouts at end of round
      */
     onRoundEnd: (context) => {
-      const { gameState, seatedPlayers } = context;
+      const { gameState, seatedPlayers, tableConfig } = context;
 
       if (!gameState.isSquidzRound) return {};
 
       console.log(`🦑 Processing Squidz Game bounty payouts...`);
+
+      // Get squidz config from table config or use defaults
+      const squidzConfig = tableConfig.rules.squidzConfig
+        ? { ...DEFAULT_SQUIDZ_CONFIG, ...tableConfig.rules.squidzConfig }
+        : DEFAULT_SQUIDZ_CONFIG;
 
       // Separate winners and losers
       const playersWithSquidz = seatedPlayers.filter(s => (s.squidCount || 0) > 0);
@@ -149,7 +154,7 @@ export const SQUIDZ_GAME_RULES: PokerRulesEngine = {
         // Calculate and distribute bounties
         playersWithSquidz.forEach(winner => {
           const squidCount = winner.squidCount || 0;
-          const bountyPerLoser = calculateBountyPerPlayer(squidCount, DEFAULT_SQUIDZ_CONFIG);
+          const bountyPerLoser = calculateBountyPerPlayer(squidCount, squidzConfig, tableConfig.bigBlind);
 
           console.log(`🦑 ${winner.name} has ${squidCount} squidz (value: $${bountyPerLoser / 100} per loser)`);
 
@@ -207,28 +212,45 @@ export const SQUIDZ_GAME_RULES: PokerRulesEngine = {
 
 /**
  * Calculate squid value based on count
+ * Escalation: 1-2 squidz = 1x, 3-4 squidz = 2x, 5+ squidz = 3x
  */
-export function calculateSquidValue(squidCount: number, config: SquidzConfig = DEFAULT_SQUIDZ_CONFIG): number {
+export function calculateSquidValue(
+  squidCount: number,
+  config: SquidzConfig = DEFAULT_SQUIDZ_CONFIG,
+  bigBlind: number = 100
+): number {
   if (squidCount === 0) return 0;
 
-  if (squidCount >= 5) {
-    // 5+ squidz: base + $10 per squid
-    return squidCount * (config.baseSquidValue + config.squidBonusAt5);
-  } else if (squidCount >= 3) {
-    // 3-4 squidz: base + $5 per squid
-    return squidCount * (config.baseSquidValue + config.squidBonusAt3);
+  let baseValue: number;
+  if (config.baseSquidValueType === 'bigBlind') {
+    baseValue = config.baseSquidValue * bigBlind;
   } else {
-    // 1-2 squidz: base value per squid
-    return squidCount * config.baseSquidValue;
+    baseValue = config.baseSquidValue;
   }
+
+  // Escalation multiplier
+  let multiplier: number;
+  if (squidCount >= 5) {
+    multiplier = 3; // 3x base value for 5+ squidz
+  } else if (squidCount >= 3) {
+    multiplier = 2; // 2x base value for 3-4 squidz
+  } else {
+    multiplier = 1; // 1x base value for 1-2 squidz
+  }
+
+  return squidCount * baseValue * multiplier;
 }
 
 /**
  * Calculate total bounty a player should receive
  * Returns amount per losing player
  */
-export function calculateBountyPerPlayer(squidCount: number, config: SquidzConfig = DEFAULT_SQUIDZ_CONFIG): number {
-  return calculateSquidValue(squidCount, config);
+export function calculateBountyPerPlayer(
+  squidCount: number,
+  config: SquidzConfig = DEFAULT_SQUIDZ_CONFIG,
+  bigBlind: number = 100
+): number {
+  return calculateSquidValue(squidCount, config, bigBlind);
 }
 
 /**
@@ -241,7 +263,31 @@ export function shouldRevealHand(squidCount: number): boolean {
 /**
  * Calculate total squidz in play for a game
  */
-export function getTotalSquidzCount(playerCount: number): number {
+export function getTotalSquidzCount(playerCount: number, config?: SquidzConfig): number {
+  if (!config) {
+    return playerCount + 3;
+  }
+
+  // If fixed count specified, use that
+  if (config.squidzCount !== undefined) {
+    return config.squidzCount;
+  }
+
+  // Otherwise use formula (default: 'players + 3')
+  const formula = config.squidzFormula || 'players + 3';
+
+  // Simple formula parser for 'players + N' or 'players * N'
+  if (formula.includes('+')) {
+    const parts = formula.split('+').map(s => s.trim());
+    const modifier = parseInt(parts[1], 10);
+    return playerCount + (isNaN(modifier) ? 3 : modifier);
+  } else if (formula.includes('*')) {
+    const parts = formula.split('*').map(s => s.trim());
+    const multiplier = parseFloat(parts[1]);
+    return Math.floor(playerCount * (isNaN(multiplier) ? 1.5 : multiplier));
+  }
+
+  // Fallback
   return playerCount + 3;
 }
 
@@ -258,10 +304,10 @@ export function shouldEndSquidzRound(
     return { shouldEnd: true, reason: 'All squidz have been distributed' };
   }
 
-  // Only 1 player has squidz (everyone else has 0)
-  const playersWithSquidz = squidCounts.filter(count => count > 0).length;
-  if (playersWithSquidz === 1) {
-    return { shouldEnd: true, reason: 'Only one player has squidz remaining' };
+  // Only 1 player WITHOUT squidz (everyone else has at least 1)
+  const playersWithoutSquidz = squidCounts.filter(count => count === 0).length;
+  if (playersWithoutSquidz === 1) {
+    return { shouldEnd: true, reason: 'Only one player without squidz remaining' };
   }
 
   return { shouldEnd: false };
