@@ -43,6 +43,10 @@ npm run build --workspace games/pirate-plunder
 npm run clean
 ```
 
+## Deployment
+
+See **[DEPLOY.md](./DEPLOY.md)** for complete deployment instructions to production.
+
 ## Adding a New Game
 
 1. Create directory in `games/your-game/`

@@ -4,13 +4,16 @@ This guide covers deploying game packages from the AnteTown-Games monorepo to pr
 
 ## Overview
 
-**Important**: AnteTown-Games is NOT deployed as a standalone service. Game packages are integrated into the AnteTown Platform backend as npm dependencies.
+**Important**: AnteTown-Games is NOT deployed as a standalone service. Games are integrated into the AnteTown Platform via `file:` symlinks.
 
 The AnteTown-Games repository contains:
 - Individual game packages (`games/*/`)
 - Shared game SDK (`packages/game-sdk/`)
 
-Production server location: `/opt/AnteTown-Games/`
+**Production Setup:**
+- Games repo: `/opt/AnteTown-Games/` (git clone of this repo)
+- Platform repo: `/opt/AnteTown/`
+- Platform references games via symlinks in `node_modules/@pirate/`
 
 ## Deployment Process
 
@@ -22,112 +25,100 @@ Deploy AnteTown-Games changes when you:
 - Modify game configuration schemas
 - Update the shared game-sdk
 
-**After deploying AnteTown-Games, you MUST rebuild the AnteTown Platform backend** to pick up the changes.
+**After deploying AnteTown-Games, you MUST rebuild games AND the AnteTown Platform** to pick up the changes.
 
-### Manual Deployment (Current Method)
+### Deployment Steps (Current Method)
 
 #### 1. Commit and Push Changes Locally
 
 ```bash
-cd /home/nathan/GitHub/AnteTown-Games
+cd /Users/nathan/Documents/GitHub/AnteTown-Games
 git add .
 git commit -m "your commit message"
-git push
+git push origin main
 ```
 
-#### 2. Create Deployment Tarball
+#### 2. Pull Changes on Production
 
-For full game package updates:
 ```bash
-cd /home/nathan/GitHub/AnteTown-Games
-tar czf /tmp/game-update.tar.gz games/GAME_NAME/
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown-Games && git pull origin main"
 ```
 
-For SDK updates:
-```bash
-tar czf /tmp/sdk-update.tar.gz packages/game-sdk/
-```
+#### 3. Rebuild Changed Game Packages
 
-For config-only updates (e.g., poker config files):
-```bash
-tar czf /tmp/config-update.tar.gz games/houserules-poker/backend/src/config/
-```
-
-#### 3. Deploy to Production
+**Build order matters!** Always build in this order:
 
 ```bash
-# Transfer and extract files
-cat /tmp/game-update.tar.gz | tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cat > /tmp/game-update.tar.gz && cd /opt/AnteTown-Games && tar xzf /tmp/game-update.tar.gz"
-```
-
-#### 4. Rebuild Game Package(s) on Production
-
-For SDK changes (MUST rebuild SDK first, then dependent games):
-```bash
+# 1. Build game-sdk (if changed)
 tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown-Games/packages/game-sdk && npm run build"
+
+# 2. Build game backends (if changed)
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown-Games/games/GAME_NAME/backend && npm install && npm run build"
+
+# 3. Build game frontends (if changed)
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown-Games/games/GAME_NAME/frontend && npm install && npm run build"
+
+# Example for CK Flipz:
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown-Games/games/ck-flipz/backend && npm install && npm run build"
 ```
 
-For game package changes:
+**Note**: Some games (like Pirate Plunder) need `ai-profiles.json` copied to dist after building:
 ```bash
-# Example: Rebuild poker backend
-tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown-Games/games/houserules-poker/backend && npm run build"
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cp /opt/AnteTown-Games/games/pirate-plunder/backend/src/ai-profiles.json /opt/AnteTown-Games/games/pirate-plunder/backend/dist/"
 ```
 
-#### 5. Rebuild AnteTown Platform
+#### 4. Rebuild Platform Frontend (if needed)
 
-**CRITICAL**: After updating any game package, you MUST rebuild the platform backend:
+If you changed platform frontend code in `/opt/AnteTown`:
 
 ```bash
-tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown && make build"
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown && git pull origin main"
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown/platform/frontend && npx vite build && cp -r dist/* ../backend/dist/public/"
 ```
 
-This recompiles the platform backend and pulls in the updated game packages.
-
-#### 6. Restart AnteTown Service
+#### 5. Restart AnteTown Service
 
 ```bash
 tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "sudo systemctl restart AnteTown"
 ```
 
-#### 7. Verify Deployment
+#### 6. Verify Deployment
 
 ```bash
 # Check service status
-tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "sudo systemctl status AnteTown"
-
-# Check health endpoint
-curl -s http://vps-0b87e710.tail751d97.ts.net:3001/api/health | jq
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "systemctl status AnteTown --no-pager"
 
 # View recent logs
-tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "sudo journalctl -u AnteTown --since '1 minute ago' --no-pager"
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "tail -50 /opt/AnteTown/logs/output.log"
+
+# Check for errors
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "tail -50 /opt/AnteTown/logs/error.log"
 ```
 
 ## Complete Example: Deploying Poker Config Changes
 
 ```bash
-# 1. Commit locally
-cd /home/nathan/GitHub/AnteTown-Games
+# 1. Commit and push locally
+cd /Users/nathan/Documents/GitHub/AnteTown-Games
 git add games/houserules-poker/backend/src/config/
 git commit -m "fix: Update poker config validation"
-git push
+git push origin main
 
-# 2. Create tarball
-tar czf /tmp/poker-config.tar.gz games/houserules-poker/backend/src/config/
+# 2. Pull changes on production
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown-Games && git pull origin main"
 
-# 3. Deploy to production
-cat /tmp/poker-config.tar.gz | tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cat > /tmp/poker-config.tar.gz && cd /opt/AnteTown-Games && tar xzf /tmp/poker-config.tar.gz"
-
-# 4. Rebuild poker backend
+# 3. Rebuild poker backend
 tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown-Games/games/houserules-poker/backend && npm run build"
 
-# 5. Rebuild platform
+# 4. Rebuild platform (if needed)
 tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "cd /opt/AnteTown && make build"
 
-# 6. Restart service
+# 5. Restart service
 tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "sudo systemctl restart AnteTown"
 
-# 7. Verify
-curl -s http://vps-0b87e710.tail751d97.ts.net:3001/api/health | jq
+# 6. Verify deployment
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "systemctl status AnteTown --no-pager"
+tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net "tail -50 /opt/AnteTown/logs/output.log"
 ```
 
 ## Dependency Build Order
@@ -239,8 +230,10 @@ See `AnteTown-Platform/CLAUDE.md` for detailed game integration instructions.
 
 ## Notes
 
-- Production `/opt/AnteTown-Games/` is NOT a git repository
-- Changes must be manually synced via tarball deployment
-- Always rebuild platform after updating game packages
+- Production `/opt/AnteTown-Games/` IS a git repository (cloned from this repo)
+- Changes are deployed via `git pull origin main` on production server
+- Platform references games via `file:` symlinks in `node_modules/@pirate/`
+- Always rebuild affected game packages after pulling changes
+- Always rebuild platform after updating game packages (platform depends on built game files)
 - Always verify deployment with health check and logs
 - Coordinate with platform deployments when adding/updating games
