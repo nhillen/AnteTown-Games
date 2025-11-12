@@ -40,7 +40,7 @@ const pokerBaseSchema = z.object({
 
   // Rake configuration
   rakePercentage: z.number().min(0).max(100).optional().default(5),
-  rakeCap: z.number().int().positive().optional(),
+  rakeCap: z.number().int().nonnegative().optional(),
 
   // Metadata
   emoji: z.string().emoji().optional().default('♠️'),

@@ -79,6 +79,34 @@ interface PokerParamOverrides {
 }
 
 /**
+ * Normalize variant names from database format to schema format
+ */
+function normalizeVariant(variant: string | undefined): GameVariant {
+  if (!variant) return 'holdem';
+
+  const normalized = variant.toLowerCase();
+  switch (normalized) {
+    case 'texas-holdem':
+    case 'holdem':
+      return 'holdem';
+    case 'squid-game':
+    case 'squidz-game':
+      return 'squidz-game';
+    case 'omaha':
+      return 'omaha';
+    case 'seven-card-stud':
+      return 'seven-card-stud';
+    case 'roguelike':
+      // Roguelike is not a poker variant, default to holdem
+      console.warn(`Unknown variant "${variant}", defaulting to holdem`);
+      return 'holdem';
+    default:
+      console.warn(`Unknown variant "${variant}", defaulting to holdem`);
+      return 'holdem';
+  }
+}
+
+/**
  * Convert platform GameConfig (database) to PokerTableConfig (game logic)
  */
 export function gameConfigToPokerConfig(dbConfig: PlatformGameConfig): PokerTableConfig {
@@ -99,7 +127,7 @@ export function gameConfigToPokerConfig(dbConfig: PlatformGameConfig): PokerTabl
   const pokerConfig: PokerTableConfig = {
     tableId: dbConfig.gameId,
     displayName: dbConfig.displayName,
-    variant: (dbConfig.variant || 'holdem') as GameVariant,
+    variant: normalizeVariant(dbConfig.variant),
     mode: dbConfig.mode as 'PVP' | 'PVE',
 
     // Betting
