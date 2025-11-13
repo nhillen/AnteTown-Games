@@ -11,6 +11,7 @@ import { PlayerProfile } from './PlayerProfile'
 import { Store } from './Store'
 import ConfigManager from './ConfigManager'
 import RulesModal from './RulesModal'
+import BuyInModal from './BuyInModal'
 import { useAuth } from './AuthProvider'
 import { formatGoldCoinsCompact } from '../utils/currency'
 import { APP_VERSION, BUILD_TIMESTAMP } from '../version'
@@ -459,11 +460,10 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
     }
   }
 
-  const confirmBuyIn = () => {
+  const confirmBuyIn = (amount: number) => {
     if (socket) {
-      socket.emit('sit_down', { buyInAmount })
-      addToActionLog('System', `Sitting down with ${buyInAmount} ${table?.config?.currency || 'TC'}`, '', false)
-      setShowBuyInModal(false)
+      socket.emit('sit_down', { buyInAmount: amount })
+      addToActionLog('System', `Sitting down with ${amount} ${table?.config?.currency || 'TC'}`, '', false)
 
       // Refresh user data after a short delay to ensure backend updates are complete
       setTimeout(() => {
@@ -1169,47 +1169,16 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
       />
 
       {/* Buy-in Modal */}
-      {showBuyInModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-slate-800 rounded-lg p-6 w-96 border border-slate-600">
-            <h2 className="text-xl font-bold mb-4">💰 Choose Your Buy-in Amount</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Buy-in Amount (Your bankroll: {((me?.bankroll || 0) / 100).toFixed(2)} {table?.config?.currency || 'TC'})
-                </label>
-                {tableRequirements && (
-                  <div className="mb-3 p-3 bg-blue-900/30 border border-blue-600/50 rounded">
-                    <div className="text-sm text-blue-300 font-medium">
-                      💡 Table Minimum: {tableRequirements.requiredTableStack.toFixed(2)} {table?.config?.currency || 'TC'}
-                    </div>
-                    <div className="text-xs text-blue-400 mt-1">
-                      Minimum needed for gameplay costs: {tableRequirements.minimumTableStack.toFixed(2)} {table?.config?.currency || 'TC'}
-                      (× {tableRequirements.tableMinimumMultiplier} multiplier)
-                    </div>
-                  </div>
-                )}
-                <input
-                  type="number"
-                  min={tableRequirements?.requiredTableStack || 1}
-                  max={Math.floor((me?.bankroll || 10000) / 100)}
-                  value={buyInAmount}
-                  onChange={(e) => setBuyInAmount(Math.min(Math.max(tableRequirements?.requiredTableStack || 1, parseInt(e.target.value) || 1), Math.floor((me?.bankroll || 10000) / 100)))}
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white"
-                />
-              </div>
-              <div className="flex gap-3 justify-end">
-                <Button variant="secondary" onClick={() => setShowBuyInModal(false)}>
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={confirmBuyIn}>
-                  Sit Down with {buyInAmount} {table?.config?.currency || 'TC'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <BuyInModal
+        isOpen={showBuyInModal}
+        onClose={() => setShowBuyInModal(false)}
+        onConfirm={confirmBuyIn}
+        minBuyIn={tableRequirements?.requiredTableStack || 1}
+        maxBuyIn={10000}
+        userBalance={me?.bankroll || 0}
+        currency={table?.config?.currency || 'TC'}
+        initialAmount={buyInAmount}
+      />
 
       {/* Version Info moved to Profile menu */}
     </div>
