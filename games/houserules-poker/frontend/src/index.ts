@@ -17,3 +17,5 @@ export { PropBetProposalModal } from './components/PropBetProposalModal.js';
 export type { PropBetProposalModalProps } from './components/PropBetProposalModal.js';
 export { PropBetSelectionMenu } from './components/PropBetSelectionMenu.js';
 export type { PropBetSelectionMenuProps } from './components/PropBetSelectionMenu.js';
+export { PropBetNotification } from './components/PropBetNotification.js';
+export type { PropBetNotificationProps } from './components/PropBetNotification.js';
