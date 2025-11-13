@@ -115,9 +115,10 @@ export default function GameTable({ game, meId, onStartHand, onPlayerAction, onL
                         {seat.dice.map((die, i) => (
                           <div key={i} className="relative">
                             {die.value > 0 ? (
-                              <Die 
-                                value={die.value as 1|2|3|4|5|6} 
+                              <Die
+                                value={die.value as 1|2|3|4|5|6}
                                 locked={die.locked}
+                                isPublic={die.isPublic}
                                 size="sm"
                               />
                             ) : (
@@ -166,9 +167,10 @@ export default function GameTable({ game, meId, onStartHand, onPlayerAction, onL
                       ${die.locked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
                     `}
                   >
-                    <Die 
-                      value={(die.value || 1) as 1|2|3|4|5|6} 
+                    <Die
+                      value={(die.value || 1) as 1|2|3|4|5|6}
                       locked={die.locked}
+                      isPublic={die.isPublic}
                     />
                   </button>
                 ))}

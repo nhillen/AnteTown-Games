@@ -99,7 +99,7 @@ export default function GamePanel({ meId, game, onLockSelect, onNextPhase }: Pro
                 disabled={!isLockPhase || d.locked}
                 title={isLockPhase ? (d.locked ? 'Already locked' : 'Lock this die') : ''}
               >
-                <Die value={(rolling ? randPip() : (d.value || 1)) as 1|2|3|4|5|6} locked={d.locked} />
+                <Die value={(rolling ? randPip() : (d.value || 1)) as 1|2|3|4|5|6} locked={d.locked} isPublic={d.isPublic} />
               </button>
             ))}
           </div>
