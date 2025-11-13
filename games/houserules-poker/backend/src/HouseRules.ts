@@ -13,6 +13,14 @@ interface HouseRulesGameState extends GameState {
   dealerSeatIndex: number;
   smallBlind: number;
   bigBlind: number;
+  minBuyIn: number;                // Minimum buy-in amount
+  maxBuyIn: number;                // Maximum buy-in amount
+  pot: number;                     // Current pot size
+  currentBet: number;              // Current bet to match
+  ante: number;                    // Ante amount (if applicable)
+  handCount: number;               // Number of hands played
+  currentTurnPlayerId?: string;    // Player whose turn it is
+  propBets?: any[];                // Active prop bets
   turnEndsAtMs?: number;
 
   // Squidz Game specific fields
@@ -130,6 +138,8 @@ export class HouseRules extends GameBase {
       deck: [],
       smallBlind: this.smallBlindAmount,
       bigBlind: this.bigBlindAmount,
+      minBuyIn: this.minBuyIn,
+      maxBuyIn: this.maxBuyIn,
       propBets: [],  // Active prop bets
       activeSideGames: []  // Active side games
     };

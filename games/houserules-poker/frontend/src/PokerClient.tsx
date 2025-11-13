@@ -21,6 +21,8 @@ interface HouseRulesGameState extends GameState {
   communityCards?: Card[];
   smallBlind?: number;
   bigBlind?: number;
+  minBuyIn?: number;
+  maxBuyIn?: number;
   dealerSeatIndex?: number;
   activeSideGames?: ActiveSideGame[];
 }
@@ -94,7 +96,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
 }) => {
   const [betAmount, setBetAmount] = useState<number>(gameState?.bigBlind || 100);
   const [showBuyInModal, setShowBuyInModal] = useState(false);
-  const [buyInAmount, setBuyInAmount] = useState(2000); // Default $20 in pennies
+  const [buyInAmount, setBuyInAmount] = useState(gameState?.minBuyIn || 2000);
   const [selectedSeatIndex, setSelectedSeatIndex] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [showPropBetModal, setShowPropBetModal] = useState(false);
@@ -151,7 +153,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
             <h2 className="text-2xl font-bold mb-2">♠️ House Rules Poker</h2>
             <p className="text-sm text-gray-400">Select a seat to join</p>
             <p className="text-xs text-gray-500 mt-2">
-              Buy-in: $20 - $100 • Blinds: $0.50 / $1.00
+              Buy-in: {gameState.minBuyIn || 0} - {gameState.maxBuyIn || 0} TC • Blinds: {gameState.smallBlind || 0} / {gameState.bigBlind || 0} TC
             </p>
           </div>
         </div>
@@ -193,15 +195,15 @@ const PokerClient: React.FC<PokerClientProps> = ({
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">
-                    Buy-in Amount ($20 - $100)
+                    Buy-in Amount ({gameState.minBuyIn || 0} - {gameState.maxBuyIn || 0} TC)
                   </label>
                   <input
                     type="number"
-                    min={20}
-                    max={100}
-                    step={10}
-                    value={buyInAmount / 100}
-                    onChange={(e) => setBuyInAmount(Math.floor(parseFloat(e.target.value) * 100))}
+                    min={gameState.minBuyIn || 0}
+                    max={gameState.maxBuyIn || 0}
+                    step={gameState.bigBlind || 10}
+                    value={buyInAmount}
+                    onChange={(e) => setBuyInAmount(parseInt(e.target.value) || (gameState.minBuyIn || 0))}
                     className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white"
                   />
                 </div>
@@ -218,14 +220,14 @@ const PokerClient: React.FC<PokerClientProps> = ({
                   <button
                     onClick={() => {
                       if (selectedSeatIndex !== null) {
-                        onSitDown(selectedSeatIndex, buyInAmount / 100); // Convert to dollars for backend
+                        onSitDown(selectedSeatIndex, buyInAmount);
                         setShowBuyInModal(false);
                         setSelectedSeatIndex(null);
                       }
                     }}
                     className="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg transition-colors"
                   >
-                    Sit Down with ${(buyInAmount / 100).toFixed(2)}
+                    Sit Down with {buyInAmount} TC
                   </button>
                 </div>
               </div>
