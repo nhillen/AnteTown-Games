@@ -9,8 +9,8 @@
     "public/"
   ],
   "scripts": {
-    "build": "tsc && mkdir -p dist/styles && cp -r public dist/",
-    "watch": "tsc --watch",
+    "build": "mkdir -p dist && echo 'Backend and frontend built separately'",
+    "watch": "echo 'Use backend/frontend watch scripts'",
     "clean": "rm -rf dist",
     "test": "echo \"No tests yet\"",
     "publish:verdaccio": "npm publish --registry http://vps-0b87e710.tail751d97.ts.net:4873/"
