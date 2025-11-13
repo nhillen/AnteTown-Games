@@ -2227,12 +2227,12 @@ export class PiratePlunderTable extends GameBase {
     // Broadcast updated lobby state
     this.broadcastLobbyState();
 
-    // Broadcast table state if they reconnected
-    if (reconnected) {
-      this.broadcastTableState();
-      if (this.gameState) {
-        this.broadcastGameState();
-      }
+    // Always broadcast table state so frontend can show seat UI
+    this.broadcastTableState();
+
+    // Broadcast game state if they reconnected to an active game
+    if (reconnected && this.gameState) {
+      this.broadcastGameState();
     }
   }
 
