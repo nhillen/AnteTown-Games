@@ -468,8 +468,8 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
 
   const handleSitDown = () => {
     if (!isSeated) {
-      // Use tableRequirements if available, fallback to requiredTableStack (5x ante minimum)
-      const minRequired = tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 10
+      // Use tableRequirements if available, fallback to safe default (1000 TC)
+      const minRequired = tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 1000
       const maxBankroll = me?.bankroll || 10000  // Already in TC
       const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, minRequired * 2))  // Default 2x minimum
       setBuyInAmount(defaultAmount)
@@ -504,8 +504,8 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
     // Store seatIndex and show BuyInModal
     setSelectedSeatIndex(seatIndex)
 
-    // Use tableRequirements if available, fallback to requiredTableStack (5x ante minimum)
-    const minRequired = tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 10
+    // Use tableRequirements if available, fallback to safe default (1000 TC)
+    const minRequired = tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 1000
     const maxBankroll = me?.bankroll || 10000  // Already in TC
     const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, minRequired * 2))  // Default 2x minimum
 
@@ -1184,7 +1184,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
         isOpen={showBuyInModal}
         onClose={() => setShowBuyInModal(false)}
         onConfirm={confirmBuyIn}
-        minBuyIn={tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 10}
+        minBuyIn={tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 1000}
         maxBuyIn={me?.bankroll || 10000}
         userBalance={me?.bankroll || 0}
         currency={(table?.config?.currency as CurrencyType) || 'TC'}
