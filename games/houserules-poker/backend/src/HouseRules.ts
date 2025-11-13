@@ -82,6 +82,13 @@ export class HouseRules extends GameBase {
     this.ruleModifiers = tableConfig.rules || {}; // Store rule modifiers
     this.tableConfig.maxSeats = tableConfig.maxSeats || 7; // 7-max poker table
 
+    // For PVE mode, set appropriate player counts
+    if (tableConfig.mode?.toUpperCase() === 'PVE') {
+      this.tableConfig.minHumanPlayers = 1;
+      this.tableConfig.targetTotalPlayers = 5; // 5 total players in PVE
+      console.log(`🎰 PVE mode enabled: minHumanPlayers=1, targetTotalPlayers=5`);
+    }
+
     // Override defaults from table config
     this.minBuyIn = tableConfig.minBuyIn || this.minBuyIn;
     this.maxBuyIn = tableConfig.maxBuyIn || this.maxBuyIn;
@@ -241,6 +248,19 @@ export class HouseRules extends GameBase {
     player.tableStack = buyInAmount;
 
     console.log(`🎰 ${player.name} sat down at seat ${targetSeat} with ${buyInAmount} ${this.currency}`);
+
+    // In PVE mode, automatically add AI players to fill remaining seats
+    if (this.tableConfig.mode?.toUpperCase() === 'PVE' && this.gameState) {
+      const seatedCount = this.gameState.seats.filter(s => s !== null).length;
+      const targetTotalPlayers = this.tableConfig.targetTotalPlayers || 5; // Default to 5 players for poker
+      const neededPlayers = targetTotalPlayers - seatedCount;
+
+      if (neededPlayers > 0) {
+        console.log(`🎰 [${this.tableConfig.tableId}] PVE mode: Adding ${neededPlayers} AI players`);
+        const added = this.addAIPlayers(neededPlayers, () => this.createAIPlayer(), this.minBuyIn);
+        console.log(`🎰 [${this.tableConfig.tableId}] Added ${added} AI players`);
+      }
+    }
 
     // Auto-start hand if we have 2+ players and game is in Lobby phase
     const seatedPlayers = this.gameState.seats.filter(s => s !== null && s.tableStack > 0);
