@@ -162,6 +162,41 @@ export interface RulesDisplayConfig {
   sections: Record<string, RulesSectionConfig>;
 }
 
+export interface AIHandStrengthWeights {
+  ship_multiplier: number;
+  captain_multiplier: number;
+  crew_multiplier: number;
+  cargo_multiplier: number;
+  bet1_phase_modifier: number;
+  bet3_phase_modifier: number;
+}
+
+export interface AIBettingThresholds {
+  bluff_modifier: number;
+  mistake_penalty: number;
+  fold_threshold_offset: number;
+  strong_hand_offset: number;
+  max_raises_per_round: number;
+}
+
+export interface AIStackDecisions {
+  fold_stack_threshold: number;
+  allin_stack_threshold: number;
+  risk_adjustment: number;
+}
+
+export interface AIBetSizing {
+  bet_pot_multiplier: number;
+  raise_pot_multiplier: number;
+}
+
+export interface AIBehaviorConfig {
+  hand_strength: AIHandStrengthWeights;
+  betting_thresholds: AIBettingThresholds;
+  stack_decisions: AIStackDecisions;
+  bet_sizing: AIBetSizing;
+}
+
 // Full game configuration
 export interface PiratePlunderConfig {
   table: TableSettings;
@@ -173,6 +208,7 @@ export interface PiratePlunderConfig {
   advanced: AdvancedConfig;
   timing: TimingConfig;
   display: DisplayConfig;
+  ai_behavior: AIBehaviorConfig;
   rules_display: RulesDisplayConfig;
 }
 
@@ -394,6 +430,32 @@ export function createDefaultPiratePlunderConfig(): PiratePlunderConfig {
         recent_display_count: 20
       }
     },
+    ai_behavior: {
+      hand_strength: {
+        ship_multiplier: 2.0,
+        captain_multiplier: 1.5,
+        crew_multiplier: 1.2,
+        cargo_multiplier: 0.5,
+        bet1_phase_modifier: 0.8,
+        bet3_phase_modifier: 1.2
+      },
+      betting_thresholds: {
+        bluff_modifier: 2.0,
+        mistake_penalty: 1.0,
+        fold_threshold_offset: 2.0,
+        strong_hand_offset: 3.0,
+        max_raises_per_round: 4
+      },
+      stack_decisions: {
+        fold_stack_threshold: 0.2,
+        allin_stack_threshold: 0.3,
+        risk_adjustment: 0.7
+      },
+      bet_sizing: {
+        bet_pot_multiplier: 0.1,
+        raise_pot_multiplier: 0.15
+      }
+    },
     rules_display: {
       sections: {
         role_hierarchy: { enabled: true, weight: 10, type: 'static', span: 2 },
@@ -442,6 +504,12 @@ function mergeConfig(partial: Partial<PiratePlunderConfig> | undefined): PirateP
     },
     display: {
       history: { ...defaults.display.history, ...partial.display?.history }
+    },
+    ai_behavior: {
+      hand_strength: { ...defaults.ai_behavior.hand_strength, ...partial.ai_behavior?.hand_strength },
+      betting_thresholds: { ...defaults.ai_behavior.betting_thresholds, ...partial.ai_behavior?.betting_thresholds },
+      stack_decisions: { ...defaults.ai_behavior.stack_decisions, ...partial.ai_behavior?.stack_decisions },
+      bet_sizing: { ...defaults.ai_behavior.bet_sizing, ...partial.ai_behavior?.bet_sizing }
     },
     rules_display: {
       sections: { ...defaults.rules_display.sections, ...partial.rules_display?.sections }
@@ -1076,27 +1144,28 @@ export class PiratePlunderTable extends GameBase {
     }
 
     let strength = 0;
+    const aiConfig = this.fullConfig.ai_behavior.hand_strength;
 
-    // Role-based scoring (Ship/Captain/Crew)
-    strength += (counts[6] || 0) * 2.0;  // Ship (6s) - most valuable
-    strength += (counts[5] || 0) * 1.5;  // Captain (5s)
-    strength += (counts[4] || 0) * 1.2;  // Crew (4s)
+    // Role-based scoring (Ship/Captain/Crew) - Use config values
+    strength += (counts[6] || 0) * aiConfig.ship_multiplier;  // Ship (6s) - most valuable
+    strength += (counts[5] || 0) * aiConfig.captain_multiplier;  // Captain (5s)
+    strength += (counts[4] || 0) * aiConfig.crew_multiplier;  // Crew (4s)
 
     // Cargo scoring (1s, 2s, 3s are valuable for cargo chest triggers)
     const lowDiceCount = (counts[1] || 0) + (counts[2] || 0) + (counts[3] || 0);
     const hasTripsOrBetter = lowDiceCount >= 3;
 
     if (hasTripsOrBetter) {
-      strength += lowDiceCount * 0.5; // Bonus for low dice combinations
+      strength += lowDiceCount * aiConfig.cargo_multiplier; // Bonus for low dice combinations
     }
 
-    // Phase-based adjustments
+    // Phase-based adjustments - Use config values
     if (phase === 'Bet1') {
       // Early betting - be more conservative
-      strength *= 0.8;
+      strength *= aiConfig.bet1_phase_modifier;
     } else if (phase === 'Bet3') {
       // Final betting - hand is locked in
-      strength *= 1.2;
+      strength *= aiConfig.bet3_phase_modifier;
     }
 
     return strength;
@@ -1734,17 +1803,21 @@ export class PiratePlunderTable extends GameBase {
     }
 
     const profile = seat.aiProfile;
+    const aiThresholds = this.fullConfig.ai_behavior.betting_thresholds;
+    const aiStack = this.fullConfig.ai_behavior.stack_decisions;
+    const aiSizing = this.fullConfig.ai_behavior.bet_sizing;
+
     let handStrength = this.evaluateHandStrength(seat.dice, this.gameState.phase);
 
-    // Apply bluff modifier
+    // Apply bluff modifier - Use config value
     if (Math.random() < profile.bluffFrequency) {
-      handStrength += 2; // Act stronger than actual hand
+      handStrength += aiThresholds.bluff_modifier; // Act stronger than actual hand
       console.log(`[${seat.name}] AI bluffing (strength ${handStrength.toFixed(1)})`);
     }
 
-    // Apply mistake modifier
+    // Apply mistake modifier - Use config value
     if (Math.random() < profile.mistakeChance) {
-      handStrength -= 1; // Act weaker than actual hand
+      handStrength -= aiThresholds.mistake_penalty; // Act weaker than actual hand
       console.log(`[${seat.name}] AI mistake (strength ${handStrength.toFixed(1)})`);
     }
 
@@ -1752,8 +1825,8 @@ export class PiratePlunderTable extends GameBase {
 
     // Decision logic based on profile
     if (handStrength < profile.foldThreshold) {
-      // Weak hand - consider folding based on risk tolerance
-      if (Math.random() > profile.riskTolerance || amountToCall > seat.tableStack * 0.2) {
+      // Weak hand - consider folding based on risk tolerance and stack threshold
+      if (Math.random() > profile.riskTolerance || amountToCall > seat.tableStack * aiStack.fold_stack_threshold) {
         this.processFold(seat.playerId);
         console.log(`[${seat.name}] AI folded (strength ${handStrength.toFixed(1)} < threshold ${profile.foldThreshold})`);
         return;
@@ -1762,9 +1835,9 @@ export class PiratePlunderTable extends GameBase {
 
     if (amountToCall === 0) {
       // No amount to call - decide between check and bet
-      if (handStrength >= profile.foldThreshold + 2 && Math.random() < profile.riskTolerance) {
+      if (handStrength >= profile.foldThreshold + aiThresholds.fold_threshold_offset && Math.random() < profile.riskTolerance) {
         // Strong hand - consider betting
-        const betAmount = Math.round((this.gameState.pot || 100) * profile.raiseMultiplier * 0.1);
+        const betAmount = Math.round((this.gameState.pot || 100) * profile.raiseMultiplier * aiSizing.bet_pot_multiplier);
         const actualBet = Math.min(betAmount, seat.tableStack);
 
         seat.tableStack -= actualBet;
@@ -1789,15 +1862,14 @@ export class PiratePlunderTable extends GameBase {
       }
     } else {
       // Amount to call - decide call vs raise vs fold
-      const maxRaisesPerRound = 4;
       const currentRaises = this.gameState.bettingRoundCount || 0;
 
-      if (handStrength >= profile.foldThreshold + 3 &&
-          Math.random() < profile.riskTolerance * 0.7 &&
-          amountToCall < seat.tableStack * 0.3 &&
-          currentRaises < maxRaisesPerRound) {
+      if (handStrength >= profile.foldThreshold + aiThresholds.strong_hand_offset &&
+          Math.random() < profile.riskTolerance * aiStack.risk_adjustment &&
+          amountToCall < seat.tableStack * aiStack.allin_stack_threshold &&
+          currentRaises < aiThresholds.max_raises_per_round) {
         // Strong hand - consider raising
-        const raiseAmount = Math.round((this.gameState.pot || 100) * profile.raiseMultiplier * 0.15);
+        const raiseAmount = Math.round((this.gameState.pot || 100) * profile.raiseMultiplier * aiSizing.raise_pot_multiplier);
         const totalAmount = amountToCall + raiseAmount;
         const actualAmount = Math.min(totalAmount, seat.tableStack);
 

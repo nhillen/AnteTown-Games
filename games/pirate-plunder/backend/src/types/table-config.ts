@@ -140,6 +140,41 @@ export interface DisplayConfig {
   history: HistoryConfig;
 }
 
+export interface AIHandStrengthWeights {
+  ship_multiplier: number;  // Weight for 6s (Ship role)
+  captain_multiplier: number;  // Weight for 5s (Captain role)
+  crew_multiplier: number;  // Weight for 4s (Crew role)
+  cargo_multiplier: number;  // Bonus for low dice (cargo chest triggers)
+  bet1_phase_modifier: number;  // Multiplier for Bet1 phase (conservative)
+  bet3_phase_modifier: number;  // Multiplier for Bet3 phase (aggressive)
+}
+
+export interface AIBettingThresholds {
+  bluff_modifier: number;  // Strength bonus when bluffing
+  mistake_penalty: number;  // Strength penalty for mistakes
+  fold_threshold_offset: number;  // Added to profile.foldThreshold for strong hands
+  strong_hand_offset: number;  // Added to profile.foldThreshold for raises
+  max_raises_per_round: number;  // Maximum raises allowed per betting round
+}
+
+export interface AIStackDecisions {
+  fold_stack_threshold: number;  // Fold if call > this fraction of stack (e.g., 0.2 = 20%)
+  allin_stack_threshold: number;  // Consider all-in if call > this fraction (e.g., 0.3 = 30%)
+  risk_adjustment: number;  // Multiplier for profile.riskTolerance when raising (e.g., 0.7)
+}
+
+export interface AIBetSizing {
+  bet_pot_multiplier: number;  // Multiplier for pot when betting (e.g., 0.1 = 10% pot)
+  raise_pot_multiplier: number;  // Multiplier for pot when raising (e.g., 0.15 = 15% pot)
+}
+
+export interface AIBehaviorConfig {
+  hand_strength: AIHandStrengthWeights;
+  betting_thresholds: AIBettingThresholds;
+  stack_decisions: AIStackDecisions;
+  bet_sizing: AIBetSizing;
+}
+
 export interface RulesSectionConfig {
   enabled: boolean;
   weight: number;
@@ -167,6 +202,7 @@ export interface TableConfigData {
   advanced: AdvancedConfig;
   timing: TimingConfig;
   display: DisplayConfig;
+  ai_behavior: AIBehaviorConfig;
   rules_display: RulesDisplayConfig;
 }
 
@@ -181,6 +217,7 @@ export interface TableConfig {
   advanced: AdvancedConfig;
   timing: TimingConfig;
   display: DisplayConfig;
+  ai_behavior: AIBehaviorConfig;
   rules_display: RulesDisplayConfig;
   presets: Record<string, PresetConfig>;
 }
@@ -351,6 +388,32 @@ export function createDefaultConfig(): TableConfig {
       history: {
         max_hands_stored: 100,
         recent_display_count: 20
+      }
+    },
+    ai_behavior: {
+      hand_strength: {
+        ship_multiplier: 2.0,
+        captain_multiplier: 1.5,
+        crew_multiplier: 1.2,
+        cargo_multiplier: 0.5,
+        bet1_phase_modifier: 0.8,
+        bet3_phase_modifier: 1.2
+      },
+      betting_thresholds: {
+        bluff_modifier: 2.0,
+        mistake_penalty: 1.0,
+        fold_threshold_offset: 2.0,
+        strong_hand_offset: 3.0,
+        max_raises_per_round: 4
+      },
+      stack_decisions: {
+        fold_stack_threshold: 0.2,
+        allin_stack_threshold: 0.3,
+        risk_adjustment: 0.7
+      },
+      bet_sizing: {
+        bet_pot_multiplier: 0.1,
+        raise_pot_multiplier: 0.15
       }
     },
     rules_display: {
