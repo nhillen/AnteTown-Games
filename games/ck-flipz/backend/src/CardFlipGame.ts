@@ -235,8 +235,8 @@ export class CardFlipGame extends GameBase {
       return;
     }
 
-    this.collectAntes(anteAmount);
-    console.log(`🎴 [CardFlip] Pot after antes: ${this.gameState.pot}`);
+    // Side bet - no money collected at start, settled after flip
+    console.log(`🎴 [CardFlip] Side bet mode - ante is ${anteAmount}, max payout is ${anteAmount * 6}`);
 
     this.phaseTimer = setTimeout(() => {
       this.transitionToPhase('PickSide');
@@ -323,6 +323,7 @@ export class CardFlipGame extends GameBase {
     const winnersBeforeRake = this.evaluateWinners();
     console.log(`🎴 [CardFlip] Winners before rake:`, winnersBeforeRake);
 
+    // Side bet settlement: apply rake and transfer between players
     const winnersAfterRake = winnersBeforeRake.map(winner => {
       const rake = Math.floor(winner.payout * (this.rakePercentage / 100));
       const payoutAfterRake = winner.payout - rake;
@@ -336,7 +337,26 @@ export class CardFlipGame extends GameBase {
 
     console.log(`🎴 [CardFlip] Winners after rake:`, winnersAfterRake);
 
-    this.payoutWinners(winnersAfterRake);
+    // Side bet: transfer money directly between players
+    for (const winner of winnersAfterRake) {
+      const winnerSeat = this.findSeat(winner.playerId);
+      if (!winnerSeat) continue;
+
+      // Find the loser (the other active player)
+      const loserSeat = this.gameState.seats.find(
+        s => s && !s.hasFolded && s.playerId !== winner.playerId
+      );
+
+      if (loserSeat && winner.payout > 0) {
+        // Deduct from loser, add to winner
+        loserSeat.tableStack -= winner.payout;
+        winnerSeat.tableStack += winner.payout;
+
+        console.log(`🎴 [CardFlip] Side bet settled: ${loserSeat.name} pays ${winner.payout} to ${winnerSeat.name}`);
+        console.log(`🎴 [CardFlip] New stacks - ${loserSeat.name}: ${loserSeat.tableStack}, ${winnerSeat.name}: ${winnerSeat.tableStack}`);
+      }
+    }
+
     this.broadcastGameState();
 
     this.broadcast('player_action', {

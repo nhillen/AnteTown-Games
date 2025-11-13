@@ -238,10 +238,8 @@ export class CoinFlipGame extends GameBase {
       return;
     }
 
-    // Collect antes
-    this.collectAntes(anteAmount);
-
-    console.log(`🪙 [Flipz] Pot after antes: ${this.gameState.pot}`);
+    // Side bet - no money collected at start, settled after flip
+    console.log(`🪙 [Flipz] Side bet mode - ante is ${anteAmount}`);
 
     // Move to call side phase after 1 second
     this.phaseTimer = setTimeout(() => {
@@ -326,7 +324,7 @@ export class CoinFlipGame extends GameBase {
     const winnersBeforeRake = this.evaluateWinners();
     console.log(`🪙 [Flipz] Winners before rake:`, winnersBeforeRake);
 
-    // Apply rake
+    // Side bet settlement: apply rake and transfer between players
     const winnersAfterRake = winnersBeforeRake.map(winner => {
       const rake = Math.floor(winner.payout * (this.rakePercentage / 100));
       const payoutAfterRake = winner.payout - rake;
@@ -340,7 +338,32 @@ export class CoinFlipGame extends GameBase {
 
     console.log(`🪙 [Flipz] Winners after rake:`, winnersAfterRake);
 
-    this.payoutWinners(winnersAfterRake);
+    // Side bet: transfer money directly between players
+    const activePlayers = this.getActivePlayers();
+    for (const winner of winnersAfterRake) {
+      const winnerSeat = this.findSeat(winner.playerId);
+      if (!winnerSeat) continue;
+
+      // Find losers (all other active players)
+      const loserSeats = this.gameState.seats.filter(
+        s => s && !s.hasFolded && s.playerId !== winner.playerId
+      );
+
+      if (loserSeats.length > 0 && winner.payout > 0) {
+        // Split the winnings from all losers
+        const amountPerLoser = Math.floor(winner.payout / loserSeats.length);
+
+        for (const loserSeat of loserSeats) {
+          loserSeat.tableStack -= amountPerLoser;
+          console.log(`🪙 [Flipz] ${loserSeat.name} pays ${amountPerLoser} to ${winnerSeat.name}`);
+        }
+
+        winnerSeat.tableStack += winner.payout;
+        console.log(`🪙 [Flipz] ${winnerSeat.name} receives ${winner.payout} total`);
+        console.log(`🪙 [Flipz] New stack: ${winnerSeat.name}: ${winnerSeat.tableStack}`);
+      }
+    }
+
     this.broadcastGameState();
 
     // Broadcast winner announcement
