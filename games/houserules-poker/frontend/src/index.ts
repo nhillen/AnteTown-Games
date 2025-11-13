@@ -11,3 +11,7 @@ export { PokerLobbyList } from './PokerLobbyList.js';
 export { GameCreator } from './GameCreator.js';
 export { TablePreview } from './TablePreview.js';
 export type { GameCreatorConfig } from './GameCreator.js';
+
+// Export prop bet components
+export { PropBetProposalModal } from './components/PropBetProposalModal.js';
+export type { PropBetProposalModalProps } from './components/PropBetProposalModal.js';
