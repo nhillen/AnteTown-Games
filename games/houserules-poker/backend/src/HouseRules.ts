@@ -250,15 +250,17 @@ export class HouseRules extends GameBase {
     console.log(`🎰 ${player.name} sat down at seat ${targetSeat} with ${buyInAmount} ${this.currency}`);
 
     // In PVE mode, automatically add AI players to fill remaining seats
-    if (this.tableConfig.mode?.toUpperCase() === 'PVE' && this.gameState) {
+    const mode = (this.tableConfig as any).mode;
+    if (mode?.toUpperCase() === 'PVE' && this.gameState) {
       const seatedCount = this.gameState.seats.filter(s => s !== null).length;
-      const targetTotalPlayers = this.tableConfig.targetTotalPlayers || 5; // Default to 5 players for poker
+      const targetTotalPlayers = (this.tableConfig as any).targetTotalPlayers || 5; // Default to 5 players for poker
       const neededPlayers = targetTotalPlayers - seatedCount;
 
       if (neededPlayers > 0) {
-        console.log(`🎰 [${this.tableConfig.tableId}] PVE mode: Adding ${neededPlayers} AI players`);
+        const tableId = (this.tableConfig as any).tableId || 'poker-table';
+        console.log(`🎰 [${tableId}] PVE mode: Adding ${neededPlayers} AI players`);
         const added = this.addAIPlayers(neededPlayers, () => this.createAIPlayer(), this.minBuyIn);
-        console.log(`🎰 [${this.tableConfig.tableId}] Added ${added} AI players`);
+        console.log(`🎰 [${tableId}] Added ${added} AI players`);
       }
     }
 
