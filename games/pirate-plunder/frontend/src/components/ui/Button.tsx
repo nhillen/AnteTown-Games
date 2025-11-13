@@ -13,7 +13,7 @@ const sizes = {
   md: 'px-4 py-2 text-base'
 } as const
 const variants = {
-  primary: 'bg-emerald-600 hover:bg-emerald-500 text-white',
+  primary: 'bg-amber-500 hover:bg-amber-600 text-white',
   secondary: 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 hover:border-slate-500',
   ghost: 'bg-transparent hover:bg-slate-800 text-slate-100',
   warning: 'bg-amber-700 hover:bg-amber-600 text-white border border-amber-600 hover:border-amber-500'

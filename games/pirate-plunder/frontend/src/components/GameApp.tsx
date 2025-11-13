@@ -468,10 +468,10 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
 
   const handleSitDown = () => {
     if (!isSeated) {
-      // All values in TC - no conversion needed
+      // Use tableRequirements if available, fallback to requiredTableStack (5x ante minimum)
+      const minRequired = tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 10
       const maxBankroll = me?.bankroll || 10000  // Already in TC
-      const minRequired = tableRequirements?.requiredTableStack || 10  // Already in TC
-      const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, 100))  // Default 100 TC
+      const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, minRequired * 2))  // Default 2x minimum
       setBuyInAmount(defaultAmount)
       setShowBuyInModal(true)
     }
@@ -504,9 +504,10 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
     // Store seatIndex and show BuyInModal
     setSelectedSeatIndex(seatIndex)
 
+    // Use tableRequirements if available, fallback to requiredTableStack (5x ante minimum)
+    const minRequired = tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 10
     const maxBankroll = me?.bankroll || 10000  // Already in TC
-    const minRequired = tableRequirements?.requiredTableStack || 10  // Already in TC
-    const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, 100))  // Default 100 TC
+    const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, minRequired * 2))  // Default 2x minimum
 
     setBuyInAmount(defaultAmount)
     setShowBuyInModal(true)
@@ -1183,8 +1184,8 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
         isOpen={showBuyInModal}
         onClose={() => setShowBuyInModal(false)}
         onConfirm={confirmBuyIn}
-        minBuyIn={tableRequirements?.requiredTableStack || 1}
-        maxBuyIn={10000}
+        minBuyIn={tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 10}
+        maxBuyIn={me?.bankroll || 10000}
         userBalance={me?.bankroll || 0}
         currency={(table?.config?.currency as CurrencyType) || 'TC'}
         initialAmount={buyInAmount}
