@@ -1659,17 +1659,26 @@ export class PiratePlunderTable extends GameBase {
       }
     }
 
-    // Set first player to act (after dealer)
-    const dealerIndex = this.gameState.dealerSeatIndex || 0;
-    const activePlayers = this.gameState.seats.filter(s => s && !s.hasFolded && !s.isAllIn);
+    // Check if we're using poker-style sequential betting or ante-style simultaneous betting
+    const useSequentialBetting = this.fullConfig.betting.streets.enabled;
 
-    if (activePlayers.length > 0) {
-      const nextPlayerIndex = (dealerIndex + 1) % this.gameState.seats.length;
-      const firstPlayer = this.gameState.seats.find((s, i) => s && i === nextPlayerIndex && !s.hasFolded);
+    if (useSequentialBetting) {
+      // Poker-style: Set first player to act (after dealer)
+      const dealerIndex = this.gameState.dealerSeatIndex || 0;
+      const activePlayers = this.gameState.seats.filter(s => s && !s.hasFolded && !s.isAllIn);
 
-      if (firstPlayer) {
-        this.gameState.currentTurnPlayerId = firstPlayer.playerId;
+      if (activePlayers.length > 0) {
+        const nextPlayerIndex = (dealerIndex + 1) % this.gameState.seats.length;
+        const firstPlayer = this.gameState.seats.find((s, i) => s && i === nextPlayerIndex && !s.hasFolded);
+
+        if (firstPlayer) {
+          this.gameState.currentTurnPlayerId = firstPlayer.playerId;
+        }
       }
+    } else {
+      // Ante-style: Remove currentTurnPlayerId to signal simultaneous play
+      // Frontend sees no currentTurnPlayerId and allows all players to act simultaneously
+      delete this.gameState.currentTurnPlayerId;
     }
 
     this.gameState.phaseEndsAtMs = Date.now() + (this.fullConfig.timing.phase_timers.betting_phase_seconds * 1000);
