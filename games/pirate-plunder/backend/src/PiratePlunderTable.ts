@@ -2654,6 +2654,10 @@ export class PiratePlunderTable extends GameBase {
       };
     });
 
+    // Calculate minBuyIn same way as in handleSitDown
+    const minBuyIn = this.config.minBuyIn ||
+      (this.fullConfig.betting.ante.amount * this.fullConfig.table.tableMinimumMultiplier);
+
     const tableState = {
       seats,
       cargoChest: (this.gameState as PiratePlunderGameState).cargoChest || 0,
@@ -2662,7 +2666,8 @@ export class PiratePlunderTable extends GameBase {
         targetTotalPlayers,
         maxSeats: this.config.maxSeats,
         cargoChestLearningMode: false,
-        currency: this.currency
+        currency: this.currency,
+        minBuyIn  // Include calculated minBuyIn for frontend
       }
     };
 

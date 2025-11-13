@@ -49,6 +49,7 @@ type TableConfig = {
   maxSeats: number
   cargoChestLearningMode: boolean
   currency?: string // e.g., 'TC', 'SC', 'Event Tokens'
+  minBuyIn?: number // Minimum buy-in amount in pennies
 }
 
 type TableState = {
@@ -135,11 +136,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
     frontendVersion: APP_VERSION || '1.0.5' // Frontend version from version.ts
   })
   const [standUpPending, setStandUpPending] = useState(false)
-  const [tableRequirements, setTableRequirements] = useState<{
-    minimumTableStack: number;
-    requiredTableStack: number;
-    tableMinimumMultiplier: number;
-  } | null>(null)
 
   // Update cosmetics when user changes
   useEffect(() => {
@@ -198,17 +194,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
         }))
       }
 
-      // Fetch table requirements
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/table-requirements`)
-        if (response.ok) {
-          const requirements = await response.json()
-          setTableRequirements(requirements)
-        }
-      } catch (error) {
-        console.warn('Could not fetch table requirements:', error)
-      }
-      
       // Join with authenticated user's name, cosmetics, and bankroll
       // NOTE: Auth API returns dollars, convert to TC (1 dollar = 100 TC)
       console.log('📤 Emitting join with:', { name: user.name, bankroll: Math.round(user.bankroll * 100), tableId });
@@ -468,8 +453,8 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
 
   const handleSitDown = () => {
     if (!isSeated) {
-      // Use tableRequirements if available, fallback to safe default (1000 TC)
-      const minRequired = tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 1000
+      // Use table config minBuyIn, fallback to safe default (1000 TC)
+      const minRequired = table?.config?.minBuyIn || 1000
       const maxBankroll = me?.bankroll || 10000  // Already in TC
       const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, minRequired * 2))  // Default 2x minimum
       setBuyInAmount(defaultAmount)
@@ -504,8 +489,8 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
     // Store seatIndex and show BuyInModal
     setSelectedSeatIndex(seatIndex)
 
-    // Use tableRequirements if available, fallback to safe default (1000 TC)
-    const minRequired = tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 1000
+    // Use table config minBuyIn, fallback to safe default (1000 TC)
+    const minRequired = table?.config?.minBuyIn || 1000
     const maxBankroll = me?.bankroll || 10000  // Already in TC
     const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, minRequired * 2))  // Default 2x minimum
 
@@ -1018,7 +1003,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
                     highSkin: cosmetics.highSkin || 'bone-classic',
                     lowSkin: cosmetics.lowSkin || 'pearl-simple'
                   }}
-                  tableRequirements={tableRequirements}
                   currency={(table?.config?.currency as CurrencyType) || 'TC'}
                 />
               );
@@ -1033,7 +1017,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
         mySeat={game?.seats.find((s: any) => s?.playerId === me?.id)}
         onStandUp={handleStandUp}
         onTopUp={handleTopUp}
-        tableRequirements={tableRequirements}
         versionInfo={versionInfo}
         buildTimestamp={BUILD_TIMESTAMP}
         debugInfo={{
@@ -1184,7 +1167,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
         isOpen={showBuyInModal}
         onClose={() => setShowBuyInModal(false)}
         onConfirm={confirmBuyIn}
-        minBuyIn={tableRequirements?.requiredTableStack || tableRequirements?.minimumTableStack || 1000}
+        minBuyIn={table?.config?.minBuyIn || 1000}
         maxBuyIn={me?.bankroll || 10000}
         userBalance={me?.bankroll || 0}
         currency={(table?.config?.currency as CurrencyType) || 'TC'}
