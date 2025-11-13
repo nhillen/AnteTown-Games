@@ -3,7 +3,7 @@ import { Die } from './Dice'
 import Button from './ui/Button'
 import { formatGoldCoinsCompact } from '../utils/currency'
 
-type DieType = { value: number; locked: boolean }
+type DieType = { value: number; locked: boolean; isPublic?: boolean }
 type Seat = {
   playerId: string
   name: string

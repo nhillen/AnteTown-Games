@@ -4,7 +4,7 @@ import Panel from './ui/Panel'
 import Badge from './ui/Badge'
 import { Die } from './Dice'
 
-type DieT = { value: number; locked: boolean }
+type DieT = { value: number; locked: boolean; isPublic?: boolean }
 type Seat = {
   playerId: string
   name: string
