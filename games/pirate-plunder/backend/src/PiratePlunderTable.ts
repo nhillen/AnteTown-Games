@@ -1066,7 +1066,9 @@ export class PiratePlunderTable extends GameBase {
       case 'earliest_leader_priority':
       case 'reroll_one_die': // Reroll not possible at showdown, use priority instead
         // First candidate in results array wins (corresponds to earliest/button player)
-        return [candidates[0]];
+        const firstCandidate = candidates[0];
+        if (!firstCandidate) return [];
+        return [firstCandidate];
 
       default:
         // Unknown mode or vacant - no winner
