@@ -1425,13 +1425,14 @@ export class PiratePlunderTable extends GameBase {
       }
     };
 
-    // Start checking, and auto-advance after 30 seconds
+    // Start checking, and auto-advance after configured time
     setTimeout(checkLockingComplete, 1000);
+    const lockPhaseMs = this.fullConfig.timing.phase_timers.lock_phase_seconds * 1000;
     this.phaseTimer = setTimeout(() => {
       if (!this.gameState) return;
       this.gameState.phase = this.nextPhase(this.gameState.phase);
       this.onEnterPhase();
-    }, 30000);
+    }, lockPhaseMs);
   }
 
   private makeAILockingDecision(seat: PiratePlunderSeat, minLocksRequired: number): void {
@@ -1716,12 +1717,13 @@ export class PiratePlunderTable extends GameBase {
 
     setTimeout(checkBettingComplete, 1000);
 
-    // Auto-advance after 30 seconds
+    // Auto-advance after configured time
+    const bettingPhaseMs = this.fullConfig.timing.phase_timers.betting_phase_seconds * 1000;
     this.phaseTimer = setTimeout(() => {
       if (!this.gameState) return;
       this.gameState.phase = this.nextPhase(this.gameState.phase);
       this.onEnterPhase();
-    }, 30000);
+    }, bettingPhaseMs);
   }
 
   private makeAIBettingDecision(seat: PiratePlunderSeat): void {
@@ -1894,11 +1896,12 @@ export class PiratePlunderTable extends GameBase {
     this.broadcastGameState();
 
     // Start new hand if we still have enough players
+    const handEndDelayMs = this.fullConfig.timing.delays.hand_end_seconds * 1000;
     setTimeout(() => {
       if (this.canStartHand()) {
         this.startHand();
       }
-    }, 2000);
+    }, handEndDelayMs);
   }
 
   private processBet(playerId: string, action: 'call' | 'raise' | 'check', raiseAmount?: number): void {
