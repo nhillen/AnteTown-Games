@@ -7,6 +7,7 @@ export interface PropBetProposalModalProps {
   myPlayerId: string;
   sidePotBalance: number;
   bigBlind: number;
+  smallBlind?: number;
 }
 
 export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
@@ -16,10 +17,11 @@ export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
   myPlayerId,
   sidePotBalance,
   bigBlind,
+  smallBlind,
 }) => {
-  // Calculate minimum bet: half the big blind, rounded down
-  const minBet = Math.floor(bigBlind / 2);
-  const maxBet = bigBlind * 20; // Up to 20x BB
+  // Use small blind as minimum, fallback to half big blind
+  const minBet = smallBlind || Math.floor(bigBlind / 2);
+  const maxBet = bigBlind * 10; // Up to 10x BB
 
   const [selectedColor, setSelectedColor] = useState<'red' | 'black'>('red');
   const [amountPerCard, setAmountPerCard] = useState(minBet);
