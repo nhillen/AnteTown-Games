@@ -204,8 +204,22 @@ const PokerClient: React.FC<PokerClientProps> = ({
                     step={gameState.bigBlind || 10}
                     value={buyInAmount}
                     onChange={(e) => setBuyInAmount(parseInt(e.target.value) || (gameState.minBuyIn || 0))}
-                    className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white"
+                    className={`w-full bg-gray-800 border rounded px-3 py-2 text-white ${
+                      buyInAmount < (gameState.minBuyIn || 0) || buyInAmount > (gameState.maxBuyIn || 0)
+                        ? 'border-red-500'
+                        : 'border-gray-600'
+                    }`}
                   />
+                  {buyInAmount < (gameState.minBuyIn || 0) && (
+                    <p className="text-red-400 text-sm mt-1">
+                      ⚠️ Minimum buy-in is {gameState.minBuyIn || 0} TC
+                    </p>
+                  )}
+                  {buyInAmount > (gameState.maxBuyIn || 0) && (
+                    <p className="text-red-400 text-sm mt-1">
+                      ⚠️ Maximum buy-in is {gameState.maxBuyIn || 0} TC
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-3 justify-end">
                   <button
@@ -225,7 +239,12 @@ const PokerClient: React.FC<PokerClientProps> = ({
                         setSelectedSeatIndex(null);
                       }
                     }}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg transition-colors"
+                    disabled={buyInAmount < (gameState.minBuyIn || 0) || buyInAmount > (gameState.maxBuyIn || 0)}
+                    className={`font-bold px-4 py-2 rounded-lg transition-colors ${
+                      buyInAmount < (gameState.minBuyIn || 0) || buyInAmount > (gameState.maxBuyIn || 0)
+                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        : 'bg-green-600 hover:bg-green-700 text-white'
+                    }`}
                   >
                     Sit Down with {buyInAmount} TC
                   </button>
