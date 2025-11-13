@@ -6,6 +6,7 @@ export interface PropBetProposalModalProps {
   onPropose: (type: string, config: any) => void;
   myPlayerId: string;
   sidePotBalance: number;
+  bigBlind: number;
 }
 
 export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
@@ -14,9 +15,14 @@ export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
   onPropose,
   myPlayerId,
   sidePotBalance,
+  bigBlind,
 }) => {
+  // Calculate minimum bet: half the big blind, rounded down
+  const minBet = Math.floor(bigBlind / 2);
+  const maxBet = bigBlind * 20; // Up to 20x BB
+
   const [selectedColor, setSelectedColor] = useState<'red' | 'black'>('red');
-  const [amountPerCard, setAmountPerCard] = useState(500); // $5 default
+  const [amountPerCard, setAmountPerCard] = useState(minBet);
 
   if (!isOpen) return null;
 
@@ -78,20 +84,20 @@ export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
         {/* Amount Selection */}
         <div className="mb-6">
           <label className="block text-gray-400 text-sm mb-2">
-            Amount Per Card: ${(amountPerCard / 100).toFixed(2)}
+            Amount Per Card: {(amountPerCard / 100).toFixed(2)} TC
           </label>
           <input
             type="range"
-            min="100"
-            max="2000"
-            step="100"
+            min={minBet}
+            max={maxBet}
+            step={minBet}
             value={amountPerCard}
             onChange={(e) => setAmountPerCard(parseInt(e.target.value))}
             className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
           />
           <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>$1</span>
-            <span>$20</span>
+            <span>{(minBet / 100).toFixed(2)} TC</span>
+            <span>{(maxBet / 100).toFixed(2)} TC</span>
           </div>
         </div>
 
@@ -100,13 +106,13 @@ export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
           <div className="flex justify-between items-center mb-2">
             <span className="text-gray-400 text-sm">Max Risk:</span>
             <span className="text-yellow-500 font-bold text-lg">
-              ${(maxRisk / 100).toFixed(2)}
+              {(maxRisk / 100).toFixed(2)} TC
             </span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-400 text-sm">Side Pot Balance:</span>
             <span className={`font-semibold ${canAfford ? 'text-green-500' : 'text-red-500'}`}>
-              ${(sidePotBalance / 100).toFixed(2)}
+              {(sidePotBalance / 100).toFixed(2)} TC
             </span>
           </div>
         </div>
@@ -117,19 +123,19 @@ export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
           <div className="space-y-1 text-xs">
             <div className="flex justify-between text-gray-300">
               <span>3 {selectedColor} cards:</span>
-              <span className="text-green-400 font-semibold">+${(maxRisk / 100).toFixed(2)}</span>
+              <span className="text-green-400 font-semibold">+{(maxRisk / 100).toFixed(2)} TC</span>
             </div>
             <div className="flex justify-between text-gray-300">
               <span>2 {selectedColor}, 1 other:</span>
-              <span className="text-green-400 font-semibold">+${(amountPerCard / 100).toFixed(2)}</span>
+              <span className="text-green-400 font-semibold">+{(amountPerCard / 100).toFixed(2)} TC</span>
             </div>
             <div className="flex justify-between text-gray-300">
               <span>1 {selectedColor}, 2 other:</span>
-              <span className="text-red-400 font-semibold">-${(amountPerCard / 100).toFixed(2)}</span>
+              <span className="text-red-400 font-semibold">-{(amountPerCard / 100).toFixed(2)} TC</span>
             </div>
             <div className="flex justify-between text-gray-300">
               <span>0 {selectedColor} cards:</span>
-              <span className="text-red-400 font-semibold">-${(maxRisk / 100).toFixed(2)}</span>
+              <span className="text-red-400 font-semibold">-{(maxRisk / 100).toFixed(2)} TC</span>
             </div>
           </div>
         </div>
@@ -138,7 +144,7 @@ export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
         {!canAfford && (
           <div className="bg-red-900 bg-opacity-30 border border-red-600 rounded-lg p-3 mb-4">
             <p className="text-red-400 text-sm">
-              ⚠️ Insufficient side pot funds. Need ${(maxRisk / 100).toFixed(2)}, have ${(sidePotBalance / 100).toFixed(2)}
+              ⚠️ Insufficient side pot funds. Need {(maxRisk / 100).toFixed(2)} TC, have {(sidePotBalance / 100).toFixed(2)} TC
             </p>
           </div>
         )}

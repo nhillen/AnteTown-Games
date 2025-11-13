@@ -470,16 +470,26 @@ const PokerClient: React.FC<PokerClientProps> = ({
               </button>
             </div>
 
-            {/* Prop Bet Button */}
-            {isSeated && onProposeSideGame && (
-              <div className="mt-4">
-                <button
-                  onClick={() => setShowPropBetModal(true)}
-                  className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold px-6 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2 mx-auto"
-                >
-                  <span>🎴</span>
-                  <span>Propose Flipz Bet</span>
-                </button>
+            {/* Secondary Actions: Stand Up and Prop Bets */}
+            {isSeated && (
+              <div className="mt-4 flex gap-3 justify-center">
+                {onStandUp && (
+                  <button
+                    onClick={onStandUp}
+                    className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-6 py-3 rounded-lg transition-colors shadow-lg"
+                  >
+                    Stand Up
+                  </button>
+                )}
+                {onProposeSideGame && (
+                  <button
+                    onClick={() => setShowPropBetModal(true)}
+                    className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold px-6 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2"
+                  >
+                    <span>🎴</span>
+                    <span>Prop Betz</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -497,6 +507,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
           }}
           myPlayerId={myPlayerId}
           sidePotBalance={mySeat?.sidePot?.balance || 0}
+          bigBlind={gameState.bigBlind || 100}
         />
       )}
 
