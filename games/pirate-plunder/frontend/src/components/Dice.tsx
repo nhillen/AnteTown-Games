@@ -85,15 +85,17 @@ export function Die({
     // Fallback to simple default
     diceConfig.skin = 'bone'
     diceConfig.material = 'solid'
-    // Green glow for public locked dice, blue for private locked dice
-    if (locked) {
-      const glowColor = isPublic ? '#10b981' : '#3b82f6'; // green : blue
-      diceConfig.effects = [{ type: 'glow', color: glowColor, strength: 'low' }];
-    } else {
-      diceConfig.effects = [];
-    }
+    diceConfig.effects = [];
   }
-  
+
+  // Apply lock highlights (green for public, blue for private) regardless of customization
+  if (locked && !preview) {
+    const glowColor = isPublic ? '#10b981' : '#3b82f6'; // green : blue
+    // Add glow effect to existing effects or create new array
+    const lockGlow = { type: 'glow' as const, color: glowColor, strength: 'low' as const };
+    diceConfig.effects = diceConfig.effects ? [...diceConfig.effects, lockGlow] : [lockGlow];
+  }
+
   const svgContent = renderDice(diceConfig)
 
   return (
