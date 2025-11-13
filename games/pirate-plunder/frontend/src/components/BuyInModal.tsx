@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import Button from './ui/Button'
+import { getCurrencyIcon, getCurrencyColor, type CurrencyType } from '../utils/currency'
 
 interface BuyInModalProps {
   isOpen: boolean
@@ -13,8 +14,8 @@ interface BuyInModalProps {
   onConfirm: (amount: number) => void
   minBuyIn: number
   maxBuyIn: number
-  userBalance: number  // in cents
-  currency: string
+  userBalance: number
+  currency: CurrencyType
   initialAmount?: number
   title?: string
 }
@@ -28,7 +29,7 @@ export default function BuyInModal({
   userBalance,
   currency,
   initialAmount,
-  title = 'Choose Your Buy-in Amount'
+  title = 'Choose Buy-in Amount'
 }: BuyInModalProps) {
   const [buyInAmount, setBuyInAmount] = useState(initialAmount || minBuyIn)
 
@@ -41,21 +42,19 @@ export default function BuyInModal({
 
   if (!isOpen) return null
 
-  // Convert user balance from cents to whole units
-  const balanceInWholeUnits = Math.floor(userBalance / 100)
-  const hasEnoughBalance = balanceInWholeUnits >= buyInAmount
-  const isValidAmount = buyInAmount >= minBuyIn && buyInAmount <= maxBuyIn && buyInAmount <= balanceInWholeUnits
+  const hasEnoughBalance = userBalance >= buyInAmount
+  const isValidAmount = buyInAmount >= minBuyIn && buyInAmount <= maxBuyIn
 
-  // Currency styling (note: Pirate Plunder uses string type for currency)
-  const currencyColor = currency === 'TC' ? 'text-yellow-400' : 'text-slate-300'
-  const currencyIcon = currency === 'TC' ? '/icons/tc-icon.png' : '/icons/vt-icon.png'
+  // Currency styling from centralized service
+  const currencyColor = getCurrencyColor(currency)
+  const currencyIcon = getCurrencyIcon(currency)
 
   const formatCurrency = (amount: number) => amount.toFixed(0)
 
   const handleAmountChange = (value: string) => {
     const amount = parseInt(value) || minBuyIn
     // Clamp between min and max
-    setBuyInAmount(Math.min(balanceInWholeUnits, Math.min(maxBuyIn, Math.max(minBuyIn, amount))))
+    setBuyInAmount(Math.min(maxBuyIn, Math.max(minBuyIn, amount)))
   }
 
   const handleConfirm = () => {
@@ -79,8 +78,8 @@ export default function BuyInModal({
             <input
               type="number"
               min={minBuyIn}
-              max={Math.min(maxBuyIn, balanceInWholeUnits)}
-              step={10}
+              max={maxBuyIn}
+              step={100}
               value={buyInAmount}
               onChange={(e) => handleAmountChange(e.target.value)}
               className={`w-full bg-slate-700 rounded px-3 py-2 text-white ${
@@ -96,7 +95,7 @@ export default function BuyInModal({
             {/* Validation messages */}
             {!isValidAmount && (
               <p className="text-xs text-red-400 mt-1">
-                ⚠️ Amount must be between {formatCurrency(minBuyIn)} and {formatCurrency(Math.min(maxBuyIn, balanceInWholeUnits))} {currency}
+                ⚠️ Amount must be between {formatCurrency(minBuyIn)} and {formatCurrency(maxBuyIn)} {currency}
               </p>
             )}
 
@@ -105,11 +104,11 @@ export default function BuyInModal({
               <p className="text-xs text-gray-400 flex items-center gap-1">
                 Your Balance:
                 <img src={currencyIcon} alt={currency} className="w-3 h-3" />
-                <span className={currencyColor}>{formatCurrency(balanceInWholeUnits)}</span>
+                <span className={currencyColor}>{formatCurrency(userBalance)}</span>
               </p>
               {!hasEnoughBalance && (
                 <p className="text-xs text-red-400 mt-1">
-                  ⚠️ Insufficient balance! Need {formatCurrency(buyInAmount - balanceInWholeUnits)} more {currency}.
+                  ⚠️ Insufficient balance! Need {formatCurrency(buyInAmount - userBalance)} more {currency}.
                 </p>
               )}
             </div>
