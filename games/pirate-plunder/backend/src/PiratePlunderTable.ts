@@ -2353,7 +2353,9 @@ export class PiratePlunderTable extends GameBase {
       return;
     }
 
-    const minBuyIn = this.config.minBuyIn || (this.fullConfig.betting.ante.amount * 5);
+    // Calculate minimum buy-in using config multiplier
+    const minBuyIn = this.config.minBuyIn ||
+      (this.fullConfig.betting.ante.amount * this.fullConfig.table.tableMinimumMultiplier);
     const { seatIndex, buyInAmount = minBuyIn } = payload;
 
     // Validate buy-in amount
