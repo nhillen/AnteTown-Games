@@ -352,14 +352,57 @@ git push origin main
 
 **Games are NOT deployed directly from this repository.**
 
-The AnteTown platform:
-1. References games via `file:` dependencies
-2. Builds games as part of platform build process
-3. Deploys complete platform with all integrated games
+The AnteTown platform integrates games via `file:` dependencies. **CRITICAL:** There's a specific build order required!
 
-**To deploy game changes:**
-1. Commit and push changes to this repo
-2. Platform's `npm install` picks up the changes (due to `file:` dependency)
-3. Deploy the platform (see platform's DEPLOY.md)
+### The Build Order Problem
+
+When games are linked via `file:` dependencies in `platform/frontend/package.json`, Vite (the frontend bundler) caches the game package. If you rebuild the platform frontend BEFORE rebuilding the game, **Vite won't detect the game changes** and will use the cached version.
+
+**This causes the "deployed but changes don't show up" issue!**
+
+### Correct Deployment Process
+
+**From the AnteTown platform repo**, use the deployment script:
+
+```bash
+# In AnteTown repository
+./scripts/deploy-external-game.sh <game-name>
+
+# Examples:
+./scripts/deploy-external-game.sh war-faire
+./scripts/deploy-external-game.sh pirate-plunder
+```
+
+**What the script does (in this CRITICAL order):**
+1. Build game package in AnteTown-Games repo
+2. Rebuild platform frontend (picks up game changes)
+3. Restart platform service
+4. Clear Caddy cache
+
+**⚠️ DO NOT deploy manually** - the build order must be correct or changes won't appear!
+
+### Manual Deployment (If You Must)
+
+If you can't use the script, follow this EXACT order on the server:
+
+```bash
+# 1. Pull and build game FIRST
+cd /opt/AnteTown-Games/games/war-faire
+git pull
+npm run build
+
+# 2. THEN rebuild platform frontend
+cd /opt/AnteTown/platform/frontend
+npm run build
+
+# 3. Restart platform
+sudo systemctl restart AnteTown
+
+# 4. Clear Caddy cache
+sudo rm -rf /var/lib/caddy/.local/share/caddy/*
+sudo systemctl reload caddy
+```
+
+**Skip step 2 and your changes won't appear! This is the root cause of most deployment issues.**
 
 See individual game CLAUDE.md files for game-specific details (e.g., `games/pirate-plunder/CLAUDE.md`).
