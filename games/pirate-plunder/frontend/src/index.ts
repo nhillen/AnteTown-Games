@@ -5,6 +5,9 @@
  * by host platforms (like AnteTown).
  */
 
+// Import CSS so it gets bundled with the library
+import './index.css'
+
 // Export the main game component (GameApp - requires AuthProvider wrapper)
 export { default as PiratePlunderClient } from './components/GameApp'
 
