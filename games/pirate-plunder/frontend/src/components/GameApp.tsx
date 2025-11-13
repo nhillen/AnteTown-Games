@@ -91,12 +91,27 @@ type LogEntry = {
   isAI: boolean
 }
 
+interface BuyInModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: (amount: number) => void
+  minBuyIn: number
+  maxBuyIn: number
+  userBalance: number
+  currency: CurrencyType
+  initialAmount?: number
+  title?: string
+}
+
 interface GameAppProps {
   platformMode?: boolean  // When true, hide platform-provided UI (Profile, Store, Login, etc.)
   tableId?: string        // Table ID to join (for multi-table platform mode)
+  BuyInModalComponent?: React.ComponentType<BuyInModalProps>  // Shared BuyInModal from platform
 }
 
-export default function GameApp({ platformMode = false, tableId }: GameAppProps = {}) {
+export default function GameApp({ platformMode = false, tableId, BuyInModalComponent }: GameAppProps = {}) {
+  // Use platform's BuyInModal if provided, otherwise use local version
+  const BuyInModalToUse = BuyInModalComponent || BuyInModal
   const { user, loading, refreshUser } = useAuth()
   const [connected, setConnected] = useState(false)
   const [me, setMe] = useState<Player | null>(null)
@@ -1175,14 +1190,14 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
       />
 
       {/* Buy-in Modal */}
-      <BuyInModal
+      <BuyInModalToUse
         isOpen={showBuyInModal}
         onClose={() => setShowBuyInModal(false)}
         onConfirm={confirmBuyIn}
         minBuyIn={tableRequirements?.requiredTableStack || 1}
         maxBuyIn={10000}
         userBalance={me?.bankroll || 0}
-        currency={table?.config?.currency || 'TC'}
+        currency={(table?.config?.currency as CurrencyType) || 'TC'}
         initialAmount={buyInAmount}
       />
 
