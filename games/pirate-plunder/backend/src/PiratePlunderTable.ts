@@ -941,26 +941,27 @@ export class PiratePlunderTable extends GameBase {
     const maxFives = Math.max(...results.map(r => r.handResult.fiveCount));
     const maxFours = Math.max(...results.map(r => r.handResult.fourCount));
 
-    // Ship = Most 6s (unique) AND meets minimum requirement
+    // Ship = Most 6s AND meets minimum requirement
     const shipCandidates = results.filter(r =>
       r.handResult.sixCount === maxSixes && maxSixes >= roleReqs.ship
     );
-    const shipWinner = shipCandidates.length === 1 ? shipCandidates[0] : null;
-    if (shipWinner) shipWinner.roles.push('Ship');
+    const shipWinners = this.resolveRoleTie(shipCandidates);
+    shipWinners.forEach(w => w.roles.push('Ship'));
 
-    // Captain = Most 5s (unique, not Ship) AND meets minimum requirement
+    // Captain = Most 5s (not Ship) AND meets minimum requirement
     const captainCandidates = results.filter(r =>
-      r.handResult.fiveCount === maxFives && maxFives >= roleReqs.captain && r !== shipWinner
+      r.handResult.fiveCount === maxFives && maxFives >= roleReqs.captain && !shipWinners.includes(r)
     );
-    const captainWinner = captainCandidates.length === 1 ? captainCandidates[0] : null;
-    if (captainWinner) captainWinner.roles.push('Captain');
+    const captainWinners = this.resolveRoleTie(captainCandidates);
+    captainWinners.forEach(w => w.roles.push('Captain'));
 
-    // Crew = Most 4s (unique, not Ship/Captain) AND meets minimum requirement
+    // Crew = Most 4s (not Ship/Captain) AND meets minimum requirement
     const crewCandidates = results.filter(r =>
-      r.handResult.fourCount === maxFours && maxFours >= roleReqs.crew && r !== shipWinner && r !== captainWinner
+      r.handResult.fourCount === maxFours && maxFours >= roleReqs.crew &&
+      !shipWinners.includes(r) && !captainWinners.includes(r)
     );
-    const crewWinner = crewCandidates.length === 1 ? crewCandidates[0] : null;
-    if (crewWinner) crewWinner.roles.push('Crew');
+    const crewWinners = this.resolveRoleTie(crewCandidates);
+    crewWinners.forEach(w => w.roles.push('Crew'));
 
     // Step 2: Check for chest triggers (trips/quads/yahtzee of low dice)
     if (this.gameState.cargoChest > 0) {
@@ -989,46 +990,89 @@ export class PiratePlunderTable extends GameBase {
       }
     }
 
-    // Step 3: Calculate role payouts
+    // Step 3: Calculate and distribute role payouts
     const rolePayouts = this.fullConfig.payouts.role_payouts;
-    let shipPayout = Math.floor(netPot * rolePayouts.ship);
-    let captainPayout = Math.floor(netPot * rolePayouts.captain);
-    let crewPayout = Math.floor(netPot * rolePayouts.crew);
+    const totalShipPayout = Math.floor(netPot * rolePayouts.ship);
+    const totalCaptainPayout = Math.floor(netPot * rolePayouts.captain);
+    const totalCrewPayout = Math.floor(netPot * rolePayouts.crew);
 
-    // Handle vacant roles with chest funnel
-    if (!crewWinner) {
-      const toChest = Math.floor(crewPayout * this.fullConfig.chest.unfilled_role_to_chest);
+    // Handle Crew role (vacant or split among winners)
+    if (crewWinners.length === 0) {
+      const toChest = Math.floor(totalCrewPayout * this.fullConfig.chest.unfilled_role_to_chest);
       this.gameState.cargoChest = (this.gameState.cargoChest || 0) + toChest;
-      const remainder = crewPayout - toChest;
-      // Remainder goes to carryover for next hand
-      crewPayout = 0;
+      const remainder = totalCrewPayout - toChest;
       console.log(`[Vacant Crew] ${toChest} to chest, ${remainder} to carryover`);
+    } else {
+      const perWinner = Math.floor(totalCrewPayout / crewWinners.length);
+      crewWinners.forEach(w => {
+        w.payout += perWinner;
+        console.log(`[${w.name}] Crew payout: ${perWinner}${crewWinners.length > 1 ? ` (split ${crewWinners.length} ways)` : ''}`);
+      });
     }
 
-    if (!captainWinner) {
-      const toChest = Math.floor(captainPayout * this.fullConfig.chest.unfilled_role_to_chest);
+    // Handle Captain role (vacant or split, cascade remainder to Ship)
+    if (captainWinners.length === 0) {
+      const toChest = Math.floor(totalCaptainPayout * this.fullConfig.chest.unfilled_role_to_chest);
       this.gameState.cargoChest = (this.gameState.cargoChest || 0) + toChest;
-      const remainder = captainPayout - toChest;
-      if (shipWinner) {
-        shipPayout += remainder;
+      const remainder = totalCaptainPayout - toChest;
+
+      // Remainder cascades to Ship winners
+      if (shipWinners.length > 0) {
+        const perShip = Math.floor(remainder / shipWinners.length);
+        shipWinners.forEach(w => w.payout += perShip);
+        console.log(`[Vacant Captain] ${toChest} to chest, ${remainder} cascaded to ${shipWinners.length} Ship winner(s)`);
+      } else {
+        console.log(`[Vacant Captain] ${toChest} to chest, ${remainder} to carryover`);
       }
-      captainPayout = 0;
-      console.log(`[Vacant Captain] ${toChest} to chest, ${remainder} to ship`);
+    } else {
+      const perWinner = Math.floor(totalCaptainPayout / captainWinners.length);
+      captainWinners.forEach(w => {
+        w.payout += perWinner;
+        console.log(`[${w.name}] Captain payout: ${perWinner}${captainWinners.length > 1 ? ` (split ${captainWinners.length} ways)` : ''}`);
+      });
     }
 
-    if (!shipWinner) {
-      const toChest = Math.floor(shipPayout * this.fullConfig.chest.unfilled_role_to_chest);
+    // Handle Ship role (vacant or split)
+    if (shipWinners.length === 0) {
+      const toChest = Math.floor(totalShipPayout * this.fullConfig.chest.unfilled_role_to_chest);
       this.gameState.cargoChest = (this.gameState.cargoChest || 0) + toChest;
-      shipPayout = 0;
       console.log(`[Vacant Ship] ${toChest} to chest`);
+    } else {
+      const perWinner = Math.floor(totalShipPayout / shipWinners.length);
+      shipWinners.forEach(w => {
+        w.payout += perWinner;
+        console.log(`[${w.name}] Ship payout: ${perWinner}${shipWinners.length > 1 ? ` (split ${shipWinners.length} ways)` : ''}`);
+      });
     }
-
-    // Award payouts
-    if (shipWinner) shipWinner.payout += shipPayout;
-    if (captainWinner) captainWinner.payout += captainPayout;
-    if (crewWinner) crewWinner.payout += crewPayout;
 
     return results;
+  }
+
+  /**
+   * Resolve role ties based on config
+   * Returns array of winners (empty for vacant role, 1+ for assigned)
+   */
+  private resolveRoleTie(candidates: ShowdownResult[]): ShowdownResult[] {
+    if (candidates.length === 0) return [];
+    if (candidates.length === 1) return candidates;
+
+    const tieMode = this.fullConfig.advanced.ties;
+
+    switch (tieMode) {
+      case 'split_share':
+        // All tied candidates share the role
+        return candidates;
+
+      case 'earliest_leader_priority':
+      case 'reroll_one_die': // Reroll not possible at showdown, use priority instead
+        // First candidate in results array wins (corresponds to earliest/button player)
+        return [candidates[0]];
+
+      default:
+        // Unknown mode or vacant - no winner
+        console.warn(`[${this.config.tableId}] Unknown tie mode: ${tieMode}, making role vacant`);
+        return [];
+    }
   }
 
   /**
