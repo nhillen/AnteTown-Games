@@ -14,7 +14,7 @@ import RulesModal from './RulesModal'
 import BuyInModal from './BuyInModal'
 import CurrencyDisplay from './CurrencyDisplay'
 import { useAuth } from './AuthProvider'
-import { formatGoldCoinsCompact, type CurrencyType } from '../utils/currency'
+import { type CurrencyType } from '../utils/currency'
 import { APP_VERSION, BUILD_TIMESTAMP } from '../version'
 import { getBackendUrl } from '../utils/backendUrl'
 import {
