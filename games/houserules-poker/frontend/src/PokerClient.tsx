@@ -369,12 +369,19 @@ const PokerClient: React.FC<PokerClientProps> = ({
 
                 {/* Row 2: Stack and Bet */}
                 <div className="flex justify-between text-xs">
-                  <span className="text-green-400 font-semibold tabular-nums">
-                    ${(seat.tableStack / 100).toFixed(2)}
-                  </span>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-green-400 font-semibold tabular-nums">
+                      {Math.floor(seat.tableStack / 100)} TC
+                    </span>
+                    {seat.sidePot && seat.sidePot.balance > 0 && (
+                      <span className="text-purple-400 font-semibold tabular-nums text-[10px]" title="Side pot balance">
+                        Side: {Math.floor(seat.sidePot.balance / 100)} TC
+                      </span>
+                    )}
+                  </div>
                   {seat.currentBet > 0 && (
                     <span className="text-yellow-400 font-semibold tabular-nums">
-                      Bet: ${(seat.currentBet / 100).toFixed(2)}
+                      Bet: {Math.floor(seat.currentBet / 100)} TC
                     </span>
                   )}
                 </div>
