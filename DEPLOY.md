@@ -15,6 +15,20 @@ The AnteTown-Games repository contains:
 - Platform repo: `/opt/AnteTown/`
 - Platform references games via symlinks in `node_modules/@pirate/`
 
+## Quick Start (Recommended)
+
+```bash
+# Deploy a single game using the automated script
+./scripts/deploy.sh <game-name>
+
+# Examples:
+./scripts/deploy.sh pirate-plunder
+./scripts/deploy.sh war-faire
+./scripts/deploy.sh ck-flipz
+```
+
+This script handles the complete deployment process including the critical build order and cache clearing.
+
 ## Deployment Process
 
 ### When to Deploy
