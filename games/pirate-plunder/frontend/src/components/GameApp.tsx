@@ -12,8 +12,9 @@ import { Store } from './Store'
 import ConfigManager from './ConfigManager'
 import RulesModal from './RulesModal'
 import BuyInModal from './BuyInModal'
+import CurrencyDisplay from './CurrencyDisplay'
 import { useAuth } from './AuthProvider'
-import { formatGoldCoinsCompact } from '../utils/currency'
+import { formatGoldCoinsCompact, type CurrencyType } from '../utils/currency'
 import { APP_VERSION, BUILD_TIMESTAMP } from '../version'
 import { getBackendUrl } from '../utils/backendUrl'
 import {
@@ -889,8 +890,12 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
               <Panel title={`🎯 Game Info`}>
                 <div className="space-y-2">
                   <p className="text-sm">Phase: {game.phase || 'Unknown'}</p>
-                  <p className="text-sm">Pot: {formatGoldCoinsCompact(game.pot || 0)}</p>
-                  <p className="text-sm">Current Bet: {formatGoldCoinsCompact(game.currentBet || 0)}</p>
+                  <p className="text-sm">
+                    Pot: <CurrencyDisplay amount={game.pot || 0} currency={(table?.config?.currency as CurrencyType) || 'TC'} compact />
+                  </p>
+                  <p className="text-sm">
+                    Current Bet: <CurrencyDisplay amount={game.currentBet || 0} currency={(table?.config?.currency as CurrencyType) || 'TC'} compact />
+                  </p>
                   
                   {game.phase === 'Lobby' && (
                     <Button onClick={handleStartHand} className="w-full">
@@ -1009,6 +1014,7 @@ export default function GameApp({ platformMode = false, tableId }: GameAppProps 
                     lowSkin: cosmetics.lowSkin || 'pearl-simple'
                   }}
                   tableRequirements={tableRequirements}
+                  currency={(table?.config?.currency as CurrencyType) || 'TC'}
                 />
               );
             })()}

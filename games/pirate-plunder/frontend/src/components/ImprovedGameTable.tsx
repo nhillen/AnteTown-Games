@@ -7,7 +7,8 @@ import CenterProgressBar from './CenterProgressBar'
 import GameLegend from './GameLegend'
 import GameInfo from './GameInfo'
 import ShowdownCeremony from './ShowdownCeremony'
-import { formatGoldCoinsCompact } from '../utils/currency'
+import CurrencyDisplay from './CurrencyDisplay'
+import { formatGoldCoinsCompact, type CurrencyType } from '../utils/currency'
 import { TITLES, EMBLEMS } from '../config/cosmetics'
 
 
@@ -91,6 +92,7 @@ type Props = {
     requiredTableStack: number;
     tableMinimumMultiplier: number;
   } | null;
+  currency?: CurrencyType;
 }
 
 function renderStampIndicators(stamps?: { current: number; window: number; eligible: boolean }) {
@@ -124,7 +126,7 @@ function renderStampIndicators(stamps?: { current: number; window: number; eligi
   );
 }
 
-export default function ImprovedGameTable({ game, meId, userName, onPlayerAction, onLockSelect, onLockDone, onSitDown, setActionLog, tableConfig, tableRequirements }: Props) {
+export default function ImprovedGameTable({ game, meId, userName, onPlayerAction, onLockSelect, onLockDone, onSitDown, setActionLog, tableConfig, tableRequirements, currency = 'TC' }: Props) {
   const [foldedPlayers, setFoldedPlayers] = useState<Set<string>>(new Set())
   const [lastPlayerBets, setLastPlayerBets] = useState<Record<string, number>>({})
   const [lastCargoChest, setLastCargoChest] = useState<number>(0)
@@ -557,20 +559,32 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                     <div className="flex items-center justify-between text-sm">
                       {/* Left: Bank info */}
                       <div className="flex items-center gap-1">
-                        <span className={`font-bold ${
+                        <span className={`font-bold flex items-center gap-1 ${
                           getTableStackStatus(seat.tableStack) === 'critical'
-                            ? 'text-red-400 animate-pulse'
+                            ? 'animate-pulse'
                             : getTableStackStatus(seat.tableStack) === 'warning'
-                            ? 'text-yellow-300 animate-pulse'
-                            : 'text-yellow-400'
+                            ? 'animate-pulse'
+                            : ''
                         }`}>
-                          {formatGoldCoinsCompact(seat.tableStack)}
+                          <CurrencyDisplay
+                            amount={seat.tableStack}
+                            currency={currency}
+                            compact
+                            iconSize="sm"
+                            className={
+                              getTableStackStatus(seat.tableStack) === 'critical'
+                                ? 'text-red-400'
+                                : getTableStackStatus(seat.tableStack) === 'warning'
+                                ? 'text-yellow-300'
+                                : ''
+                            }
+                          />
                           {getTableStackStatus(seat.tableStack) === 'critical' && ' ⚠️'}
                           {getTableStackStatus(seat.tableStack) === 'warning' && ' ⚠️'}
                         </span>
                         {seat.currentBet > 0 && (
-                          <span className="text-amber-300 text-xs">
-                            (Bet: {formatGoldCoinsCompact(seat.currentBet)})
+                          <span className="text-amber-300 text-xs flex items-center gap-1">
+                            (Bet: <CurrencyDisplay amount={seat.currentBet} currency={currency} compact iconSize="sm" />)
                           </span>
                         )}
                       </div>
@@ -595,8 +609,8 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
 
           {/* Cargo Chest Display */}
           <div className="text-center mb-4">
-            <div className="text-slate-400 text-sm">
-              💰 Cargo Chest: {formatGoldCoinsCompact((game as any)?.cargoChest || 0)}
+            <div className="text-slate-400 text-sm flex items-center justify-center gap-1">
+              💰 Cargo Chest: <CurrencyDisplay amount={(game as any)?.cargoChest || 0} currency={currency} compact />
             </div>
           </div>
 
@@ -667,14 +681,18 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                 <div className="bg-slate-700/50 rounded-lg p-3 text-center space-y-2">
                   {/* Main Pot */}
                   <div className="space-y-1">
-                    <div className="text-2xl font-bold text-yellow-400">{formatGoldCoinsCompact(game.pot)}</div>
+                    <div className="text-2xl font-bold flex items-center justify-center gap-1">
+                      <CurrencyDisplay amount={game.pot} currency={currency} compact iconSize="md" className="text-yellow-400" />
+                    </div>
                     <div className="text-xs text-slate-400">Main Pot</div>
                   </div>
 
                   {/* Cargo Chest */}
                   {(game as any).cargoChest !== undefined && (
                     <div className="space-y-1">
-                      <div className="text-lg font-bold text-purple-400">{formatGoldCoinsCompact((game as any).cargoChest || 0)}</div>
+                      <div className="text-lg font-bold flex items-center justify-center gap-1">
+                        <CurrencyDisplay amount={(game as any).cargoChest || 0} currency={currency} compact iconSize="md" className="text-purple-400" />
+                      </div>
                       <div className="text-xs text-purple-300">
                         Cargo Chest
                         <span className="ml-1 text-slate-500 cursor-help" title="5% of each wager feeds the progressive Cargo Chest">ⓘ</span>
@@ -769,14 +787,18 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                 <div className="bg-slate-700/50 rounded-lg p-3 text-center space-y-2">
                   {/* Main Pot */}
                   <div className="space-y-1">
-                    <div className="text-2xl font-bold text-yellow-400">{formatGoldCoinsCompact(game.pot)}</div>
+                    <div className="text-2xl font-bold flex items-center justify-center gap-1">
+                      <CurrencyDisplay amount={game.pot} currency={currency} compact iconSize="md" className="text-yellow-400" />
+                    </div>
                     <div className="text-xs text-slate-400">Main Pot</div>
                   </div>
 
                   {/* Cargo Chest */}
                   {(game as any).cargoChest !== undefined && (
                     <div className="space-y-1">
-                      <div className="text-lg font-bold text-purple-400">{formatGoldCoinsCompact((game as any).cargoChest || 0)}</div>
+                      <div className="text-lg font-bold flex items-center justify-center gap-1">
+                        <CurrencyDisplay amount={(game as any).cargoChest || 0} currency={currency} compact iconSize="md" className="text-purple-400" />
+                      </div>
                       <div className="text-xs text-purple-300">
                         Cargo Chest
                         <span className="ml-1 text-slate-500 cursor-help" title="10% of each bet feeds the progressive Cargo Chest">ⓘ</span>
@@ -792,14 +814,16 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
                        game.phase || 'Loading...'}
                     </Badge>
                     {game.currentBet > 0 && (
-                      <div className="text-amber-400">To call: {formatGoldCoinsCompact(game.currentBet)}</div>
+                      <div className="text-amber-400 flex items-center gap-1">
+                        To call: <CurrencyDisplay amount={game.currentBet} currency={currency} compact iconSize="sm" />
+                      </div>
                     )}
                   </div>
 
                   {/* Rake info */}
                   {((game as any).davyJonesRake > 0 || (game as any).totalDavyJonesRake > 0) && (
-                    <div className="text-xs text-red-400">
-                      Rake: {formatGoldCoinsCompact((game as any).totalDavyJonesRake || (game as any).davyJonesRake || 0)}
+                    <div className="text-xs text-red-400 flex items-center justify-center gap-1">
+                      Rake: <CurrencyDisplay amount={(game as any).totalDavyJonesRake || (game as any).davyJonesRake || 0} currency={currency} compact iconSize="sm" />
                     </div>
                   )}
                 </div>
