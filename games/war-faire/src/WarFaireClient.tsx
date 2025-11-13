@@ -78,6 +78,18 @@ function RoundSummaryOverlay({ roundNumber, onContinue }: { roundNumber: number;
   );
 }
 
+type BuyInModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (amount: number) => void;
+  minBuyIn: number;
+  maxBuyIn: number;
+  userBalance: number;
+  currency: string;
+  initialAmount?: number;
+  title?: string;
+};
+
 type WarFaireClientProps = {
   game: WarFaireGameState | null;
   meId: string;
@@ -86,6 +98,8 @@ type WarFaireClientProps = {
   onStandUp: () => void;
   isSeated: boolean;
   isAdmin?: boolean;
+  BuyInModalComponent?: React.ComponentType<BuyInModalProps>;
+  userBalance?: number;
 };
 
 export default function WarFaireClient({
@@ -95,7 +109,9 @@ export default function WarFaireClient({
   onSitDown,
   onStandUp,
   isSeated,
-  isAdmin = false
+  isAdmin = false,
+  BuyInModalComponent,
+  userBalance = 0
 }: WarFaireClientProps) {
   // ===== EXISTING STATE - DO NOT MODIFY =====
   const [slotA, setSlotA] = useState<{ card: Card; index: number } | null>(null);
@@ -104,6 +120,11 @@ export default function WarFaireClient({
   const [showStandings, setShowStandings] = useState(false);
   const [activeTab, setActiveTab] = useState<'hand' | 'played'>('hand');
   const [boardTab, setBoardTab] = useState<'all' | 'you' | 'rivals'>('all');
+
+  // ===== BUY-IN MODAL STATE =====
+  const [showBuyInModal, setShowBuyInModal] = useState(false);
+  const [selectedSeatIndex, setSelectedSeatIndex] = useState<number | null>(null);
+  const [buyInAmount, setBuyInAmount] = useState(1000);
 
   // ===== UI STATE FOR POPOVER =====
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -213,16 +234,33 @@ export default function WarFaireClient({
       return;
     }
 
-    // If not seated, sit down
+    // If not seated, show buy-in modal
     if (!isSeated) {
-      console.log(`🪑 Player ${meId} sitting at seat ${seatIndex}`);
-      onSitDown(seatIndex, 1000);
+      if (BuyInModalComponent) {
+        console.log(`🪑 Player ${meId} requesting to sit at seat ${seatIndex}`);
+        setSelectedSeatIndex(seatIndex);
+        setShowBuyInModal(true);
+      } else {
+        // Fallback for standalone mode without modal
+        console.log(`🪑 Player ${meId} sitting at seat ${seatIndex} (no modal)`);
+        onSitDown(seatIndex, 1000);
+      }
     } else if (isAdmin) {
       // If already seated and admin, add AI to this seat
       console.log(`🪑 Admin adding AI to seat ${seatIndex}`);
       onPlayerAction('add_ai', { count: 1, seatIndex });
     }
     // Non-admin seated players can't click empty seats
+  };
+
+  // ===== BUY-IN HANDLER =====
+  const confirmBuyIn = (amount: number) => {
+    if (selectedSeatIndex !== null) {
+      console.log(`🪑 Player ${meId} confirming buy-in at seat ${selectedSeatIndex} with ${amount}`);
+      onSitDown(selectedSeatIndex, amount);
+      setShowBuyInModal(false);
+      setSelectedSeatIndex(null);
+    }
   };
 
   // ===== DEBUG LOGGING =====
@@ -1481,6 +1519,23 @@ export default function WarFaireClient({
         <RoundSummaryOverlay
           roundNumber={(game as any).completedRound || 1}
           onContinue={() => onPlayerAction('continue_from_summary')}
+        />
+      )}
+
+      {/* Buy-In Modal */}
+      {BuyInModalComponent && (
+        <BuyInModalComponent
+          isOpen={showBuyInModal}
+          onClose={() => {
+            setShowBuyInModal(false);
+            setSelectedSeatIndex(null);
+          }}
+          onConfirm={confirmBuyIn}
+          minBuyIn={1000}
+          maxBuyIn={10000}
+          userBalance={userBalance}
+          currency="TC"
+          initialAmount={buyInAmount}
         />
       )}
     </div>
