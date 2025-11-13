@@ -60,11 +60,11 @@ export const PropBetNotification: React.FC<PropBetNotificationProps> = ({
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-400 text-sm">Per Card:</span>
-              <span className="text-white font-semibold">${(config.amountPerCard / 100).toFixed(2)}</span>
+              <span className="text-white font-semibold">{Math.floor(config.amountPerCard / 100)} TC</span>
             </div>
             <div className="flex justify-between items-center border-t border-gray-700 pt-2">
               <span className="text-yellow-500 text-sm font-semibold">Max Risk:</span>
-              <span className="text-yellow-500 font-bold text-lg">${(maxRisk / 100).toFixed(2)}</span>
+              <span className="text-yellow-500 font-bold text-lg">{Math.floor(maxRisk / 100)} TC</span>
             </div>
           </div>
 
@@ -72,10 +72,10 @@ export const PropBetNotification: React.FC<PropBetNotificationProps> = ({
           <div className="bg-gray-800 bg-opacity-60 rounded p-2 mb-3">
             <div className="text-gray-400 text-xs font-semibold mb-1">PAYOUT:</div>
             <div className="text-xs text-gray-300">
-              3 cards your color: <span className="text-green-400 font-semibold">+${(maxRisk / 100).toFixed(2)}</span>
+              3 cards your color: <span className="text-green-400 font-semibold">+{Math.floor(maxRisk / 100)} TC</span>
             </div>
             <div className="text-xs text-gray-300">
-              2-1 split: <span className="text-green-400 font-semibold">±${(config.amountPerCard / 100).toFixed(2)}</span>
+              2-1 split: <span className="text-green-400 font-semibold">±{Math.floor(config.amountPerCard / 100)} TC</span>
             </div>
           </div>
 

@@ -31,7 +31,7 @@ export const PropBetSelectionMenu: React.FC<PropBetSelectionMenuProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold text-yellow-500 mb-3 flex items-center gap-2">
-          Prop Betz
+          Prop Bet
         </h2>
 
         <p className="text-gray-400 text-xs mb-4">
