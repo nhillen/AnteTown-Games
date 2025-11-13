@@ -791,6 +791,19 @@ export class PiratePlunderTable extends GameBase {
   }
 
   /**
+   * Get current street number for progressive antes (0 = pre-Bet1, 1 = Bet1+, 2 = Bet2+, 3 = Bet3+)
+   */
+  private getCurrentStreetNumber(): number {
+    if (!this.gameState) return 0;
+
+    const phase = this.gameState.phase;
+    if (phase === 'Bet1' || phase === 'Lock2' || phase === 'Roll2') return 1;
+    if (phase === 'Bet2' || phase === 'Lock3' || phase === 'Roll3') return 2;
+    if (phase === 'Bet3' || phase === 'Roll4' || phase === 'Showdown' || phase === 'Payout') return 3;
+    return 0; // Lobby, PreHand, Ante, Lock1, Roll1
+  }
+
+  /**
    * Get street multiplier for current betting phase
    * Ported from server.ts:5733-5752
    */
@@ -1343,7 +1356,14 @@ export class PiratePlunderTable extends GameBase {
         }
 
         if (shouldPayAnte) {
-          const anteAmount = anteConfig.amount;
+          // Calculate ante amount (with progressive multiplier if enabled)
+          let anteAmount = anteConfig.amount;
+          if (anteConfig.progressive) {
+            // Progressive antes increase based on number of betting streets completed
+            const streetNumber = this.getCurrentStreetNumber();
+            anteAmount = anteConfig.amount + (streetNumber * anteConfig.street_multiplier);
+          }
+
           const amt = Math.min(seat.tableStack, anteAmount);
           seat.tableStack -= amt;
 
@@ -1352,7 +1372,7 @@ export class PiratePlunderTable extends GameBase {
           this.gameState.pot += mainPot;
           seat.totalContribution = amt;
 
-          const streetInfo = anteConfig.progressive ? ' (progressive)' : '';
+          const streetInfo = anteConfig.progressive ? ` (progressive: street ${this.getCurrentStreetNumber() + 1})` : '';
           console.log(`[${seat.name}] Paid ante: ${amt} ${this.currency} (mode: ${anteConfig.mode}${streetInfo}, drip: ${chestDrip})`);
 
           if (seat.tableStack === 0) {
