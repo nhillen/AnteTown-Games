@@ -67,7 +67,7 @@ type Props = {
   onPlayerAction: (action: 'bet' | 'call' | 'raise' | 'fold' | 'check' | 'post_ante', amount?: number) => void
   onLockSelect: (index: number) => void
   onLockDone: () => void
-  onSitDown?: (seatIndex: number, buyInAmount: number) => void
+  onSitDown?: (seatIndex: number) => void  // Changed: no buyInAmount - GameApp will show modal
   actionLog: LogEntry[]
   setActionLog: React.Dispatch<React.SetStateAction<LogEntry[]>>
   tableConfig?: {
@@ -146,9 +146,6 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
     }
     return 'normal';
   };
-  const [showBuyInDialog, setShowBuyInDialog] = useState(false)
-  const [selectedSeatIndex, setSelectedSeatIndex] = useState<number | null>(null)
-  const [buyInAmount, setBuyInAmount] = useState<number>(100)
   const [lastPlayerActed, setLastPlayerActed] = useState<Record<string, boolean>>({})
   
   
@@ -204,23 +201,11 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
   
   // Seat positions no longer needed with horizontal rail layout
 
-  // Handle sit down with buy-in dialog
+  // Handle sit down - just notify GameApp to show buy-in modal
   const handleSitDown = (seatIndex: number) => {
-    setSelectedSeatIndex(seatIndex)
-    setShowBuyInDialog(true)
-  }
-
-  const confirmSitDown = () => {
-    if (selectedSeatIndex !== null && onSitDown) {
-      onSitDown(selectedSeatIndex, buyInAmount)
-      setShowBuyInDialog(false)
-      setSelectedSeatIndex(null)
+    if (onSitDown) {
+      onSitDown(seatIndex)
     }
-  }
-
-  const cancelSitDown = () => {
-    setShowBuyInDialog(false)
-    setSelectedSeatIndex(null)
   }
   
   // Track game state changes for action log
@@ -948,50 +933,6 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
           isGameActive={!!isGameActive}
         />
 
-        {/* Buy-in Dialog */}
-        {showBuyInDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black bg-opacity-75" onClick={cancelSitDown} />
-            <div className="relative bg-slate-800 rounded-lg shadow-2xl p-6 max-w-md w-full">
-              <h3 className="text-xl font-bold text-white mb-4">💰 Buy In to Sit Down</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Buy-in Amount (Your Bankroll for This Session)
-                  </label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="1000"
-                    step="10"
-                    value={buyInAmount}
-                    onChange={(e) => setBuyInAmount(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    This amount will be your table bankroll. You can stand up to cash out.
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <Button 
-                    variant="secondary" 
-                    onClick={cancelSitDown}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="primary"
-                    onClick={confirmSitDown}
-                    className="flex-1"
-                  >
-                    Sit Down
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

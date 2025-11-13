@@ -129,6 +129,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
   const [isGameAdmin, setIsGameAdmin] = useState(false) // Server-verified admin status
   const [showBuyInModal, setShowBuyInModal] = useState(false)
   const [buyInAmount, setBuyInAmount] = useState(10)
+  const [selectedSeatIndex, setSelectedSeatIndex] = useState<number | null>(null)  // For ImprovedGameTable sit-down
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [versionInfo, setVersionInfo] = useState<{backendVersion?: string, frontendVersion?: string}>({
     frontendVersion: APP_VERSION || '1.0.5' // Frontend version from version.ts
@@ -478,8 +479,19 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
 
   const confirmBuyIn = (amount: number) => {
     if (socket) {
-      socket.emit('sit_down', { buyInAmount: amount })
-      addToActionLog('System', `Sitting down with ${amount} ${table?.config?.currency || 'TC'}`, '', false)
+      // Include seatIndex if it was set (from ImprovedGameTable)
+      const sitDownPayload = selectedSeatIndex !== null
+        ? { seatIndex: selectedSeatIndex, buyInAmount: amount }
+        : { buyInAmount: amount }
+
+      socket.emit('sit_down', sitDownPayload)
+
+      if (selectedSeatIndex !== null) {
+        addToActionLog('System', `Sitting down at seat ${selectedSeatIndex + 1} with ${amount} ${table?.config?.currency || 'TC'}`, '', false)
+        setSelectedSeatIndex(null)  // Clear it after use
+      } else {
+        addToActionLog('System', `Sitting down with ${amount} ${table?.config?.currency || 'TC'}`, '', false)
+      }
 
       // Refresh user data after a short delay to ensure backend updates are complete
       setTimeout(() => {
@@ -488,39 +500,16 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
     }
   }
 
-  const handleModalSitDown = (seatIndex: number, buyInAmount: number) => {
-    if (socket) {
-      console.log('💺 Emitting sit_down event:', {
-        seatIndex,
-        buyInAmount,
-        socketId: socket.id?.slice(0,6),
-        socketConnected: socket.connected,
-        connectedState: connected,
-        myPlayerId: me?.id?.slice(0,6)
-      })
+  const handleModalSitDown = (seatIndex: number) => {
+    // Store seatIndex and show BuyInModal
+    setSelectedSeatIndex(seatIndex)
 
-      // Use React state 'connected' instead of socket.connected
-      if (!connected) {
-        console.log('⚠️ React state shows not connected, waiting...')
-        // Set up a one-time listener for when we get connected
-        const checkConnection = setInterval(() => {
-          if (connected) {
-            clearInterval(checkConnection)
-            console.log('✅ Now connected, emitting sit_down')
-            socket.emit('sit_down', { seatIndex, buyInAmount })
-            addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with ${buyInAmount} ${table?.config?.currency || 'TC'}`, '', false)
-          }
-        }, 100)
-        // Timeout after 5 seconds
-        setTimeout(() => clearInterval(checkConnection), 5000)
-        return
-      }
+    const maxBankroll = me?.bankroll || 10000  // Already in TC
+    const minRequired = tableRequirements?.requiredTableStack || 10  // Already in TC
+    const defaultAmount = Math.max(minRequired, Math.min(maxBankroll, 100))  // Default 100 TC
 
-      console.log('✅ Connected, emitting sit_down now')
-      socket.emit('sit_down', { seatIndex, buyInAmount })
-      console.log('✅ sit_down emitted')
-      addToActionLog('System', `Sitting down at seat ${seatIndex + 1} with ${buyInAmount} ${table?.config?.currency || 'TC'}`, '', false)
-    }
+    setBuyInAmount(defaultAmount)
+    setShowBuyInModal(true)
   }
 
   // TEMPORARILY DISABLED - Flipz package issues
