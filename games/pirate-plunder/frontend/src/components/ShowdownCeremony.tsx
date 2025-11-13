@@ -136,7 +136,7 @@ export default function ShowdownCeremony({ showdownResults, pot, seats, chestAwa
                     <div className="flex gap-0.5 justify-center mb-3 px-2">
                       {seat?.dice.map((die: any, i: number) => (
                         <div key={i} className="flex-shrink-0" style={{ marginLeft: i > 0 ? '-4px' : '0' }}>
-                          <Die value={die.value as 1|2|3|4|5|6} locked={true} size="sm" />
+                          <Die value={die.value as 1|2|3|4|5|6} locked={die.locked} isPublic={die.isPublic} size="sm" />
                         </div>
                       ))}
                     </div>
@@ -237,7 +237,7 @@ export default function ShowdownCeremony({ showdownResults, pot, seats, chestAwa
                       <div className="flex gap-0.5 justify-center mb-3 px-2">
                         {seat?.dice.map((die: any, i: number) => (
                           <div key={i} className="flex-shrink-0" style={{ marginLeft: i > 0 ? '-4px' : '0' }}>
-                            <Die value={die.value as 1|2|3|4|5|6} locked={true} size="sm" />
+                            <Die value={die.value as 1|2|3|4|5|6} locked={die.locked} isPublic={die.isPublic} size="sm" />
                           </div>
                         ))}
                       </div>
@@ -295,7 +295,7 @@ export default function ShowdownCeremony({ showdownResults, pot, seats, chestAwa
                         const seat = seats.find(s => s?.playerId === shipWinner.playerId)
                         return seat?.dice.map((die: any, i: number) => (
                           <div key={i} className="flex-shrink-0" style={{ marginLeft: i > 0 ? '-4px' : '0' }}>
-                            <Die value={die.value as 1|2|3|4|5|6} locked={true} size="sm" />
+                            <Die value={die.value as 1|2|3|4|5|6} locked={die.locked} isPublic={die.isPublic} size="sm" />
                           </div>
                         ))
                       })()}
@@ -327,7 +327,7 @@ export default function ShowdownCeremony({ showdownResults, pot, seats, chestAwa
                         const seat = seats.find(s => s?.playerId === captainWinner.playerId)
                         return seat?.dice.map((die: any, i: number) => (
                           <div key={i} className="flex-shrink-0" style={{ marginLeft: i > 0 ? '-4px' : '0' }}>
-                            <Die value={die.value as 1|2|3|4|5|6} locked={true} size="sm" />
+                            <Die value={die.value as 1|2|3|4|5|6} locked={die.locked} isPublic={die.isPublic} size="sm" />
                           </div>
                         ))
                       })()}
@@ -359,7 +359,7 @@ export default function ShowdownCeremony({ showdownResults, pot, seats, chestAwa
                         const seat = seats.find(s => s?.playerId === crewWinner.playerId)
                         return seat?.dice.map((die: any, i: number) => (
                           <div key={i} className="flex-shrink-0" style={{ marginLeft: i > 0 ? '-4px' : '0' }}>
-                            <Die value={die.value as 1|2|3|4|5|6} locked={true} size="sm" />
+                            <Die value={die.value as 1|2|3|4|5|6} locked={die.locked} isPublic={die.isPublic} size="sm" />
                           </div>
                         ))
                       })()}

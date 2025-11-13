@@ -95,9 +95,9 @@ export function Die({
   }
   
   const svgContent = renderDice(diceConfig)
-  
+
   return (
-    <div 
+    <div
       className={`inline-block`}
       dangerouslySetInnerHTML={{ __html: svgContent }}
     />
