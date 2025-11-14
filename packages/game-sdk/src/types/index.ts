@@ -2,4 +2,4 @@
  * Type exports for game SDK
  */
 
-export * from './currency';
+export * from './currency.js';
