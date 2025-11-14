@@ -19,6 +19,7 @@ export type FlipzTableConfig = {
   emoji: string;
   rakePercentage?: number; // default 5%
   minBuyInMultiplier?: number; // default 5 (5x ante)
+  currencyCode?: string; // Currency code from new system (defaults to 'TC')
 };
 
 /**
