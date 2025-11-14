@@ -17,7 +17,7 @@ WarFaire is a standalone game with its own server. The AnteTown platform provide
 WarFaire Repo                     Verdaccio Registry          AnteTown Platform
 ─────────────                     ──────────────────          ──────────────────────
 1. Extend GameBase   ──build──>   2. Publish Package         3. Install & Register
-   src/WarFaireGame.ts               @pirate/game-warfare        gameRegistry.register()
+   src/WarFaireGame.ts               @antetown/game-warfare      gameRegistry.register()
    manifest.json                     v0.1.0                      Both games in menu!
    package.json
 ```
@@ -36,8 +36,7 @@ Create `.npmrc` in WarFaire root:
 
 ```bash
 # Backend SDK and core engine
-npm install @pirate/game-sdk@latest
-npm install @pirate/core-engine@latest
+npm install @antetown/game-sdk@latest
 
 # TypeScript and React types
 npm install typescript@latest --save-dev
@@ -82,7 +81,7 @@ Create `tsconfig.json`:
 Create `src/WarFaireGame.ts` that wraps your existing game logic:
 
 ```typescript
-import { GameBase, GameState, Seat, Player, WinnerResult } from '@pirate/game-sdk';
+import { GameBase, GameState, Seat, Player, WinnerResult } from '@antetown/game-sdk';
 import { Game } from '../game.js'; // Your existing game logic
 
 export class WarFaireGame extends GameBase {
@@ -410,7 +409,7 @@ Create `manifest.json`:
   "minPlayers": 4,
   "maxPlayers": 10,
   "assets": {
-    "serverPackage": "@pirate/game-warfaire",
+    "serverPackage": "@antetown/game-warfaire",
     "clientComponent": "WarFaireClient"
   },
   "deployment": {
@@ -426,9 +425,9 @@ Modify your existing `package.json`:
 
 ```json
 {
-  "name": "@pirate/game-warfaire",
+  "name": "@antetown/game-warfaire",
   "version": "0.1.2",
-  "description": "War Faire card game for Pirate Platform",
+  "description": "War Faire card game for AnteTown platform",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -448,8 +447,7 @@ Modify your existing `package.json`:
     "publish:verdaccio": "npm publish --registry http://vps-0b87e710.tail751d97.ts.net:4873/"
   },
   "dependencies": {
-    "@pirate/core-engine": "^0.1.0",
-    "@pirate/game-sdk": "^0.1.0",
+    "@antetown/game-sdk": "^0.1.0",
     "express": "^4.18.2",
     "socket.io": "^4.7.2"
   },
@@ -468,14 +466,14 @@ Modify your existing `package.json`:
   "publishConfig": {
     "registry": "http://vps-0b87e710.tail751d97.ts.net:4873/"
   },
-  "keywords": ["game", "card-game", "fair", "pirate-platform"],
+  "keywords": ["game", "card-game", "fair", "antetown-platform"],
   "author": "",
   "license": "MIT"
 }
 ```
 
 **Key changes:**
-- Package name: `@pirate/game-warfaire` (not warfare)
+- Package name: `@antetown/game-warfaire` (not warfare)
 - Main entry: `dist/index.js` (exports both backend and frontend)
 - **Removed `"type": "module"`** (must use CommonJS for Node.js compatibility)
 - Added `peerDependencies` for React (consumer provides version)
@@ -500,12 +498,12 @@ In the AnteTown platform repository:
 1. **Install package** (in platform backend):
 ```bash
 cd /home/nathan/GitHub/PiratePlunder-new
-npm install --prefix platform/backend @pirate/game-warfaire@latest
+npm install --prefix platform/backend @antetown/game-warfaire@latest
 ```
 
 2. **Register game** in `platform/backend/src/server.ts`:
 ```typescript
-import { WarFaireGame } from '@pirate/game-warfaire';
+import { WarFaireGame } from '@antetown/game-warfaire';
 
 // Register game types with the registry
 gameRegistry.registerGameType('warfaire', WarFaireGame as any);
@@ -536,7 +534,7 @@ if (selectedGameType === 'warfaire') {
 
 1. **Import WarFaireClient** in `platform/frontend/src/App.tsx`:
 ```typescript
-import { WarFaireClient } from '@pirate/game-warfaire';
+import { WarFaireClient } from '@antetown/game-warfaire';
 ```
 
 2. **Add WarFaire rendering** in the game router:
@@ -601,7 +599,7 @@ See [AnteTown DEPLOY.md](https://github.com/drybrushgames/PiratePlunder-new/blob
 1. Edit WarFaire code in this repo (backend or frontend)
 2. Increment version in package.json (0.1.2 → 0.1.3)
 3. `npm run build && npm run publish:verdaccio`
-4. In AnteTown platform: `npm update @pirate/game-warfaire`
+4. In AnteTown platform: `npm update @antetown/game-warfaire`
 5. Rebuild and redeploy platform
 
 ### Testing Locally
@@ -618,7 +616,7 @@ npm link
 
 # In AnteTown platform
 cd /home/nathan/GitHub/PiratePlunder-new/platform/backend
-npm link @pirate/game-warfaire
+npm link @antetown/game-warfaire
 ```
 
 ## Benefits

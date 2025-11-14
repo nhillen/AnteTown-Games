@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **PiratePlunder is a game package designed for the AnteTown gaming platform.**
 
 This repository contains:
-- **Frontend**: React components exported as a library (`@pirate/game-pirate-plunder`)
+- **Frontend**: React components exported as a library (`@antetown/game-pirate-plunder`)
 - **Backend**: Game logic and Socket.IO event handlers exported as initialization functions
 - **Standalone dev server**: For local development and testing only (not used in production)
 
@@ -25,7 +25,7 @@ This repository contains:
 ### Package Structure
 
 ```
-@pirate/game-pirate-plunder/
+@antetown/game-pirate-plunder/
 ├── backend/
 │   ├── src/
 │   │   ├── index.ts              # Exports: initializePiratePlunder(), GAME_METADATA
@@ -116,7 +116,7 @@ npm publish  # If configured for private registry
 
 # Or use file: dependency in AnteTown platform
 # platform/backend/package.json:
-#   "@pirate/game-pirate-plunder": "file:../../PiratePlunder-repo"
+#   "@antetown/game-pirate-plunder": "file:../../AnteTown-Games/games/pirate-plunder"
 ```
 
 ---
@@ -225,7 +225,7 @@ export const GAME_CLIENT_INFO: GameClientInfo
 
 ### Production Deployment Process
 
-PiratePlunder is deployed as part of the **AnteTown platform**. See the [AnteTown platform repository](https://github.com/drybrushgames/PiratePlunder-new) for deployment instructions.
+PiratePlunder is deployed as part of the **AnteTown platform**. See the AnteTown platform repository for deployment instructions.
 
 **Quick overview:**
 1. **Update package**: Commit and push changes to this repository
@@ -235,10 +235,10 @@ PiratePlunder is deployed as part of the **AnteTown platform**. See the [AnteTow
 
 ### AnteTown Platform Deployment
 
-**See: [PiratePlunder-new/DEPLOY.md](https://github.com/drybrushgames/PiratePlunder-new/blob/main/DEPLOY.md)**
+**See the AnteTown platform DEPLOY.md for deployment instructions**
 
 ```bash
-# Deploy platform with integrated games (run from PiratePlunder-new repo)
+# Deploy platform with integrated games (run from AnteTown platform repo)
 tailscale ssh deploy@vps-0b87e710.tail751d97.ts.net \
   "cd /opt/AnteTown && git pull origin main && make build && sudo systemctl restart AnteTown"
 ```
@@ -268,8 +268,8 @@ To test this game integrated with the AnteTown platform locally:
 (cd backend && npm run build)
 (cd frontend && npm run build)
 
-# 2. In AnteTown platform repo (PiratePlunder-new):
-cd ../PiratePlunder-new
+# 2. In AnteTown platform repo:
+cd ../AnteTown
 npm install  # Will link file: dependency
 npm run dev  # Start platform with your game changes
 
@@ -365,7 +365,7 @@ This game was originally part of a monorepo at `/opt/PiratePlunder` that combine
 - Multiple other games (WarFaire, HouseRules, CK Flipz)
 
 **The separation created**:
-1. **AnteTown Platform** (`PiratePlunder-new` repo) - Platform backend/frontend
+1. **AnteTown Platform** (AnteTown repo) - Platform backend/frontend
 2. **Game Packages** (separate repos) - Individual games as npm packages
 
 **Key changes from old architecture**:
@@ -379,4 +379,4 @@ This game was originally part of a monorepo at `/opt/PiratePlunder` that combine
 
 The extensive deployment documentation in older versions of this file referred to deploying PiratePlunder as a standalone application. That is NO LONGER the deployment model.
 
-**For current deployment**: See the [AnteTown platform DEPLOY.md](https://github.com/drybrushgames/PiratePlunder-new/blob/main/DEPLOY.md)
+**For current deployment**: See the AnteTown platform DEPLOY.md

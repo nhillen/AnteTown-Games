@@ -1,5 +1,5 @@
 {
-  "name": "@pirate/game-pirate-plunder",
+  "name": "@antetown/game-pirate-plunder",
   "version": "0.1.0",
   "description": "Pirate Plunder - A dice-based poker game with roles",
   "main": "backend/dist/index.js",

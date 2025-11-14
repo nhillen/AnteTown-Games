@@ -264,7 +264,7 @@ import { PiratePlunderClient } from '@antetown/game-pirate-plunder/client';
 
 ## Package Naming Convention
 
-- Backend package: `@antetown/game-{name}` (or `@pirate/game-{name}` for legacy)
+- Backend package: `@antetown/game-{name}`
 - Frontend export: `@antetown/game-{name}/client`
 - Table class: `{GameName}Table` (e.g., `PiratePlunderTable`)
 

@@ -1,7 +1,7 @@
 {
-  "name": "@pirate/game-houserules",
+  "name": "@antetown/game-houserules",
   "version": "0.4.1",
-  "description": "Texas Hold'em Poker game for Pirate Platform",
+  "description": "Texas Hold'em Poker game for AnteTown platform",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -38,7 +38,7 @@
     "game",
     "poker",
     "texas-holdem",
-    "pirate-platform"
+    "antetown-platform"
   ],
   "author": "Dry Brush Games",
   "license": "MIT"

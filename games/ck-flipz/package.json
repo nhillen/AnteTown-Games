@@ -1,5 +1,5 @@
 {
-  "name": "@pirate/game-ck-flipz-example",
+  "name": "@antetown/game-ck-flipz",
   "version": "0.1.0",
   "description": "CK Flipz - Reference implementation game package for AnteTown platform",
   "private": true,

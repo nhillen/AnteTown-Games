@@ -1,7 +1,7 @@
 {
-  "name": "@pirate/game-warfaire",
+  "name": "@antetown/game-warfaire",
   "version": "0.2.114",
-  "description": "War Faire card game for Pirate Platform",
+  "description": "War Faire card game for AnteTown platform",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -44,7 +44,7 @@
     "game",
     "card-game",
     "fair",
-    "pirate-platform"
+    "antetown-platform"
   ],
   "author": "",
   "license": "MIT"
