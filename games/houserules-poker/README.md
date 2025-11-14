@@ -1,130 +1,130 @@
-# HouseRules (Texas Hold'em Poker)
+# HouseRules (Texas Hold'em Poker) ♠️
 
-**A Texas Hold'em poker game package for the AnteTown gaming platform**
+**A full-featured Texas Hold'em poker game for the AnteTown platform**
 
-A full-featured Texas Hold'em poker game with multi-table support.
+## What is HouseRules?
 
----
+HouseRules is a Texas Hold'em poker implementation with:
+- ✅ Full Texas Hold'em rules and betting rounds
+- ♠️ Complete hand evaluation and winner determination
+- 💰 Buy-in system and chip management
+- 🎲 Multi-table support with configurable stakes
+- 🎯 Up to 9 players per table
+- 🔄 Blind rotation and all-in/side pot handling
 
-## 🎮 Platform Integration
+### Game Variants
 
-**HouseRules integrates with the [AnteTown platform](https://github.com/drybrushgames/PiratePlunder-new)** for production deployment.
-
-- **Package**: Deployed as `@pirate/game-houserules`
-- **Production URL**: https://antetown.com/#game/houserules (when integrated)
-- **Multi-table**: Supports multiple poker tables with different configurations
+- **Standard Texas Hold'em** - Classic poker gameplay (current implementation)
+- **Roguelike Mode** - Poker with power-ups and draft phases (in development - see `docs/variants/`)
 
 ---
 
 ## Package Structure
 
-This package exports both backend game logic and frontend React components for integration with the AnteTown platform.
-
-- **Backend**: `HouseRules` class extending `GameBase` from `@pirate/game-sdk`
-- **Frontend**: `PokerClient` React component for rendering the poker table
-- **Features**: Full Texas Hold'em rules with hand evaluation, betting rounds, and showdown
-
-## Installation
-
-```bash
-npm install @pirate/game-houserules
+```
+games/houserules-poker/
+├── backend/
+│   ├── src/
+│   │   ├── HouseRules.ts         # Main game logic (extends GameBase)
+│   │   ├── hand-evaluator.ts     # Poker hand evaluation
+│   │   ├── deck.ts                # Card and deck utilities
+│   │   ├── types.ts               # TypeScript interfaces
+│   │   └── index.ts               # Package exports
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── frontend/
+│   ├── src/
+│   │   ├── PokerClient.tsx       # Main React component
+│   │   ├── components/           # UI components (table, cards, actions)
+│   │   └── index.ts              # Package exports
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── docs/
+│   ├── variants/                 # Variant-specific documentation
+│   ├── TODO.md                   # Feature roadmap
+│   └── *.md                      # Architecture and integration docs
+│
+├── package.json                  # Root package (coordinates backend/frontend)
+└── README.md                     # This file
 ```
 
-Or publish to Verdaccio:
+**Key Exports:**
+- Backend: `HouseRules` class, `GAME_METADATA`
+- Frontend: `PokerClient` component, `GAME_CLIENT_INFO`
 
-```bash
-npm run build
-npm run publish:verdaccio
-```
+---
 
-## Usage
+## Integration with AnteTown Platform
 
-### Backend (Game Server)
+HouseRules follows the standard AnteTown game package pattern. See the main [CLAUDE.md](/CLAUDE.md) for complete integration documentation.
 
-```typescript
-import { HouseRules } from '@pirate/game-houserules';
-import { gameRegistry } from '@pirate/game-sdk';
+**Package Name:** `@antetown/game-houserules`
 
-const tableConfig = {
-  minHumanPlayers: 2,
-  targetTotalPlayers: 9,
-  maxSeats: 9
-};
-
-const game = new HouseRules(tableConfig);
-gameRegistry.register('houserules-poker', game);
-```
-
-### Frontend (React Component)
-
-```tsx
-import { PokerClient } from '@pirate/game-houserules';
-
-function PokerTable({ gameState, myPlayerId }) {
-  const handleAction = (action, amount) => {
-    // Send action to backend via socket
-    socket.emit('player_action', { action, amount });
-  };
-
-  return (
-    <PokerClient
-      gameState={gameState}
-      myPlayerId={myPlayerId}
-      onAction={handleAction}
-    />
-  );
-}
-```
-
-## Tech Stack
-
-- TypeScript
-- React 19 (peer dependency)
-- `@pirate/game-sdk` - Base game framework
-- `@pirate/core-engine` - Logging and money flow
-- clsx - Conditional className utility
-
-## Project Structure
-
-```
-houserules/
-├── src/
-│   ├── HouseRules.ts       # Backend game logic extending GameBase
-│   ├── PokerClient.tsx     # Frontend React component
-│   ├── types.ts            # TypeScript interfaces
-│   ├── hand-evaluator.ts   # Poker hand evaluation
-│   ├── deck.ts             # Card and deck utilities
-│   └── index.ts            # Package exports
-├── dist/                   # Built files
-├── package.json
-└── tsconfig.json
-```
+---
 
 ## Development
 
-```bash
-# Install dependencies
-npm install
+### From Monorepo Root
 
-# Build the package
+```bash
+# Build all games including HouseRules
 npm run build
 
-# Watch mode for development
-npm run watch
+# Build only HouseRules
+npm run build --workspace games/houserules-poker
 
-# Publish to Verdaccio
-npm run publish:verdaccio
+# Type check
+cd games/houserules-poker/backend && npx tsc --noEmit
+cd games/houserules-poker/frontend && npx tsc --noEmit
 ```
+
+### From Game Directory
+
+```bash
+cd games/houserules-poker
+
+# Build backend and frontend
+npm run build
+
+# Build individually
+npm run build:backend
+npm run build:frontend
+
+# Watch mode for development
+cd backend && npm run watch
+cd frontend && npm run watch
+```
+
+### Testing with Platform
+
+To test HouseRules with the AnteTown platform:
+
+```bash
+# 1. Build HouseRules
+cd games/houserules-poker
+npm run build
+
+# 2. Link to platform and test
+cd ../../../AnteTown  # Or wherever platform is located
+npm install           # Links file: dependencies
+npm run dev           # Start platform
+
+# 3. Access at http://localhost:3001/#game/houserules
+```
+
+---
 
 ## Game Rules
 
 ### Texas Hold'em Basics
 
-1. **Blinds**: Two players post small blind and big blind
-2. **Pre-flop**: Each player receives 2 hole cards
-3. **Flop**: 3 community cards are dealt
-4. **Turn**: 4th community card is dealt
-5. **River**: 5th community card is dealt
+1. **Blinds**: Small blind and big blind posted
+2. **Pre-flop**: 2 hole cards dealt to each player
+3. **Flop**: 3 community cards dealt → betting round
+4. **Turn**: 4th community card dealt → betting round
+5. **River**: 5th community card dealt → betting round
 6. **Showdown**: Best 5-card hand wins
 
 ### Hand Rankings (High to Low)
@@ -142,62 +142,43 @@ npm run publish:verdaccio
 
 ### Actions
 
-- **Fold**: Give up your hand
-- **Check**: Pass action (when no bet to call)
-- **Call**: Match the current bet
-- **Bet**: Make the first bet in a round
-- **Raise**: Increase the current bet
-- **All-in**: Bet all your remaining chips
+- **Fold** - Give up your hand
+- **Check** - Pass action (no bet required)
+- **Call** - Match current bet
+- **Bet/Raise** - Increase the bet
+- **All-in** - Bet all remaining chips
 
-## API
+---
 
-### HouseRules Class
+## Tech Stack
 
-Extends `GameBase` from `@pirate/game-sdk`.
+- **TypeScript** - Type-safe game logic and components
+- **React 19** - Frontend UI (peer dependency)
+- **@antetown/game-sdk** - Base game framework (GameBase, types)
+- **clsx** - Conditional className utility
 
-#### Methods
+---
 
-- `sitPlayer(player, seatIndex?, buyInAmount?)` - Seat a player at the table
-- `startHand()` - Start a new poker hand
-- `handlePlayerAction(playerId, action, amount?)` - Process player actions
+## Documentation
 
-#### Actions
+### Architecture
+- `docs/architecture-multi-table-rules-engine.md` - Multi-table and rules engine design
+- `docs/multi-table-integration.md` - Platform integration patterns
 
-- `'fold'` - Fold current hand
-- `'check'` - Check (no bet required)
-- `'call'` - Match current bet
-- `'bet'` / `'raise'` - Increase bet
-- `'all-in'` - Bet all chips
+### Variants
+- `docs/variants/roguelike-gdd.md` - Roguelike mode game design
+- `docs/variants/roguelike-implementation.md` - Roguelike technical implementation
+- `docs/variants/implementation-status.md` - Current implementation status
 
-### PokerClient Component
+### Roadmap
+- `docs/TODO.md` - Planned features and improvements
 
-#### Props
-
-```typescript
-interface PokerClientProps {
-  gameState: HouseRulesGameState;
-  myPlayerId: string;
-  onAction: (action: PokerAction, amount?: number) => void;
-}
-```
+---
 
 ## Contributing
 
-Part of the AnteTown platform game ecosystem.
+Part of the AnteTown Games monorepo. See [CLAUDE.md](../../CLAUDE.md) for contribution guidelines.
 
 ## License
 
 MIT
-
-## TODO
-
-- [ ] Add AI opponents
-- [ ] Implement side pots for all-in scenarios
-- [ ] Add tournament mode
-- [ ] Add chat functionality
-- [ ] Add hand history
-- [ ] Add statistics tracking
-- [ ] Add mobile responsive design
-- [ ] Add sound effects
-- [ ] Add table customization
-- [ ] Add private tables
