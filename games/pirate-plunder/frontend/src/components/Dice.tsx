@@ -88,19 +88,22 @@ export function Die({
     diceConfig.effects = [];
   }
 
-  // Apply lock highlights (green for public, blue for private) regardless of customization
-  if (locked && !preview) {
-    const glowColor = isPublic ? '#10b981' : '#3b82f6'; // green : blue
-    // Add glow effect to existing effects or create new array
-    const lockGlow = { type: 'glow' as const, color: glowColor, strength: 'low' as const };
-    diceConfig.effects = diceConfig.effects ? [...diceConfig.effects, lockGlow] : [lockGlow];
-  }
-
   const svgContent = renderDice(diceConfig)
+
+  // Apply lock highlights (green for public, blue for private) as CSS outline/border
+  // Don't use glow effect - that's reserved for cosmetics!
+  const lockStyles: React.CSSProperties = {}
+  if (locked && !preview) {
+    const outlineColor = isPublic ? '#10b981' : '#3b82f6'; // green : blue
+    lockStyles.outline = `3px solid ${outlineColor}`;
+    lockStyles.outlineOffset = '2px';
+    lockStyles.borderRadius = '8px';
+  }
 
   return (
     <div
       className={`inline-block`}
+      style={lockStyles}
       dangerouslySetInnerHTML={{ __html: svgContent }}
     />
   )

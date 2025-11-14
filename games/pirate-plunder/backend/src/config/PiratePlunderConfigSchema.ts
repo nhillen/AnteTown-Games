@@ -211,7 +211,7 @@ const piratePlunderFullConfigSchema = z.object({
 
   // Rules display configuration
   rules_display: z.object({
-    sections: z.record(z.object({
+    sections: z.record(z.string(), z.object({
       enabled: z.boolean(),
       weight: z.number(),
       type: z.enum(['static', 'dynamic']),

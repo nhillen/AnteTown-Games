@@ -133,9 +133,9 @@ export default function ShowdownCeremony({ showdownResults, pot, seats, chestAwa
 
                 return (
                   <div className="flex flex-col items-center">
-                    <div className="flex gap-0.5 justify-center mb-3 px-2">
+                    <div className="flex gap-1 justify-center mb-3 px-2">
                       {seat?.dice.map((die: any, i: number) => (
-                        <div key={i} className="flex-shrink-0" style={{ marginLeft: i > 0 ? '-4px' : '0' }}>
+                        <div key={i} className="flex-shrink-0">
                           <Die value={die.value as 1|2|3|4|5|6} locked={die.locked} isPublic={die.isPublic} size="sm" />
                         </div>
                       ))}
@@ -234,9 +234,9 @@ export default function ShowdownCeremony({ showdownResults, pot, seats, chestAwa
                       </div>
 
                       {/* Show dice */}
-                      <div className="flex gap-0.5 justify-center mb-3 px-2">
+                      <div className="flex gap-1 justify-center mb-3 px-2">
                         {seat?.dice.map((die: any, i: number) => (
-                          <div key={i} className="flex-shrink-0" style={{ marginLeft: i > 0 ? '-4px' : '0' }}>
+                          <div key={i} className="flex-shrink-0">
                             <Die value={die.value as 1|2|3|4|5|6} locked={die.locked} isPublic={die.isPublic} size="sm" />
                           </div>
                         ))}
