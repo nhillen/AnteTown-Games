@@ -9,9 +9,11 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { CoinFlipGame } from './CoinFlipGame.js';
 import { CardFlipGame } from './CardFlipGame.js';
 import { FLIPZ_TABLES, type FlipzTableConfig, type FlipzGameVariant } from './FlipzTableConfig.js';
+import { ckFlipzInitializer } from './initializer.js';
 
 export { CoinFlipGame, CardFlipGame };
 export { FLIPZ_TABLES, type FlipzTableConfig, type FlipzGameVariant };
+export { ckFlipzInitializer };
 
 export const GAME_METADATA = {
   id: 'ck-flipz',

@@ -10,6 +10,9 @@
 // Export backend game logic
 export { HouseRules } from './HouseRules.js';
 
+// Export game initializer for platform table management
+export { pokerInitializer } from './initializer.js';
+
 // Export lobby system
 export * from './lobby/index.js';
 
