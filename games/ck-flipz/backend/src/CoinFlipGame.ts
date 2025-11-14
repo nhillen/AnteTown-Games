@@ -89,13 +89,8 @@ export class CoinFlipGame extends GameBase {
     // Use the minimum if no buy-in specified
     const actualBuyIn = buyInAmount || minimumBuyIn;
 
-    // Check if player has enough balance
-    if (player.bankroll < minimumBuyIn) {
-      return {
-        success: false,
-        error: `Insufficient ${this.currency}. Need at least ${minimumBuyIn} ${this.currency} to sit at this table`
-      };
-    }
+    // Platform validates bankroll via currencyManager.canAfford() before calling this
+    // Games should not re-validate or modify player.bankroll
 
     const result = super.sitPlayer(player, seatIndex, actualBuyIn);
     if (result.success) {
@@ -211,9 +206,10 @@ export class CoinFlipGame extends GameBase {
       if (seat && seat.tableStack < anteAmount) {
         console.log(`🪙 [Flipz] Auto-standing ${seat.name} - insufficient funds (${seat.tableStack} < ${anteAmount})`);
 
-        // Return remaining stack to player bankroll
+        // Platform will credit tableStack back to database in stand_up handler
+        // For AI players, bankroll is tracked in-memory so update it here
         const player = this.getPlayer(seat.playerId);
-        if (player) {
+        if (player && player.isAI) {
           player.bankroll += seat.tableStack;
         }
 

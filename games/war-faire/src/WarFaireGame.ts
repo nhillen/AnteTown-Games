@@ -66,10 +66,8 @@ export class WarFaireGame extends GameBase {
     const anteAmount = (this.tableConfig as any).ante || (this.tableConfig as any).anteAmount || 0;
     const requiredBuyIn = buyInAmount || anteAmount;
 
-    // Check if player has enough bankroll
-    if (player.bankroll < requiredBuyIn) {
-      return { success: false, error: `Insufficient funds. Need at least ${requiredBuyIn}` };
-    }
+    // Platform validates bankroll via currencyManager.canAfford() before calling this
+    // Games should not re-validate or modify player.bankroll
 
     // Find empty seat
     let targetSeat = seatIndex;
@@ -100,8 +98,11 @@ export class WarFaireGame extends GameBase {
 
     this.gameState.seats[targetSeat] = seat;
 
-    // Deduct buy-in from player's bankroll
-    player.bankroll -= requiredBuyIn;
+    // Platform handles bankroll deduction for human players
+    // For AI players, bankroll is tracked in-memory
+    if (player.isAI) {
+      player.bankroll -= requiredBuyIn;
+    }
     player.tableStack = requiredBuyIn;
 
     console.log(`🎪 [SIT] ${player.name} sat down with ${requiredBuyIn} (remaining bankroll: ${player.bankroll})`);

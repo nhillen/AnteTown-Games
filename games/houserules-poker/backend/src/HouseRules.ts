@@ -191,10 +191,8 @@ export class HouseRules extends GameBase {
     // Calculate total cost
     const totalCost = buyInAmount + (sidePotBuyIn || 0);
 
-    // Check player has sufficient bankroll
-    if (!player.bankroll || player.bankroll < totalCost) {
-      return { success: false, error: 'Insufficient bankroll' };
-    }
+    // Platform validates bankroll via currencyManager.canAfford() before calling this
+    // Games should not re-validate or modify player.bankroll
 
     // Find empty seat
     let targetSeat = seatIndex;
@@ -243,8 +241,11 @@ export class HouseRules extends GameBase {
 
     this.gameState.seats[targetSeat] = seat;
 
-    // Deduct total cost from player's bankroll
-    player.bankroll -= totalCost;
+    // Platform handles bankroll deduction for human players
+    // For AI players, bankroll is tracked in-memory
+    if (player.isAI) {
+      player.bankroll -= totalCost;
+    }
     player.tableStack = buyInAmount;
 
     console.log(`🎰 ${player.name} sat down at seat ${targetSeat} with ${buyInAmount} ${this.currency}`);
@@ -293,12 +294,18 @@ export class HouseRules extends GameBase {
       return { success: false, error: 'Player not seated' };
     }
 
-    // Check player has sufficient bankroll
+    // Platform should handle bankroll operations for human players
+    // For now, only allow AI players to add to side pot in-game
+    // TODO: Add platform API endpoint for mid-game side pot additions
+    if (!player.isAI) {
+      return { success: false, error: 'Mid-game side pot additions not yet supported for human players' };
+    }
+
+    // For AI players, validate and deduct from in-memory bankroll
     if (!player.bankroll || player.bankroll < amount) {
       return { success: false, error: 'Insufficient bankroll' };
     }
 
-    // Deduct from bankroll
     player.bankroll -= amount;
 
     // Add to side pot (or create if doesn't exist)
@@ -360,8 +367,8 @@ export class HouseRules extends GameBase {
         const shortfall = maxLiability - available;
         const player = this.getPlayer(seat.playerId);
 
-        if (player && player.bankroll >= shortfall) {
-          // Auto top-up from bankroll
+        if (player && player.isAI && player.bankroll >= shortfall) {
+          // Auto top-up from bankroll (AI players only)
           player.bankroll -= shortfall;
           seat.sidePot.balance += shortfall;
           console.log(`💰 Auto-topped up ${seat.name}'s side pot by ${shortfall} ${this.currency}`);
