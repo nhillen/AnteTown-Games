@@ -15,6 +15,9 @@ export { MultiTableLobby } from './components/MultiTableLobby.js';
 // Export config schema system
 export * from './ConfigSchema.js';
 
+// Export currency types
+export * from './types/index.js';
+
 // Export types
 export type {
   GamePhase,
