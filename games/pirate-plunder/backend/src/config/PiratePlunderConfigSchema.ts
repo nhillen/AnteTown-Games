@@ -215,14 +215,14 @@ const piratePlunderFullConfigSchema = z.object({
       enabled: z.boolean(),
       weight: z.number(),
       type: z.enum(['static', 'dynamic']),
-      span: z.enum([1, 2, 3])
+      span: z.union([z.literal(1), z.literal(2), z.literal(3)])
     })).default({
-      role_hierarchy: { enabled: true, weight: 10, type: 'static', span: 2 },
-      cargo_chest: { enabled: true, weight: 20, type: 'dynamic', span: 2 },
-      locking_rules: { enabled: true, weight: 30, type: 'static', span: 1 },
-      betting: { enabled: true, weight: 40, type: 'static', span: 1 },
-      bust_fee: { enabled: true, weight: 50, type: 'dynamic', span: 1 },
-      edge_tiers: { enabled: true, weight: 60, type: 'dynamic', span: 3 }
+      role_hierarchy: { enabled: true, weight: 10, type: 'static' as const, span: 2 as const },
+      cargo_chest: { enabled: true, weight: 20, type: 'dynamic' as const, span: 2 as const },
+      locking_rules: { enabled: true, weight: 30, type: 'static' as const, span: 1 as const },
+      betting: { enabled: true, weight: 40, type: 'static' as const, span: 1 as const },
+      bust_fee: { enabled: true, weight: 50, type: 'dynamic' as const, span: 1 as const },
+      edge_tiers: { enabled: true, weight: 60, type: 'dynamic' as const, span: 3 as const }
     })
   })
 });
@@ -289,7 +289,7 @@ const fieldMetadata: Record<string, ConfigFieldMetadata> = {
     description: 'House rake as percentage (0-100)',
     group: 'House',
     displayOrder: 30,
-    unit: '%',
+    unit: 'percentage',
     min: 0,
     max: 100
   },
@@ -340,8 +340,6 @@ export const PIRATE_PLUNDER_CONFIG_SCHEMA: ConfigSchemaDefinition = {
 export const PIRATE_PLUNDER_CONFIG_METADATA: GameConfigMetadata = {
   gameType: 'pirate-plunder',
   displayName: 'Pirate Plunder',
-  icon: '🏴‍☠️',
-  description: 'Roll to be Captain or Crew',
   configSchema: PIRATE_PLUNDER_CONFIG_SCHEMA,
   variants: [
     {
@@ -349,27 +347,16 @@ export const PIRATE_PLUNDER_CONFIG_METADATA: GameConfigMetadata = {
       displayName: 'Standard',
       description: 'Classic Pirate Plunder gameplay'
     }
-  ],
-  defaultConfig: {
-    mode: 'PVP',
-    currency: 'TC',
-    ante: 100,
-    minBuyIn: 2000,
-    maxSeats: 8,
-    rake: 5,
-    emoji: '🏴‍☠️',
-    description: 'Standard Pirate Plunder table',
-    difficulty: 'Intermediate'
-  }
+  ]
 };
 
 /**
  * Validation function with type inference
  */
-export function validatePiratePlunderConfig<T extends z.ZodTypeAny>(
+export function validatePiratePlunderConfig(
   config: unknown,
-  schema: T = piratePlunderBaseSchema as T
-): z.infer<T> {
+  schema = piratePlunderBaseSchema
+) {
   return schema.parse(config);
 }
 

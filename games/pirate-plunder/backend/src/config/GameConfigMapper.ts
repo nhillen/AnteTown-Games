@@ -121,8 +121,8 @@ export function gameConfigToPiratePlunderConfig(
     // Rake
     rake: overrides.rake ?? dbConfig.rakePercentage ?? 5,
 
-    // Full nested configuration
-    fullConfig: overrides.fullConfig
+    // Full nested configuration (only include if defined)
+    ...(overrides.fullConfig && { fullConfig: overrides.fullConfig })
   };
 
   return config;
@@ -141,15 +141,15 @@ export function piratePlunderConfigToGameConfig(
     ? Math.round(tableConfig.minBuyIn / tableConfig.ante)
     : 10;
 
-  // Build paramOverrides
-  const overrides: PiratePlunderParamOverrides = {
-    ante: tableConfig.ante,
-    minBuyIn: tableConfig.minBuyIn,
-    maxSeats: tableConfig.maxSeats,
-    currency: tableConfig.currency,
-    rake: tableConfig.rake,
-    fullConfig: tableConfig.fullConfig
-  };
+  // Build paramOverrides (only include defined values)
+  const overrides: PiratePlunderParamOverrides = {};
+
+  if (tableConfig.ante !== undefined) overrides.ante = tableConfig.ante;
+  if (tableConfig.minBuyIn !== undefined) overrides.minBuyIn = tableConfig.minBuyIn;
+  if (tableConfig.maxSeats !== undefined) overrides.maxSeats = tableConfig.maxSeats;
+  if (tableConfig.currency !== undefined) overrides.currency = tableConfig.currency;
+  if (tableConfig.rake !== undefined) overrides.rake = tableConfig.rake;
+  if (tableConfig.fullConfig !== undefined) overrides.fullConfig = tableConfig.fullConfig;
 
   // Build platform config
   const platformConfig: Omit<PlatformGameConfig, 'id'> = {
@@ -160,11 +160,9 @@ export function piratePlunderConfigToGameConfig(
     // Map to platform fields
     anteAmount: tableConfig.ante || 100,
     mode: tableConfig.mode || 'PVP',
-    currency: tableConfig.currency,
 
-    // Rake
-    rakePercentage: tableConfig.rake,
-    rakeCap: null,  // Not currently used
+    // Rake (only include if defined)
+    ...(tableConfig.rake !== undefined && { rakePercentage: tableConfig.rake }),
 
     // Buy-in
     minBuyInMultiplier,
@@ -174,7 +172,10 @@ export function piratePlunderConfigToGameConfig(
 
     // Metadata (preserve existing or set defaults)
     status: existingConfig?.status || 'draft',
-    environment: existingConfig?.environment || 'dev'
+    environment: existingConfig?.environment || 'dev',
+
+    // Include optional fields only if defined
+    ...(tableConfig.currency && { currency: tableConfig.currency })
   };
 
   return platformConfig;
