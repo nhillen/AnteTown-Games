@@ -105,16 +105,23 @@ npm run watch                 # Watch mode for development
 
 ### Game Package Exports Pattern
 
-Each game exports two main modules:
+Each game exports these main modules:
 
 **Backend (`backend/src/index.ts`):**
 ```typescript
-export function initializeGame(io: SocketIOServer, options?: {
-  namespace?: string
-  tables?: TableConfig[]
-}): GameInstance
+// GameInitializer for platform TableManager (NEW - required for all games)
+export const gameInitializer: GameInitializer = {
+  createInstance(config: any, io?: any): GameInstance
+  destroyInstance?(instance: any): void
+  validateConfig?(config: any): { valid: boolean; error?: string }
+  getDefaultConfig?(): any
+}
 
+// Game metadata
 export const GAME_METADATA: GameMetadata  // id, name, description, min/maxPlayers, etc.
+
+// Legacy initialization (deprecated - Pirate Plunder only)
+export function initializeGame(io: SocketIOServer, options?: {...}): GameInstance
 ```
 
 **Frontend (`frontend/src/index.ts`):**
@@ -123,13 +130,31 @@ export const GameClient: React.FC        // Main game component
 export const GAME_CLIENT_INFO: GameClientInfo
 ```
 
-### Game Initialization Flow
+### Game Initialization Flow (Platform TableManager)
 
-1. **Platform imports game**: `import { initializeGame } from '@antetown/game-pirate-plunder'`
-2. **Platform calls initialize**: `initializeGame(io, { namespace: '/pirateplunder', tables: [...] })`
-3. **Game registers Socket.IO handlers**: On the provided namespace
-4. **Frontend imports component**: `import { GameClient } from '@antetown/game-pirate-plunder/client'`
+Modern games use the **TableManager pattern**:
+
+1. **Game exports GameInitializer**: `export const ckFlipzInitializer: GameInitializer = {...}`
+2. **Platform registers initializer**: `tableManager.registerGame('ck-flipz', ckFlipzInitializer)`
+3. **Platform creates tables dynamically**:
+   ```typescript
+   await tableManager.createTable({
+     gameType: 'ck-flipz',
+     displayName: 'Coin Flip PVP - 100 TC',
+     config: { variant: 'coin-flip', ante: 100, mode: 'pvp' },
+     context: { type: 'system' },  // or 'guild', 'tournament', 'player'
+     lifecycle: 'permanent'  // or 'temporary'
+   }, io);
+   ```
+4. **Frontend imports component**: `import { GameClient } from '@antetown/game-ck-flipz/client'`
 5. **Platform renders component**: `<GameClient />`
+
+**Benefits of TableManager:**
+- Dynamic table creation (guild tables, tournament tables, player-created)
+- Automatic cleanup of empty/AI-only tables
+- Unified table discovery and stats
+- Table context tracking (system, guild, tournament, etc.)
+- Activity and player count tracking
 
 ### Multi-Table Architecture
 
@@ -212,8 +237,26 @@ if (seat) {  // seat could be undefined from array access
 2. **Copy package.json templates** from CK Flipz (simplest reference)
 
 3. **Implement backend:**
-   - Create `YourGameTable` class extending `GameBase` from game-sdk
-   - Export `initializeYourGame()` and `GAME_METADATA` from `index.ts`
+   - Create `YourGame` class extending `GameBase` from game-sdk
+   - Create `initializer.ts` implementing `GameInitializer` interface:
+     ```typescript
+     import type { GameInitializer } from '@pirate/game-sdk';
+
+     export const yourGameInitializer: GameInitializer = {
+       createInstance(config: any, io?: any): any {
+         return new YourGame(config);
+       },
+       validateConfig(config: any): { valid: boolean; error?: string } {
+         // Validate required fields
+         if (!config.ante) return { valid: false, error: 'Missing ante' };
+         return { valid: true };
+       },
+       getDefaultConfig(): any {
+         return { ante: 100, maxSeats: 6, mode: 'pvp' };
+       }
+     };
+     ```
+   - Export `yourGameInitializer` and `GAME_METADATA` from `index.ts`
    - Define game state types
 
 4. **Implement frontend:**
@@ -221,11 +264,17 @@ if (seat) {  // seat could be undefined from array access
    - Export `GameClient` from `index.ts`
    - Handle Socket.IO events
 
-5. **Add workspace to root** if needed (npm workspaces auto-discovers `games/*`)
+5. **Register with platform** (in AnteTown-Platform):
+   ```typescript
+   const { yourGameInitializer } = require('@pirate/game-your-game');
+   tableManager.registerGame('your-game', yourGameInitializer);
+   ```
 
 6. **Reference implementations:**
-   - **Minimal**: CK Flipz - Simplest game, good starting point
-   - **Full-featured**: Pirate Plunder - Complex game with AI, multiple phases, cosmetics
+   - **Minimal**: CK Flipz - Simplest game, good starting point, has GameInitializer
+   - **War Faire**: Medium complexity, has GameInitializer
+   - **Poker**: Advanced features, has GameInitializer with config mapper
+   - **Full-featured**: Pirate Plunder - Complex game (still uses legacy initialization)
 
 ## Integration with AnteTown Platform
 
@@ -235,31 +284,52 @@ The AnteTown platform imports games from this monorepo using `file:` dependencie
 ```json
 {
   "dependencies": {
-    "@antetown/game-pirate-plunder": "file:../AnteTown-Games/games/pirate-plunder",
-    "@antetown/game-ck-flipz": "file:../AnteTown-Games/games/ck-flipz"
+    "@pirate/game-ck-flipz": "file:../AnteTown-Games/games/ck-flipz",
+    "@pirate/game-warfaire": "file:../AnteTown-Games/games/war-faire",
+    "@pirate/game-houserules": "file:../AnteTown-Games/games/houserules-poker/backend",
+    "@pirate/game-pirate-plunder": "file:../AnteTown-Games/games/pirate-plunder"
   }
 }
 ```
 
-**Platform backend** imports and initializes:
+**Platform backend** registers game initializers:
 ```typescript
-import { initializePiratePlunder, GAME_METADATA } from '@antetown/game-pirate-plunder';
+// Import game initializers
+const { ckFlipzInitializer } = require('@pirate/game-ck-flipz');
+const { warFaireInitializer } = require('@pirate/game-warfaire');
+const { pokerInitializer } = await import('@pirate/game-houserules');
 
-// During server startup:
-initializePiratePlunder(io, {
-  namespace: '/pirateplunder',
-  tables: [
-    { tableId: 'low-stakes', displayName: 'Scallywag', minAnte: 1, maxAnte: 10 }
-  ]
-});
+// Register with TableManager
+tableManager.registerGame('ck-flipz', ckFlipzInitializer);
+tableManager.registerGame('war-faire', warFaireInitializer);
+tableManager.registerGame('houserules-poker', pokerInitializer);
+
+// Load system tables from database
+const configs = await prisma.gameConfig.findMany({...});
+for (const config of configs) {
+  await tableManager.createTable({
+    gameType: 'ck-flipz',
+    baseConfigId: config.gameId,
+    displayName: config.displayName,
+    config: { /* mapped from GameConfig */ },
+    context: { type: 'system' },
+    lifecycle: 'permanent'
+  }, io);
+}
+
+// Legacy: Pirate Plunder still uses old initialization
+const { initializePiratePlunder } = require('@pirate/game-pirate-plunder');
+initializePiratePlunder(io, { namespace: '/pirateplunder', tables: [...] });
 ```
 
 **Platform frontend** imports and renders:
 ```typescript
-import { PiratePlunderClient } from '@antetown/game-pirate-plunder/client';
+import { CKFlipzClient } from '@pirate/game-ck-flipz/client';
+import { WarFaireClient } from '@pirate/game-warfaire/client';
 
 // In game router:
-<Route path="/pirate-plunder" element={<PiratePlunderClient />} />
+<Route path="/ck-flipz" element={<CKFlipzClient />} />
+<Route path="/war-faire" element={<WarFaireClient />} />
 ```
 
 ## Package Naming Convention

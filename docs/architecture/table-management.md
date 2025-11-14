@@ -1,378 +1,368 @@
 # Table Management Architecture
 
-**Status:** 🚧 Architectural Proposal
-**Current State:** Games manage their own table configs (antipattern)
-**Proposed State:** Platform-managed table lifecycle with game-defined schemas
+**Status:** ✅ Implemented
+**Current State:** Platform-managed table lifecycle with GameInitializer pattern
 
 ---
 
-## Current Problems
+## Architecture Overview
 
-### 1. Hardcoded Table Configurations
+The table management system uses a **centralized TableManager** in the platform that coordinates all table instances across all games. Games provide **GameInitializer** implementations that the platform uses to create, validate, and destroy game instances.
 
-**Current Pattern:**
-```typescript
-// games/ck-flipz/backend/src/FlipzTableConfig.ts
-export const FLIPZ_TABLES: FlipzTableConfig[] = [
-  { tableId: 'coin-low', variant: 'coin-flip', ante: 100, ... },
-  { tableId: 'coin-high', variant: 'coin-flip', ante: 500, ... }
-];
-
-// Platform calls initialization with hardcoded configs
-initializeCKFlipz(io, { tables: FLIPZ_TABLES });
 ```
-
-**Issues:**
-- ❌ Can't dynamically create/remove tables without code changes
-- ❌ Can't adjust stakes or settings without redeployment
-- ❌ Different environments (dev/staging/prod) need different configs but share code
-- ❌ No admin interface for table management
-- ❌ Configuration lives in code, not database
-
-### 2. Split Responsibilities
-
-**Currently:**
-- Games define table configs ← Should be platform
-- Games create table instances ← OK
-- Games manage player connections ← Should be platform
-- Games handle game logic ← OK
-
-**Problems:**
-- Who decides when to create a new table?
-- Who tracks which tables are active across all games?
-- How do we persist table state?
-- How do we scale tables independently?
-
-### 3. No Central Source of Truth
-
-- Each game has its own table config format
-- No unified table discovery mechanism
-- Can't query "all active tables across all games"
-- Can't implement cross-game features (tournaments, table hopping)
+┌─────────────────────────────────────────────────────────────┐
+│                PLATFORM (AnteTown-Platform)                 │
+├─────────────────────────────────────────────────────────────┤
+│ TableManager                                                │
+│  ├─ Registers GameInitializers from all games              │
+│  ├─ Creates/destroys table instances dynamically           │
+│  ├─ Tracks table metadata (context, lifecycle, status)     │
+│  ├─ Monitors player counts (total + human)                 │
+│  ├─ Auto-cleanup empty/AI-only tables                      │
+│  └─ Provides table discovery API                           │
+└─────────────────────────────────────────────────────────────┘
+                           ▼
+                  calls GameInitializer
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  GAME (AnteTown-Games)                      │
+├─────────────────────────────────────────────────────────────┤
+│ GameInitializer                                             │
+│  ├─ createInstance(config) → GameInstance                  │
+│  ├─ destroyInstance(instance) → cleanup                    │
+│  ├─ validateConfig(config) → { valid, error? }             │
+│  └─ getDefaultConfig() → default config                    │
+│                                                             │
+│ Game Class (extends GameBase)                              │
+│  ├─ Implements game rules & logic                          │
+│  ├─ Manages game state                                     │
+│  ├─ Handles player actions                                 │
+│  └─ Broadcasts state updates                               │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Proposed Architecture
+## Platform Layer (AnteTown-Platform)
 
-### Separation of Concerns
+### TableManager Service
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     PLATFORM LAYER                          │
-├─────────────────────────────────────────────────────────────┤
-│ - Table CRUD (create, read, update, delete)                │
-│ - Table lifecycle (spin up/down instances)                 │
-│ - Table discovery & listing                                │
-│ - Player routing & matchmaking                             │
-│ - Socket.IO connection management                          │
-│ - Authentication & session management                      │
-│ - Database persistence (table configs, game state)         │
-│ - Transaction logging & bankroll management                │
-└─────────────────────────────────────────────────────────────┘
-                           ▼
-                    passes config
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      GAME LAYER                             │
-├─────────────────────────────────────────────────────────────┤
-│ - Define config schema (what settings game needs)          │
-│ - Validate config values                                   │
-│ - Implement game rules & logic                             │
-│ - Manage game state (current phase, active players)        │
-│ - Broadcast state updates to players                       │
-│ - Handle player actions within game context                │
-│ - Provide default configs for development/testing only     │
-└─────────────────────────────────────────────────────────────┘
-```
+**Location:** `platform/backend/src/services/TableManager.ts`
 
-### Platform Responsibilities
+**Key Features:**
+- **Dynamic table creation** - Create tables on-demand from any source
+- **Table contexts** - System, guild, tournament, player, event
+- **Lifecycle management** - Permanent vs temporary tables
+- **Auto-cleanup** - Empty/AI-only tables cleaned after 30min idle
+- **Player tracking** - Tracks total and human player counts separately
 
-#### 1. Database Schema
-
+**Table Contexts:**
 ```typescript
-// Platform database schema
-interface TableRecord {
-  id: string;                      // UUID
-  gameId: string;                  // 'ck-flipz', 'houserules-poker', etc.
-  displayName: string;             // "High Stakes Poker"
-  description: string;
-  emoji: string;
+type TableContextType = 'system' | 'guild' | 'tournament' | 'player' | 'event';
 
-  // Status
-  status: 'active' | 'paused' | 'archived';
-  isListed: boolean;               // Show in lobby?
+// Examples:
+{ type: 'system' }                                    // System table from GameConfig
+{ type: 'guild', contextId: 'guild-123' }            // Guild-specific table
+{ type: 'tournament', contextId: 'tournament-456' }  // Tournament bracket table
+{ type: 'player', createdBy: 'user-789' }            // Player-created private table
+```
 
-  // Game-specific configuration (validated against game's schema)
-  config: Record<string, unknown>; // JSON blob
+**Table Lifecycle:**
+- `permanent` - Never auto-cleanup (system tables)
+- `temporary` - Auto-cleanup when empty/AI-only after 30min idle
 
-  // Metadata
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;               // Admin who created it
+**Auto-Cleanup Rules:**
+- ✅ Tables with 0 human players + 30min idle → cleanup
+- ✅ Tables with only AI players + 30min idle → cleanup
+- ❌ Tables with ≥1 human player → never auto-cleanup
 
-  // Runtime state (could be separate table)
-  currentPlayers: number;
-  instanceId?: string;             // Which server instance is running this table
+### Tables API
+
+**Location:** `platform/backend/src/routes/tables.ts`
+
+**Endpoints:**
+```
+GET    /api/tables              - List tables (filter by gameType, context, status)
+GET    /api/tables/:tableId     - Get specific table details
+GET    /api/tables/stats        - Table statistics
+POST   /api/tables/create       - Create dynamic table
+DELETE /api/tables/:tableId     - Close table
+```
+
+**Example: Create Guild Table**
+```typescript
+POST /api/tables/create
+{
+  "gameType": "ck-flipz",
+  "displayName": "Warriors Guild Flipz",
+  "config": {
+    "variant": "coin-flip",
+    "ante": 500,
+    "mode": "pvp",
+    "maxSeats": 2
+  },
+  "context": {
+    "type": "guild",
+    "contextId": "guild-warriors-123",
+    "createdBy": "user-456"
+  },
+  "lifecycle": "temporary"
 }
 ```
 
-#### 2. Table Management API
+---
+
+## Game Layer (AnteTown-Games)
+
+### GameInitializer Pattern
+
+Each game exports a **GameInitializer** that implements this interface:
 
 ```typescript
-class TableManager {
-  // CRUD operations
-  createTable(gameId: string, config: GameTableConfig): Promise<TableRecord>
-  updateTable(tableId: string, updates: Partial<TableRecord>): Promise<TableRecord>
-  deleteTable(tableId: string): Promise<void>
-  listTables(filters?: TableFilters): Promise<TableRecord[]>
-  getTable(tableId: string): Promise<TableRecord>
+export interface GameInitializer {
+  /**
+   * Create a new game instance from config
+   */
+  createInstance(config: any, io?: SocketIOServer): any;
 
-  // Lifecycle management
-  spinUpTable(tableRecord: TableRecord): Promise<GameInstance>
-  shutDownTable(tableId: string): Promise<void>
+  /**
+   * Destroy a game instance (cleanup timers, listeners, etc.)
+   */
+  destroyInstance?(instance: any): void;
 
-  // Player routing
-  findAvailableTable(gameId: string, playerRequirements: PlayerReqs): Promise<TableRecord>
-  joinTable(playerId: string, tableId: string): Promise<void>
+  /**
+   * Validate config before creating instance
+   */
+  validateConfig?(config: any): { valid: boolean; error?: string };
+
+  /**
+   * Get default config for this game type
+   */
+  getDefaultConfig?(): any;
 }
 ```
 
-#### 3. Admin Interface
+### Implementation Examples
 
-- Web UI for creating/editing/deleting tables
-- Set stake levels, blind structures, rule modifiers
-- Activate/deactivate tables dynamically
-- Monitor table utilization and player counts
-- Clone tables with modified configs
-
-### Game Responsibilities
-
-#### 1. Config Schema Definition
-
-Games export a schema describing what configuration they accept:
-
+**CK Flipz** (`games/ck-flipz/backend/src/initializer.ts`):
 ```typescript
-// games/ck-flipz/backend/src/index.ts
-import { z } from 'zod';
+export const ckFlipzInitializer: GameInitializer = {
+  createInstance(config: any, io?: any) {
+    if (config.variant === 'coin-flip') {
+      return new CoinFlipGame(config, { rakePercentage: config.rakePercentage });
+    } else {
+      return new CardFlipGame(config, { rakePercentage: config.rakePercentage });
+    }
+  },
 
-export const CKFlipzConfigSchema = z.object({
-  variant: z.enum(['coin-flip', 'card-flip']),
-  mode: z.enum(['pvp', 'pve']),
-  ante: z.number().positive(),
-  rakePercentage: z.number().min(0).max(20).default(5),
-  minBuyInMultiplier: z.number().positive().default(5),
-  maxSeats: z.literal(2),  // CK Flipz is always 2-player
-});
+  validateConfig(config: any) {
+    if (!config.ante || config.ante <= 0) {
+      return { valid: false, error: 'Invalid ante amount' };
+    }
+    if (config.maxSeats !== 2) {
+      return { valid: false, error: 'CK Flipz only supports 2 seats' };
+    }
+    return { valid: true };
+  },
 
-export type CKFlipzConfig = z.infer<typeof CKFlipzConfigSchema>;
-
-export const GAME_METADATA = {
-  id: 'ck-flipz',
-  name: 'CK Flipz',
-  configSchema: CKFlipzConfigSchema,  // Platform uses this for validation
-  description: '...',
-  // ...
+  getDefaultConfig() {
+    return { variant: 'coin-flip', mode: 'pvp', ante: 100, maxSeats: 2 };
+  }
 };
 ```
 
-#### 2. Table Initialization
+**War Faire** (`games/war-faire/src/initializer.ts`):
+```typescript
+export const warFaireInitializer: GameInitializer = {
+  createInstance(config: any, io?: any) {
+    return new WarFaireGame({
+      tableId: config.tableId,
+      mode: config.mode || 'pvp',
+      ante: config.ante || 5,
+      maxSeats: config.maxSeats || 10,
+      minSeats: config.minSeats || 4,
+      // ... other config
+    });
+  },
 
-Games receive validated config from platform:
+  validateConfig(config: any) {
+    if (config.maxSeats && (config.maxSeats < 4 || config.maxSeats > 10)) {
+      return { valid: false, error: 'War Faire supports 4-10 players' };
+    }
+    return { valid: true };
+  }
+};
+```
+
+**HouseRules Poker** (`games/houserules-poker/backend/src/initializer.ts`):
+```typescript
+export const pokerInitializer: GameInitializer = {
+  createInstance(config: any, io?: any) {
+    // Convert platform config to PokerTableConfig if needed
+    const pokerConfig = config.bigBlind
+      ? config  // Already PokerTableConfig
+      : gameConfigToPokerConfig(config);  // Convert from platform format
+
+    return new HouseRules(pokerConfig);
+  },
+
+  validateConfig(config: any) {
+    // Use existing poker validation
+    try {
+      const pokerConfig = gameConfigToPokerConfig(config);
+      validatePokerConfig(pokerConfig, pokerConfig.variant);
+      return { valid: true };
+    } catch (error: any) {
+      return { valid: false, error: error.message };
+    }
+  }
+};
+```
+
+---
+
+## Integration Flow
+
+### 1. Game Registration (Server Startup)
+
+**Platform:** `platform/backend/src/server.ts`
 
 ```typescript
-// Platform calls this when spinning up a table instance
-export function initializeCKFlipzTable(
-  io: SocketIOServer,
-  tableRecord: TableRecord,
-  config: CKFlipzConfig  // Already validated by platform
-): CKFlipzGameInstance {
-  // Config is guaranteed to match schema
-  // Create game instance for this specific table
+// Import game initializers
+const { ckFlipzInitializer } = require('@pirate/game-ck-flipz');
+const { warFaireInitializer } = require('@pirate/game-warfaire');
+const { pokerInitializer } = await import('@pirate/game-houserules');
 
-  const gameInstance = config.variant === 'coin-flip'
-    ? new CoinFlipGame(config)
-    : new CardFlipGame(config);
+// Register with TableManager
+tableManager.registerGame('ck-flipz', ckFlipzInitializer);
+tableManager.registerGame('war-faire', warFaireInitializer);
+tableManager.registerGame('houserules-poker', pokerInitializer);
+```
 
-  return {
-    gameId: tableRecord.id,
-    instance: gameInstance,
-    metadata: GAME_METADATA
-  };
+### 2. System Table Creation (Database → Tables)
+
+```typescript
+// Load configs from database
+const configs = await prisma.gameConfig.findMany({
+  where: { gameType: 'ck-flipz', status: 'published' }
+});
+
+// Create system tables via TableManager
+for (const config of configs) {
+  await tableManager.createTable({
+    gameType: 'ck-flipz',
+    baseConfigId: config.gameId,
+    displayName: config.displayName,
+    config: {
+      variant: config.variant,
+      ante: config.anteAmount,
+      maxSeats: config.maxSeats,
+      // ... other fields
+    },
+    context: { type: 'system' },
+    lifecycle: 'permanent'
+  }, io);
 }
 ```
 
-#### 3. Default Configs (Dev/Testing Only)
+### 3. Player Joins Table
 
 ```typescript
-// Optional: Provide defaults for development
-export const DEV_TABLES: CKFlipzConfig[] = [
-  {
-    variant: 'coin-flip',
-    mode: 'pvp',
-    ante: 100,
-    maxSeats: 2,
-  }
-];
+socket.on('join_table', (data: { tableId: string }) => {
+  // Get table from TableManager
+  const tableInstance = tableManager.getTable(data.tableId);
 
-// Platform uses these only if DATABASE is empty (first run)
-// Or in development mode for quick testing
+  if (!tableInstance) {
+    socket.emit('error', { message: 'Table not found' });
+    return;
+  }
+
+  // Update activity timestamp
+  tableManager.touchTable(data.tableId);
+
+  // Route to game-specific handler
+  switch (tableInstance.gameType) {
+    case 'ck-flipz':
+      handleCKFlipzJoin(socket, data.tableId, tableInstance);
+      break;
+    case 'war-faire':
+      handleWarFaireJoin(socket, data.tableId, tableInstance);
+      break;
+    // ... etc
+  }
+});
+```
+
+### 4. Player Count Updates
+
+```typescript
+// After player sits or stands
+const humanCount = gameState.seats.filter(s => s && !s.isAI).length;
+const totalCount = gameState.seats.filter(s => s).length;
+
+tableManager.updatePlayerCount(tableId, totalCount, humanCount);
+```
+
+### 5. Auto-Cleanup (Every 5 Minutes)
+
+```typescript
+// Runs automatically in TableManager
+cleanupEmptyTables(30) {  // 30-minute threshold
+  for (const [tableId, instance] of this.tables.entries()) {
+    // Skip if table has human players
+    if (instance.metadata.currentHumanPlayers > 0) continue;
+
+    // Check idle time
+    if (idleTime < 30min) continue;
+
+    // Cleanup: empty or AI-only
+    this.closeTable(tableId);
+  }
+}
 ```
 
 ---
 
-## Migration Path
+## Current Implementation Status
 
-### Phase 1: Platform Infrastructure (Backend)
+### Implemented Games
+- ✅ **CK Flipz** - Full TableManager integration
+- ✅ **War Faire** - Full TableManager integration
+- ✅ **HouseRules Poker** - Full TableManager integration
+- ⏳ **Pirate Plunder** - Still uses legacy `initializePiratePlunder()` pattern
 
-**In AnteTown platform repository:**
+### Features
+- ✅ Dynamic table creation via API
+- ✅ Table context tracking (system, guild, tournament, etc.)
+- ✅ Player count tracking (human vs AI)
+- ✅ Auto-cleanup of empty/AI-only tables
+- ✅ Table lifecycle management
+- ✅ Unified table discovery
+- ✅ Activity timestamp tracking
 
-1. **Database Schema**
-   - Add `tables` table with fields above
-   - Migration script to create table
-
-2. **Table Management Service**
-   - Implement `TableManager` class
-   - CRUD operations
-   - Table lifecycle management
-
-3. **Admin API Endpoints**
-   - `POST /api/admin/tables` - Create table
-   - `GET /api/admin/tables` - List tables
-   - `PUT /api/admin/tables/:id` - Update table
-   - `DELETE /api/admin/tables/:id` - Delete table
-   - `POST /api/admin/tables/:id/activate` - Activate table
-   - `POST /api/admin/tables/:id/deactivate` - Deactivate table
-
-### Phase 2: Admin UI
-
-**In AnteTown platform repository:**
-
-1. **Admin Dashboard**
-   - Table list with filters (by game, status)
-   - Create/edit table form
-   - Validate against game's config schema
-   - Real-time player count display
-
-2. **Table Management Interface**
-   - Drag-and-drop table reordering
-   - Bulk operations (activate/deactivate multiple)
-   - Table templates (clone existing configs)
-
-### Phase 3: Game Integration Updates
-
-**In AnteTown-Games repository:**
-
-1. **Update game-sdk**
-   - Add schema validation utilities
-   - Update `GameBase` to accept platform-provided config
-   - Update types to support schema-based configs
-
-2. **Update each game**
-   - Export config schema (Zod or similar)
-   - Update initialization to accept `TableRecord`
-   - Mark hardcoded configs as `DEV_ONLY`
-   - Update documentation
-
-3. **Migration Script**
-   - Read existing hardcoded table configs
-   - Insert into platform database as initial seed data
-   - Games continue to work during transition
-
-### Phase 4: Cleanup
-
-1. **Remove hardcoded configs** from games (keep dev configs)
-2. **Update deployment scripts** to seed initial tables from JSON
-3. **Document admin workflow** for creating new tables
+### Not Yet Implemented
+- ⏳ Admin UI for table creation (API exists, UI TODO)
+- ⏳ Guild table creation UI
+- ⏳ Tournament table spawning system
+- ⏳ Player-created private tables UI
 
 ---
 
-## Benefits of New Architecture
+## Documentation
 
-### For Platform Operators
+**Platform:**
+- [TABLE_MANAGEMENT.md](../../../AnteTown-Platform/platform/backend/docs/TABLE_MANAGEMENT.md) - Complete platform implementation guide
 
-✅ **Dynamic table management** - Create/edit/remove tables without deployment
-✅ **Environment-specific configs** - Different tables for dev/staging/prod
-✅ **A/B testing** - Test different stake levels or rule variations
-✅ **Seasonal events** - Temporarily add special tables
-✅ **Easy scaling** - Spin up more instances of popular tables
-
-### For Developers
-
-✅ **Clear separation of concerns** - Platform handles infra, games handle logic
-✅ **Type-safe configs** - Schema validation prevents invalid configs
-✅ **Better testing** - Mock configs easily without touching game code
-✅ **Easier game development** - Focus on rules, not table management
-
-### For Players
-
-✅ **More table variety** - Platform can create tables dynamically
-✅ **Better matchmaking** - Platform can route to optimal tables
-✅ **Tournaments** - Platform can create temporary tournament tables
-✅ **Private tables** - Platform can create user-specific tables
+**Games:**
+- See each game's `initializer.ts` for implementation examples
+- CK Flipz: Simplest reference implementation
+- War Faire: Medium complexity
+- Poker: Advanced with config mapper
 
 ---
 
-## Implementation Checklist
-
-### Platform (AnteTown repo) - Required for migration
-
-- [ ] Design database schema for `tables` table
-- [ ] Implement `TableManager` service
-- [ ] Create admin API endpoints
-- [ ] Build admin UI for table management
-- [ ] Add schema validation system
-- [ ] Update game initialization to use DB configs
-- [ ] Create migration script from hardcoded configs
-
-### Games (AnteTown-Games repo) - For each game
-
-- [ ] Define config schema using Zod
-- [ ] Export schema in `GAME_METADATA`
-- [ ] Update initialization function signature
-- [ ] Mark existing `*_TABLES` as `DEV_DEFAULTS`
-- [ ] Add schema validation examples to docs
-- [ ] Update README with new pattern
-
-### Documentation
-
-- [ ] Document config schema pattern in CLAUDE.md
-- [ ] Create admin guide for table management
-- [ ] Write migration guide for existing games
-- [ ] Update game development tutorial
-
----
-
-## Open Questions
-
-1. **Table Lifecycle**: When should platform spin up/down table instances?
-   - On-demand (when first player joins)?
-   - Pre-warmed pool of instances?
-   - Persistent instances that never shut down?
-
-2. **Multi-Instance Games**: How do games like Poker (multiple tables) differ from CK Flipz?
-   - Does platform create one game instance managing multiple tables?
-   - Or one instance per table?
-
-3. **State Persistence**: Should table state persist across restarts?
-   - Save ongoing games to DB?
-   - Or always start fresh when instance spins up?
-
-4. **Config Versioning**: What happens when game updates its schema?
-   - How to migrate existing table configs?
-   - Backward compatibility strategy?
-
-5. **Dynamic Matchmaking**: Should platform auto-create tables?
-   - "Create table when 2+ players waiting"?
-   - Or always have pre-created tables?
-
----
-
-## Related Documentation
-
-- [Multi-Table Integration](../../games/houserules-poker/docs/multi-table-integration.md) - Poker's current approach
-- [Game SDK](../../packages/game-sdk/) - Base classes and types
-- Main [CLAUDE.md](../../CLAUDE.md) - Overall architecture
-
----
-
-**Next Steps**: Discuss with team and decide on implementation priority. This is a significant architectural shift that touches both platform and games, but provides much better separation of concerns and operational flexibility.
+**Next Steps:**
+1. Migrate Pirate Plunder to GameInitializer pattern
+2. Build admin UI for dynamic table creation
+3. Implement guild table creation workflow
+4. Build tournament bracket table spawning
