@@ -9,7 +9,6 @@ import ActionLog from './ActionLog'
 import { LoginButton } from './LoginButton'
 import { PlayerProfile } from './PlayerProfile'
 import { Store } from './Store'
-import ConfigManager from './ConfigManager'
 import RulesModal from './RulesModal'
 import BuyInModal from './BuyInModal'
 import CurrencyDisplay from './CurrencyDisplay'
@@ -124,7 +123,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
   const [showRules, setShowRules] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showStore, setShowStore] = useState(false)
-  const [showConfigManager, setShowConfigManager] = useState(false)
   const [showAdminMenu, setShowAdminMenu] = useState(false)
   const [isSeated, setIsSeated] = useState(false)
   const [isGameAdmin, setIsGameAdmin] = useState(false) // Server-verified admin status
@@ -719,13 +717,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
               >
                 {showRules ? 'Hide Rules' : 'Rules'}
               </Button>
-              <Button
-                onClick={() => setShowConfigManager(true)}
-                variant="secondary"
-                size="sm"
-              >
-                ⚙️ Table Config
-              </Button>
               {isGameAdmin && (
                 <Button
                   onClick={() => window.location.hash = 'backoffice'}
@@ -847,15 +838,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
                       : "Only admins can manage AI players"
                     }
                   </p>
-                  {/* Temporary: Config Manager access for testing */}
-                  <Button
-                    onClick={() => setShowConfigManager(true)}
-                    variant="secondary"
-                    size="sm"
-                    className="w-full"
-                  >
-                    📋 Configuration Manager (Debug)
-                  </Button>
                   <Button
                     onClick={() => window.open('/api/hand-history', '_blank')}
                     variant="secondary"
@@ -1144,15 +1126,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
       <Store
             isOpen={showStore}
             onClose={() => setShowStore(false)}
-          />
-
-          {/* Config Manager Modal */}
-          <ConfigManager
-            isOpen={showConfigManager}
-            onClose={() => setShowConfigManager(false)}
-            isAdmin={(() => {
-              return user?.isAdmin || false;
-            })()}
           />
 
       {/* Rules Modal */}

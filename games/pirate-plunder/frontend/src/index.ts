@@ -14,9 +14,6 @@ export { default as PiratePlunderClient } from './components/GameApp'
 // Export the full App (includes AuthProvider wrapper)
 export { default as PiratePlunderApp } from './App'
 
-// Export additional components that might be useful
-export { default as BackOffice } from './components/BackOffice'
-
 // Export game metadata (matches backend)
 export const GAME_CLIENT_INFO = {
   id: 'pirate-plunder',

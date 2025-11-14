@@ -4,7 +4,6 @@ import { Die } from './Dice'
 import Button from './ui/Button'
 import ProgressBar from './ProgressBar'
 import CenterProgressBar from './CenterProgressBar'
-import GameLegend from './GameLegend'
 import GameInfo from './GameInfo'
 import ShowdownCeremony from './ShowdownCeremony'
 import CurrencyDisplay from './CurrencyDisplay'
@@ -919,11 +918,6 @@ export default function ImprovedGameTable({ game, meId, userName, onPlayerAction
             </div>
             );
           })()}
-
-          {/* Right column - Game Legend only */}
-          <div className="space-y-4">
-            <GameLegend />
-          </div>
         </div>
         
         {/* Game Info panel - under controls */}

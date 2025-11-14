@@ -165,3 +165,17 @@ export function initializePiratePlunder(io: SocketIOServer, options: InitializeP
 // Export types and classes
 export { PiratePlunderTable } from './PiratePlunderTable'
 export type { PiratePlunderTableConfig } from './PiratePlunderTable'
+
+// Export configuration system for backoffice integration
+export {
+  PIRATE_PLUNDER_CONFIG_SCHEMA,
+  PIRATE_PLUNDER_CONFIG_METADATA,
+  validatePiratePlunderConfig,
+  gameConfigToPiratePlunderConfig,
+  piratePlunderConfigToGameConfig,
+  updateParamOverrides,
+  extractFullConfigSection,
+  type ValidatedPiratePlunderConfig,
+  type ValidatedFullPiratePlunderConfig,
+  type PlatformGameConfig
+} from './config/index.js'
