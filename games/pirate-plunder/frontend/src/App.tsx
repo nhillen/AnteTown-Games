@@ -1,9 +1,7 @@
 // React is automatically imported in Vite React projects
-import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './components/AuthProvider'
 import GameApp from './components/GameApp'
 import LandingPage from './components/LandingPage'
-import BackOffice from './components/BackOffice'
 import { useDiceCollections } from './hooks/useDiceCollections'
 
 interface AppContentProps {
@@ -13,24 +11,7 @@ interface AppContentProps {
 
 function AppContent({ platformMode = false, tableId }: AppContentProps) {
   const { user, loading } = useAuth()
-  const [view, setView] = useState<'game' | 'backoffice'>('game')
   useDiceCollections()
-
-  // Simple client-side routing based on hash
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.slice(1) // Remove #
-      if (hash === 'backoffice') {
-        setView('backoffice')
-      } else {
-        setView('game')
-      }
-    }
-
-    handleHashChange() // Check initial hash
-    window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [])
 
   if (loading) {
     return (
@@ -42,10 +23,6 @@ function AppContent({ platformMode = false, tableId }: AppContentProps) {
 
   if (!user) {
     return <LandingPage />
-  }
-
-  if (view === 'backoffice') {
-    return <BackOffice />
   }
 
   return <GameApp platformMode={platformMode} tableId={tableId} />
