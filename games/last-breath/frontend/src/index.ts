@@ -5,6 +5,7 @@
  */
 
 export { GameClient } from './components/GameClient.js';
+export { SharedRunClient } from './components/SharedRunClient.js';
 
 export const GAME_CLIENT_INFO = {
   id: 'last-breath',
