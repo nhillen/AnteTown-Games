@@ -8,7 +8,7 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { HouseRules } from './HouseRules.js';
 import { gameConfigToPokerConfig } from './config/GameConfigMapper.js';
 import { validatePokerConfig } from './config/PokerConfigSchema.js';
-import type { GameInitializer } from '@pirate/game-sdk';
+import type { GameInitializer } from '@antetown/game-sdk';
 
 export const pokerInitializer: GameInitializer = {
   /**
@@ -47,13 +47,9 @@ export const pokerInitializer: GameInitializer = {
    * Destroy a game instance (cleanup)
    */
   destroyInstance(instance: HouseRules): void {
-    // HouseRules games have timers and event listeners
-    if (instance && typeof instance.removeAllListeners === 'function') {
-      instance.removeAllListeners();
-    }
-
-    // Cleanup any active timers (betting timers, blinds escalation, etc.)
-    // The game should handle its own cleanup, but we ensure listeners are removed
+    // HouseRules cleanup is handled internally via game state management
+    // No explicit cleanup needed - sockets are managed by platform
+    // Game timers are cleared when game state resets
   },
 
   /**

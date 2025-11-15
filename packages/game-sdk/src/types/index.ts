@@ -3,3 +3,4 @@
  */
 
 export * from './currency.js';
+export * from './GameInitializer.js';

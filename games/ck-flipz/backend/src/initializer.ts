@@ -7,7 +7,7 @@
 import type { Server as SocketIOServer } from 'socket.io';
 import { CoinFlipGame } from './CoinFlipGame.js';
 import { CardFlipGame } from './CardFlipGame.js';
-import type { GameInitializer } from '@pirate/game-sdk';
+import type { GameInitializer } from '@antetown/game-sdk';
 
 export const ckFlipzInitializer: GameInitializer = {
   /**

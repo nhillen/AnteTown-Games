@@ -6,7 +6,7 @@
 
 import type { Server as SocketIOServer } from 'socket.io';
 import { WarFaireGame } from './WarFaireGame.js';
-import type { GameInitializer } from '@pirate/game-sdk';
+import type { GameInitializer } from '@antetown/game-sdk';
 
 export const warFaireInitializer: GameInitializer = {
   /**
