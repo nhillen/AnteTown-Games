@@ -10,6 +10,25 @@
 import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 
+// TopNav component (inline for now - could be imported from platform)
+const TopNav = ({ onBack }: { onBack: () => void }) => (
+  <div className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-700 px-6 py-3">
+    <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        <span>Back to Games</span>
+      </button>
+      <div className="text-white font-bold text-xl">🤿 Last Breath</div>
+      <div className="w-24" /> {/* Spacer for centering */}
+    </div>
+  </div>
+);
+
 interface Player {
   playerId: string;
   playerName: string;
@@ -176,19 +195,23 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const myPlayer = getMyPlayer();
   const amSpectator = myPlayer && !myPlayer.active;
 
+  const handleBack = () => {
+    window.location.hash = '';
+  };
+
   return (
-    <div style={{
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '20px',
-      fontFamily: 'monospace',
-      backgroundColor: '#1a1a1a',
-      color: '#00ff00',
-      minHeight: '100vh'
-    }}>
-      <h1 style={{ textAlign: 'center', marginBottom: '30px' }}>
-        💨 LAST BREATH 💨
-      </h1>
+    <div style={{ minHeight: '100vh', backgroundColor: '#1a1a1a' }}>
+      <TopNav onBack={handleBack} />
+      <div style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '20px',
+        fontFamily: 'monospace',
+        color: '#00ff00'
+      }}>
+        <h1 style={{ textAlign: 'center', marginBottom: '30px' }}>
+          🤿 LAST BREATH 🤿
+        </h1>
 
       {!runState && (
         <div style={{ textAlign: 'center' }}>
@@ -462,6 +485,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           </div>
         </>
       )}
+      </div>
     </div>
   );
 };
