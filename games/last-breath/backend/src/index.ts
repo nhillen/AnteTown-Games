@@ -6,12 +6,14 @@
  */
 
 import { LastBreathGame } from './LastBreathGame.js';
-import { lastBreathInitializer } from './initializer.js';
+import { SharedRunManager } from './SharedRunManager.js';
+import { lastBreathInitializer } from './initializer-shared.js';
 import type { LastBreathConfig, RunState, GameEvent } from './types/index.js';
+import type { SharedRunState, PlayerRunState } from './types/SharedRun.js';
 
-export { LastBreathGame };
+export { LastBreathGame, SharedRunManager };
 export { lastBreathInitializer };
-export type { LastBreathConfig, RunState, GameEvent };
+export type { LastBreathConfig, RunState, GameEvent, SharedRunState, PlayerRunState };
 
 export const GAME_METADATA = {
   id: 'last-breath',

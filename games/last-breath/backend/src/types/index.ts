@@ -2,6 +2,8 @@
  * Type definitions for Last Breath game
  */
 
+export * from './SharedRun.js';
+
 /**
  * Game configuration parameters (balancing)
  */
