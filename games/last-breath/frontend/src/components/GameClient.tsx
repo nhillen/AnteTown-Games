@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { RunState, GameEvent, LastBreathConfig } from '@pirate/game-last-breath';
+import type { RunState, GameEvent, LastBreathConfig } from '@antetown/game-last-breath';
 
 interface GameClientProps {
   socketUrl?: string;

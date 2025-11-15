@@ -1,5 +1,5 @@
 {
-  "name": "@pirate/game-ck-flipz-backend",
+  "name": "@antetown/game-ck-flipz-backend",
   "version": "0.1.0",
   "description": "CK Flipz backend - Game logic for coin and card flip games",
   "private": true,

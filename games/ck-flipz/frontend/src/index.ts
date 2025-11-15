@@ -1,5 +1,5 @@
 /**
- * @pirate/game-ck-flipz - Frontend
+ * @antetown/game-ck-flipz - Frontend
  *
  * CK Flipz client components
  */

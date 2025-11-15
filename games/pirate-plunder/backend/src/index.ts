@@ -1,5 +1,5 @@
 /**
- * @pirate/game-pirate-plunder - Backend Exports
+ * @antetown/game-pirate-plunder - Backend Exports
  *
  * This file exports the game setup for Pirate Plunder so it can be imported
  * by host platforms (like AnteTown).

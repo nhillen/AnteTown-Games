@@ -1,7 +1,7 @@
 /**
- * @pirate/game-sdk
+ * @antetown/game-sdk
  *
- * SDK for building games on the Pirate Platform.
+ * SDK for building games on the AnteTown Platform.
  * Provides base classes, types, and utilities for game development.
  */
 

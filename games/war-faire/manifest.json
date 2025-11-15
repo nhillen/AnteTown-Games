@@ -7,7 +7,7 @@
   "minPlayers": 4,
   "maxPlayers": 10,
   "assets": {
-    "serverPackage": "@pirate/game-warfaire",
+    "serverPackage": "@antetown/game-warfaire",
     "clientBundle": "warfaire-client.js"
   },
   "deployment": {

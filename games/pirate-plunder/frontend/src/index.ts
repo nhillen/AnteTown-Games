@@ -1,5 +1,5 @@
 /**
- * @pirate/game-pirate-plunder - Frontend Exports
+ * @antetown/game-pirate-plunder - Frontend Exports
  *
  * This file exports the client component for Pirate Plunder so it can be imported
  * by host platforms (like AnteTown).

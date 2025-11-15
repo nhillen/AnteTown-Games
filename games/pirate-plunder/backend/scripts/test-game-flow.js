@@ -199,7 +199,7 @@ if (require.main === module) {
   
   testSocket.on('connect_error', () => {
     console.log('❌ Server not running on http://vps-0b87e710.tail751d97.ts.net:3001');
-    console.log('Please start the backend server first: npm run dev --workspace @pirate/game-pirate-plunder-backend');
+    console.log('Please start the backend server first: npm run dev --workspace @antetown/game-pirate-plunder-backend');
     process.exit(1);
   });
   

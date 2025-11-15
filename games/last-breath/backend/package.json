@@ -1,5 +1,5 @@
 {
-  "name": "@pirate/game-last-breath",
+  "name": "@antetown/game-last-breath",
   "version": "0.1.0",
   "description": "Last Breath - A deterministic push-your-luck survival game",
   "type": "module",

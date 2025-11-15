@@ -1,5 +1,5 @@
 {
-  "name": "@pirate/game-ck-flipz-frontend",
+  "name": "@antetown/game-ck-flipz-frontend",
   "version": "0.1.0",
   "description": "CK Flipz frontend - React components for coin and card flip games",
   "private": true,

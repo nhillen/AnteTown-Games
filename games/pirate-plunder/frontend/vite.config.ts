@@ -14,7 +14,7 @@ export default defineConfig({
     })
   ],
   optimizeDeps: {
-    include: ['@pirate/game-warfaire']
+    include: ['@antetown/game-warfaire']
   },
   server: {
     host: '0.0.0.0', // Allow external connections

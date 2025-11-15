@@ -1,5 +1,5 @@
 /**
- * @pirate/game-ck-flipz - Backend
+ * @antetown/game-ck-flipz - Backend
  *
  * CK Flipz: Simple coin and card flip betting games
  * This is a reference implementation showing minimal game package structure
