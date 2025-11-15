@@ -11,11 +11,12 @@ export default defineConfig({
       fileName: 'index'
     },
     rollupOptions: {
-      external: ['react', 'react-dom', 'socket.io-client'],
+      external: ['react', 'react-dom', 'react/jsx-runtime', 'socket.io-client'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
+          'react/jsx-runtime': 'react/jsx-runtime',
           'socket.io-client': 'io'
         }
       }
