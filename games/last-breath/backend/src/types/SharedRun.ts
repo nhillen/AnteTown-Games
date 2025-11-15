@@ -3,9 +3,10 @@
  *
  * Architecture: Multiple players experience the SAME run together
  * - All players see the same rooms, events, hazards (like bingo balls)
- * - Each player makes individual decisions (advance/exfiltrate)
- * - Players can bust out independently
- * - Run continues until all players are out or max depth reached
+ * - Run auto-advances through rooms until all players bust or exfiltrate
+ * - Players decide WHEN to exfiltrate (cash out)
+ * - Each player sets their own bid amount
+ * - Payout = Bid × DataMultiplier
  */
 
 import type { GameEvent } from './index.js';
@@ -16,12 +17,13 @@ import type { GameEvent } from './index.js';
 export interface PlayerRunState {
   playerId: string;
   playerName: string;
+  bid: number;               // Amount wagered by this player
   active: boolean;           // Still playing or busted/exfiltrated
   exfiltrated: boolean;      // Cashed out successfully
   bustReason?: 'oxygen' | 'suit' | 'hazard';
   bustDepth?: number;        // What depth they busted at
   exfiltrateDepth?: number;  // What depth they exfiltrated at
-  payout?: number;           // Final payout
+  payout?: number;           // Final payout (bid × DataMultiplier)
   joinedAtDepth: number;     // What depth they joined the run
 }
 
@@ -56,16 +58,14 @@ export interface SharedRunState {
   createdAt: number;
   startedAt?: number;
   completedAt?: number;
-
-  // Waiting for player decisions
-  awaitingDecisions: Set<string>; // Player IDs who need to decide advance/exfiltrate
-  autoAdvanceAt?: number;         // Timestamp when run will auto-advance
+  autoStartAt?: number;           // Timestamp when run will auto-start from lobby
+  nextAdvanceAt?: number;         // Timestamp when next auto-advance happens
 }
 
 /**
- * Player decision
+ * Player decision (only exfiltrate - advance is automatic)
  */
-export type PlayerDecision = 'advance' | 'exfiltrate';
+export type PlayerDecision = 'exfiltrate';
 
 /**
  * Result of a shared advance (all players move together)

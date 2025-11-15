@@ -93,9 +93,10 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
     console.log(`[Last Breath] Player connected: ${socket.id}`);
 
     // Player joins/creates a run
-    socket.on('join_run', (data: { playerName: string }) => {
+    socket.on('join_run', (data: { playerName: string; bid: number }) => {
       try {
-        const run = manager.joinOrCreateRun(socket.id, data.playerName);
+        const bid = data.bid || 100; // Default to 100 if not provided
+        const run = manager.joinOrCreateRun(socket.id, data.playerName, bid);
 
         // Join socket room for this run
         socket.join(run.runId);
@@ -104,14 +105,16 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
         socket.emit('run_joined', {
           runId: run.runId,
           state: serializeRunState(run),
-          config: manager.getConfig()
+          config: manager.getConfig(),
+          autoStartAt: run.autoStartAt
         });
 
         // Broadcast to all players in run
         namespace.to(run.runId).emit('player_joined_run', {
           playerId: socket.id,
           playerName: data.playerName,
-          playerCount: run.players.size
+          playerCount: run.players.size,
+          autoStartAt: run.autoStartAt
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -135,8 +138,8 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
       }
     });
 
-    // Player decides: advance or exfiltrate
-    socket.on('player_decision', (data: { decision: 'advance' | 'exfiltrate' }) => {
+    // Player exfiltrates (cashes out)
+    socket.on('player_decision', (data: { decision: 'exfiltrate' }) => {
       try {
         manager.playerDecision(socket.id, data.decision);
         const run = manager.getCurrentRun();

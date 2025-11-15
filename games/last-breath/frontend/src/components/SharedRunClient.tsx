@@ -32,6 +32,7 @@ const TopNav = ({ onBack }: { onBack: () => void }) => (
 interface Player {
   playerId: string;
   playerName: string;
+  bid: number;
   active: boolean;
   exfiltrated: boolean;
   bustReason?: 'oxygen' | 'suit' | 'hazard';
@@ -60,7 +61,7 @@ interface RunState {
   currentEvents: GameEvent[];
   eventHistory: GameEvent[];
   players: Player[];
-  awaitingDecisions: string[];
+  nextAdvanceAt?: number;
 }
 
 interface SharedRunClientProps {
@@ -76,7 +77,9 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const [runState, setRunState] = useState<RunState | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<string>('');
   const [message, setMessage] = useState<string>('');
-  const [ante, setAnte] = useState<number>(100);
+  const [bid, setBid] = useState<number>(100);
+  const [autoStartAt, setAutoStartAt] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<number>(0);
 
   // Connect to socket
   useEffect(() => {
@@ -87,17 +90,22 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     // Auto-join run on connect
     newSocket.on('connect', () => {
       setMyPlayerId(newSocket.id || '');
-      newSocket.emit('join_run', { playerName });
+      newSocket.emit('join_run', { playerName, bid });
     });
 
-    newSocket.on('run_joined', (data: { runId: string; state: RunState; config: any }) => {
+    newSocket.on('run_joined', (data: { runId: string; state: RunState; config: any; autoStartAt?: number }) => {
       setRunState(data.state);
-      setAnte(data.config.ante);
-      setMessage('Joined run! Waiting for other players...');
+      if (data.autoStartAt) {
+        setAutoStartAt(data.autoStartAt);
+      }
+      setMessage('Joined run! Auto-starting soon...');
     });
 
-    newSocket.on('player_joined_run', (data: { playerName: string; playerCount: number }) => {
+    newSocket.on('player_joined_run', (data: { playerName: string; playerCount: number; autoStartAt?: number }) => {
       setMessage(`${data.playerName} joined! (${data.playerCount} players)`);
+      if (data.autoStartAt) {
+        setAutoStartAt(data.autoStartAt);
+      }
     });
 
     newSocket.on('descent_started', (data: { state: RunState }) => {
@@ -144,7 +152,25 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     return () => {
       newSocket.close();
     };
-  }, [socketUrl, playerName]);
+  }, [socketUrl, playerName, bid]);
+
+  // Countdown timer for auto-start
+  useEffect(() => {
+    if (!autoStartAt || !runState || runState.phase !== 'lobby') {
+      setCountdown(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((autoStartAt - Date.now()) / 1000));
+      setCountdown(remaining);
+      if (remaining === 0) {
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [autoStartAt, runState]);
 
   const handleStartDescent = () => {
     if (socket) {
@@ -152,20 +178,16 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     }
   };
 
-  const handleDecision = (decision: 'advance' | 'exfiltrate') => {
+  const handleExfiltrate = () => {
     if (socket) {
-      socket.emit('player_decision', { decision });
-      setMessage(decision === 'advance' ? 'Advancing to next room...' : 'Exfiltrating...');
+      socket.emit('player_decision', { decision: 'exfiltrate' });
+      setMessage('Exfiltrating...');
     }
   };
 
   // Helper functions
   const getMyPlayer = (): Player | undefined => {
     return runState?.players.find(p => p.playerId === myPlayerId);
-  };
-
-  const isMyTurn = (): boolean => {
-    return runState?.awaitingDecisions.includes(myPlayerId) || false;
   };
 
   const getStatusColor = (player: Player): string => {
@@ -233,24 +255,23 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
               <div style={{ fontSize: '24px', marginBottom: '20px' }}>
                 WAITING IN LOBBY
               </div>
-              <div style={{ fontSize: '16px', marginBottom: '30px' }}>
+              <div style={{ fontSize: '16px', marginBottom: '20px' }}>
                 {runState.players.length} player{runState.players.length !== 1 ? 's' : ''} ready
               </div>
-              <button
-                onClick={handleStartDescent}
-                style={{
-                  padding: '15px 40px',
-                  fontSize: '20px',
-                  backgroundColor: '#00ff00',
-                  color: '#000',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontFamily: 'monospace',
-                  fontWeight: 'bold'
-                }}
-              >
-                START DESCENT
-              </button>
+              {countdown > 0 && (
+                <div style={{
+                  fontSize: '48px',
+                  fontWeight: 'bold',
+                  color: countdown <= 3 ? '#ff0000' : '#ffff00',
+                  marginTop: '20px',
+                  animation: countdown <= 3 ? 'pulse 1s infinite' : 'none'
+                }}>
+                  {countdown}
+                </div>
+              )}
+              <div style={{ fontSize: '14px', color: '#888', marginTop: '10px' }}>
+                Auto-starting...
+              </div>
             </div>
           )}
 
@@ -322,9 +343,12 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '14px', marginBottom: '5px' }}>CURRENT PAYOUT</div>
+                  <div style={{ fontSize: '14px', marginBottom: '5px' }}>YOUR PAYOUT</div>
                   <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ffff00' }}>
-                    {Math.floor(ante * runState.DataMultiplier)} TC
+                    {Math.floor((myPlayer?.bid || bid) * runState.DataMultiplier)} TC
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#888' }}>
+                    {myPlayer?.bid || bid} TC × {runState.DataMultiplier.toFixed(2)}x
                   </div>
                 </div>
               </div>
@@ -342,63 +366,37 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                 </div>
               )}
 
-              {/* Decision Buttons */}
-              {runState.phase === 'descending' && myPlayer?.active && isMyTurn() && (
+              {/* Exfiltrate Button */}
+              {runState.phase === 'descending' && myPlayer?.active && (
                 <div style={{
                   display: 'flex',
-                  gap: '15px',
-                  justifyContent: 'center',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  alignItems: 'center',
                   marginBottom: '20px'
                 }}>
                   <button
-                    onClick={() => handleDecision('advance')}
+                    onClick={handleExfiltrate}
                     style={{
-                      padding: '20px 40px',
-                      fontSize: '20px',
-                      backgroundColor: '#ffff00',
-                      color: '#000',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontFamily: 'monospace',
-                      fontWeight: 'bold',
-                      flex: 1
-                    }}
-                  >
-                    ADVANCE
-                  </button>
-
-                  <button
-                    onClick={() => handleDecision('exfiltrate')}
-                    style={{
-                      padding: '20px 40px',
-                      fontSize: '20px',
+                      padding: '20px 60px',
+                      fontSize: '24px',
                       backgroundColor: '#00ff00',
                       color: '#000',
-                      border: 'none',
+                      border: '3px solid #ffff00',
                       cursor: 'pointer',
                       fontFamily: 'monospace',
                       fontWeight: 'bold',
-                      flex: 1
+                      boxShadow: '0 0 20px rgba(0, 255, 0, 0.5)'
                     }}
                   >
-                    EXFILTRATE
+                    💰 CASH OUT 💰
                   </button>
+                  <div style={{ fontSize: '12px', color: '#888', textAlign: 'center' }}>
+                    Auto-advancing in {Math.max(0, Math.ceil(((runState.nextAdvanceAt || 0) - Date.now()) / 1000))}s
+                  </div>
                 </div>
               )}
 
-              {/* Waiting for others */}
-              {runState.phase === 'descending' && myPlayer?.active && !isMyTurn() && (
-                <div style={{
-                  padding: '20px',
-                  backgroundColor: '#000',
-                  border: '2px solid #ffff00',
-                  textAlign: 'center',
-                  fontSize: '18px',
-                  marginBottom: '20px'
-                }}>
-                  Waiting for other players to decide...
-                </div>
-              )}
 
               {/* Event Log */}
               {runState.eventHistory.length > 0 && (
