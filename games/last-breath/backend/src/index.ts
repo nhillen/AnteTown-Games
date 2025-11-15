@@ -15,7 +15,7 @@ export type { LastBreathConfig, RunState, GameEvent };
 
 export const GAME_METADATA = {
   id: 'last-breath',
-  name: 'The Last Breath',
+  name: 'Last Breath',
   description: 'Every room takes your breath away. Literally.',
   icon: '💨',
   minPlayers: 1,

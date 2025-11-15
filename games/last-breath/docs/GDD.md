@@ -1,4 +1,4 @@
-# 🎮 Game Design Document — The Last Breath
+# 🎮 Game Design Document — Last Breath
 
 ## 1. Overview
 

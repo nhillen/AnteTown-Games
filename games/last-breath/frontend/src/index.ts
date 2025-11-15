@@ -8,6 +8,6 @@ export { GameClient } from './components/GameClient.js';
 
 export const GAME_CLIENT_INFO = {
   id: 'last-breath',
-  name: 'The Last Breath',
+  name: 'Last Breath',
   version: '0.1.0'
 };
