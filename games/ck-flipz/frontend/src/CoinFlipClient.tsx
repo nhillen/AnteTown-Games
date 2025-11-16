@@ -10,6 +10,9 @@
  */
 
 import { useState, useEffect } from 'react'
+import Panel from './ui/Panel'
+import Button from './ui/Button'
+import Badge from './ui/Badge'
 
 type Seat = {
   playerId: string

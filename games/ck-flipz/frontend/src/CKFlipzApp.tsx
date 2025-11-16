@@ -1,0 +1,256 @@
+/**
+ * CKFlipzApp - Socket-connected wrapper for CK Flipz game
+ *
+ * Handles:
+ * - Socket.IO connection
+ * - Table selection and joining
+ * - Game state management
+ * - Passing props to CoinFlipClient component
+ */
+
+import { useState, useEffect } from 'react';
+import { io, Socket } from 'socket.io-client';
+import CoinFlipClient from './CoinFlipClient';
+
+type CoinFlipGameState = {
+  phase: 'Lobby' | 'Ante' | 'CallSide' | 'Flip' | 'Payout' | 'HandEnd';
+  seats: any[];
+  pot: number;
+  currentBet: number;
+  ante: number;
+  currentTurnPlayerId?: string;
+  turnEndsAtMs?: number;
+  calledSide?: 'heads' | 'tails';
+  callerPlayerId?: string;
+  flipResult?: 'heads' | 'tails';
+};
+
+type Table = {
+  tableId: string;
+  displayName: string;
+  variant: 'coin-flip' | 'card-flip';
+  ante: number;
+  maxSeats: number;
+  currentPlayers: number;
+  description: string;
+  emoji: string;
+};
+
+const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || window.location.origin;
+
+export default function CKFlipzApp() {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [gameState, setGameState] = useState<CoinFlipGameState | null>(null);
+  const [myId, setMyId] = useState<string>('');
+  const [isSeated, setIsSeated] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+
+  // Connect to socket
+  useEffect(() => {
+    console.log('[CK Flipz] Connecting to backend:', BACKEND_URL);
+    const newSocket = io(BACKEND_URL, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling']
+    });
+
+    newSocket.on('connect', () => {
+      console.log('[CK Flipz] Connected to server, socket ID:', newSocket.id);
+      setMyId(newSocket.id || '');
+      setConnectionStatus('connected');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('[CK Flipz] Connection error:', error);
+      setConnectionStatus('error');
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('[CK Flipz] Disconnected from server');
+      setConnectionStatus('connecting');
+    });
+
+    // Table discovery
+    newSocket.on('table_stats_update', (stats: Record<string, any>) => {
+      const ckFlipzTables = Object.entries(stats)
+        .filter(([tableId]) => tableId.startsWith('ck-flipz-'))
+        .map(([tableId, data]: [string, any]) => ({
+          tableId,
+          displayName: data.displayName || tableId,
+          variant: data.config?.variant || 'coin-flip',
+          ante: data.config?.ante || 100,
+          maxSeats: data.config?.maxSeats || 2,
+          currentPlayers: data.playerCount || 0,
+          description: data.config?.description || 'Coin flip game',
+          emoji: data.config?.variant === 'card-flip' ? '🃏' : '🪙'
+        }));
+
+      console.log('[CK Flipz] Available tables:', ckFlipzTables);
+      setTables(ckFlipzTables);
+
+      // Auto-select first table if none selected
+      if (!selectedTable && ckFlipzTables.length > 0) {
+        const firstTable = ckFlipzTables[0];
+        setSelectedTable(firstTable.tableId);
+        console.log('[CK Flipz] Auto-selecting table:', firstTable.tableId);
+        newSocket.emit('join', { tableId: firstTable.tableId });
+      }
+    });
+
+    // Game state updates
+    newSocket.on('game_state', (state: CoinFlipGameState) => {
+      console.log('[CK Flipz] Game state update:', state);
+      setGameState(state);
+
+      // Check if we're seated
+      const seated = state.seats.some(s => s?.playerId === newSocket.id);
+      setIsSeated(seated);
+    });
+
+    // Joined table
+    newSocket.on('table_joined', (data: { tableId: string; state: CoinFlipGameState }) => {
+      console.log('[CK Flipz] Joined table:', data.tableId);
+      setSelectedTable(data.tableId);
+      setGameState(data.state);
+    });
+
+    // Error handling
+    newSocket.on('error', (error: { message: string }) => {
+      console.error('[CK Flipz] Server error:', error);
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.close();
+    };
+  }, []);
+
+  // Handle player actions
+  const handlePlayerAction = (action: string, amount?: number) => {
+    if (!socket || !selectedTable) return;
+
+    console.log('[CK Flipz] Player action:', action, amount);
+    socket.emit('player_action', {
+      tableId: selectedTable,
+      action,
+      amount
+    });
+  };
+
+  // Handle sit down
+  const handleSitDown = (seatIndex: number, buyInAmount: number) => {
+    if (!socket || !selectedTable) return;
+
+    console.log('[CK Flipz] Sitting down at seat:', seatIndex, 'with buy-in:', buyInAmount);
+    socket.emit('sit_down', {
+      tableId: selectedTable,
+      seatIndex,
+      buyInAmount: buyInAmount * 100 // Convert to pennies
+    });
+  };
+
+  // Handle stand up
+  const handleStandUp = () => {
+    if (!socket || !selectedTable) return;
+
+    console.log('[CK Flipz] Standing up');
+    socket.emit('stand_up', { tableId: selectedTable });
+  };
+
+  // Handle table selection
+  const handleSelectTable = (tableId: string) => {
+    if (!socket) return;
+
+    console.log('[CK Flipz] Selecting table:', tableId);
+    setSelectedTable(tableId);
+    socket.emit('join', { tableId });
+  };
+
+  // Loading state
+  if (connectionStatus === 'connecting') {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-900">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🪙</div>
+          <div className="text-xl text-white">Connecting to CK Flipz...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (connectionStatus === 'error') {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-900">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⚠️</div>
+          <div className="text-xl text-red-400">Connection Error</div>
+          <div className="text-gray-400 mt-2">Please refresh the page</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Table selection screen
+  if (!selectedTable || !gameState) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-900 p-4">
+        <div className="max-w-2xl w-full">
+          <h1 className="text-4xl font-bold text-white text-center mb-8">
+            🪙 CK Flipz
+          </h1>
+
+          {tables.length === 0 ? (
+            <div className="text-center text-gray-400">
+              <div className="text-xl mb-2">No tables available</div>
+              <div className="text-sm">Waiting for tables to be created...</div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-center text-gray-400 mb-4">Select a table to join:</div>
+              {tables.map((table) => (
+                <button
+                  key={table.tableId}
+                  onClick={() => handleSelectTable(table.tableId)}
+                  className="w-full p-4 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl">{table.emoji}</div>
+                      <div>
+                        <div className="text-white font-bold">{table.displayName}</div>
+                        <div className="text-sm text-gray-400">{table.description}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-yellow-400 font-bold">
+                        ${(table.ante / 100).toFixed(2)} ante
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {table.currentPlayers} / {table.maxSeats} players
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Game screen
+  return (
+    <CoinFlipClient
+      game={gameState}
+      meId={myId}
+      onPlayerAction={handlePlayerAction}
+      onSitDown={handleSitDown}
+      onStandUp={handleStandUp}
+      isSeated={isSeated}
+    />
+  );
+}
