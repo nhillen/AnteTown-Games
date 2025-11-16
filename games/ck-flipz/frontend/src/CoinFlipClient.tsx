@@ -57,7 +57,14 @@ export default function CoinFlipClient({
 }: CoinFlipTableProps) {
   const [coinFlipping, setCoinFlipping] = useState(false)
   const [showBuyInModal, setShowBuyInModal] = useState(false)
-  const [buyInAmount, setBuyInAmount] = useState(5)
+  const [buyInAmount, setBuyInAmount] = useState(100)
+
+  // Set default buy-in based on ante
+  useEffect(() => {
+    if (game?.ante) {
+      setBuyInAmount(Math.max(game.ante * 10, 100))
+    }
+  }, [game?.ante])
 
   // Animate coin flip
   useEffect(() => {
@@ -115,7 +122,7 @@ export default function CoinFlipClient({
               {game.phase}
             </Badge>
             <span className="text-2xl font-bold text-yellow-400">
-              Pot: ${(game.pot / 100).toFixed(2)}
+              Pot: {game.pot} TC
             </span>
           </div>
         </div>
@@ -162,7 +169,7 @@ export default function CoinFlipClient({
             {game.phase === 'Ante' && (
               <div className="text-center">
                 <p className="text-xl">Collecting antes...</p>
-                <p className="text-gray-400">Ante: ${(game.ante / 100).toFixed(2)}</p>
+                <p className="text-gray-400">Ante: {game.ante} TC</p>
               </div>
             )}
 
@@ -256,7 +263,7 @@ export default function CoinFlipClient({
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-gray-400">
-                      ${((seat?.tableStack || 0) / 100).toFixed(2)}
+                      {seat?.tableStack || 0} TC
                     </span>
                     {isMe && (
                       <Button onClick={onStandUp} size="sm" variant="ghost">
@@ -279,14 +286,14 @@ export default function CoinFlipClient({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-2">
-                  Buy-in Amount (minimum $5)
+                  Buy-in Amount (minimum {Math.max(game.ante * 5, 100)} TC)
                 </label>
                 <input
                   type="number"
-                  min={5}
-                  max={1000}
+                  min={Math.max(game.ante * 5, 100)}
+                  max={10000}
                   value={buyInAmount}
-                  onChange={(e) => setBuyInAmount(Math.max(5, parseInt(e.target.value) || 5))}
+                  onChange={(e) => setBuyInAmount(Math.max(game.ante * 5, parseInt(e.target.value) || game.ante * 5))}
                   className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white"
                 />
               </div>
@@ -295,7 +302,7 @@ export default function CoinFlipClient({
                   Cancel
                 </Button>
                 <Button variant="primary" onClick={confirmBuyIn}>
-                  Sit Down with ${buyInAmount}
+                  Sit Down with {buyInAmount} TC
                 </Button>
               </div>
             </div>
