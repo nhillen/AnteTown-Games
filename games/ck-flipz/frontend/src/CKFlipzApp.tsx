@@ -63,7 +63,7 @@ export default function CKFlipzApp({ initialTableId }: { initialTableId?: string
       // If initialTableId provided, auto-join that table
       if (initialTableId) {
         console.log('[CK Flipz] Auto-joining table:', initialTableId);
-        newSocket.emit('join', { tableId: initialTableId });
+        newSocket.emit('join_table', { tableId: initialTableId });
       } else {
         // Otherwise request table stats for selection
         console.log('[CK Flipz] Requesting table stats...');
@@ -178,7 +178,7 @@ export default function CKFlipzApp({ initialTableId }: { initialTableId?: string
 
     console.log('[CK Flipz] Selecting table:', tableId);
     setSelectedTable(tableId);
-    socket.emit('join', { tableId });
+    socket.emit('join_table', { tableId });
   };
 
   // Loading state
