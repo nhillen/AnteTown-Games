@@ -40,10 +40,12 @@ const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || window.locatio
 
 export default function CKFlipzApp({
   initialTableId,
-  initialBuyIn
+  initialBuyIn,
+  onLeaveTable
 }: {
   initialTableId?: string | null;
   initialBuyIn?: number;
+  onLeaveTable?: () => void;
 } = {}) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
@@ -142,6 +144,18 @@ export default function CKFlipzApp({
       console.log('[CK Flipz] Joined table:', data.tableId);
       setSelectedTable(data.tableId);
       // Game state will come via separate game_state event
+    });
+
+    // Stood up - return to lobby
+    newSocket.on('stood_up', (data: { tableId: string }) => {
+      console.log('[CK Flipz] Stood up from table:', data.tableId);
+      setSelectedTable(null);
+      setGameState(null);
+      setIsSeated(false);
+      // Notify parent component to return to lobby
+      if (onLeaveTable) {
+        onLeaveTable();
+      }
     });
 
     // Error handling
