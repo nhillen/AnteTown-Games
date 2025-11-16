@@ -38,10 +38,10 @@ type Table = {
 
 const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || window.location.origin;
 
-export default function CKFlipzApp() {
+export default function CKFlipzApp({ initialTableId }: { initialTableId?: string | null } = {}) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [selectedTable, setSelectedTable] = useState<string | null>(initialTableId || null);
   const [gameState, setGameState] = useState<CoinFlipGameState | null>(null);
   const [myId, setMyId] = useState<string>('');
   const [isSeated, setIsSeated] = useState(false);
@@ -60,9 +60,15 @@ export default function CKFlipzApp() {
       setMyId(newSocket.id || '');
       setConnectionStatus('connected');
 
-      // Request table stats after connection established
-      console.log('[CK Flipz] Requesting table stats...');
-      newSocket.emit('request_table_stats');
+      // If initialTableId provided, auto-join that table
+      if (initialTableId) {
+        console.log('[CK Flipz] Auto-joining table:', initialTableId);
+        newSocket.emit('join', { tableId: initialTableId });
+      } else {
+        // Otherwise request table stats for selection
+        console.log('[CK Flipz] Requesting table stats...');
+        newSocket.emit('request_table_stats');
+      }
     });
 
     newSocket.on('connect_error', (error) => {
@@ -239,7 +245,7 @@ export default function CKFlipzApp() {
                     </div>
                     <div className="text-right">
                       <div className="text-yellow-400 font-bold">
-                        ${(table.ante / 100).toFixed(2)} ante
+                        {table.ante} TC ante
                       </div>
                       <div className="text-sm text-gray-400">
                         {table.currentPlayers} / {table.maxSeats} players
