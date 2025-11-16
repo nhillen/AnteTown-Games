@@ -41,10 +41,14 @@ const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || window.locatio
 export default function CKFlipzApp({
   initialTableId,
   initialBuyIn,
+  userId,
+  username,
   onLeaveTable
 }: {
   initialTableId?: string | null;
   initialBuyIn?: number;
+  userId?: string;
+  username?: string;
   onLeaveTable?: () => void;
 } = {}) {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -56,12 +60,36 @@ export default function CKFlipzApp({
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [hasAttemptedAutoSit, setHasAttemptedAutoSit] = useState(false);
 
+  // Require authentication
+  if (!userId || !username) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-900">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🔒</div>
+          <div className="text-xl text-white mb-2">Authentication Required</div>
+          <div className="text-gray-400 mb-4">You must be logged in to play CK Flipz</div>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-all"
+          >
+            Return to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Connect to socket
   useEffect(() => {
     console.log('[CK Flipz] Connecting to backend:', BACKEND_URL);
     const newSocket = io(BACKEND_URL, {
       path: '/socket.io',
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      auth: {
+        userId: userId,
+        username: username
+      }
     });
 
     newSocket.on('connect', () => {
