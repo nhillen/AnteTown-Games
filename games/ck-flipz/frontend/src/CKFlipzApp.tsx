@@ -206,9 +206,23 @@ export default function CKFlipzApp({ initialTableId }: { initialTableId?: string
     );
   }
 
-  // Table selection screen
-  if (!selectedTable || !gameState) {
-    console.log('[CK Flipz] Rendering table selection screen. Tables:', tables, 'Selected:', selectedTable, 'GameState:', gameState);
+  // Waiting for game state (after joining table)
+  if (selectedTable && !gameState) {
+    console.log('[CK Flipz] Waiting for game state for table:', selectedTable);
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-900">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🪙</div>
+          <div className="text-xl text-white">Joining table...</div>
+          <div className="text-gray-400 mt-2">Waiting for game state</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Table selection screen (no table selected yet)
+  if (!selectedTable) {
+    console.log('[CK Flipz] Rendering table selection screen. Tables:', tables.length);
 
     return (
       <div className="h-screen flex items-center justify-center bg-slate-900 p-4">
