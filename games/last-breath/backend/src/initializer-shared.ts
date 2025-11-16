@@ -215,7 +215,6 @@ function serializeRunState(run: any): any {
         playerId: id,
         ...player
       };
-    }),
-    awaitingDecisions: Array.from(run.awaitingDecisions)
+    })
   };
 }
