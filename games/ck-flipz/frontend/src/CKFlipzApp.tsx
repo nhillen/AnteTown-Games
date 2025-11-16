@@ -46,6 +46,7 @@ export default function CKFlipzApp({ initialTableId }: { initialTableId?: string
   const [myId, setMyId] = useState<string>('');
   const [isSeated, setIsSeated] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [hasAttemptedAutoSit, setHasAttemptedAutoSit] = useState(false);
 
   // Connect to socket
   useEffect(() => {
@@ -113,30 +114,27 @@ export default function CKFlipzApp({ initialTableId }: { initialTableId?: string
       // Check if we're seated
       const seated = state.seats.some(s => s?.playerId === newSocket.id);
       setIsSeated(seated);
-    });
 
-    // Joined table
-    newSocket.on('table_joined', (data: { tableId: string; state: CoinFlipGameState }) => {
-      console.log('[CK Flipz] Joined table:', data.tableId);
-      setSelectedTable(data.tableId);
-      setGameState(data.state);
-
-      // Auto-sit at first available seat
-      const isAlreadySeated = data.state.seats.some(s => s?.playerId === newSocket.id);
-      if (!isAlreadySeated) {
-        // Find first empty seat
-        const emptySeatIndex = data.state.seats.findIndex(s => !s || !s.playerId);
-        if (emptySeatIndex !== -1) {
-          // Calculate buy-in: minimum is 5x ante (from CoinFlipGame backend)
-          const minBuyIn = data.state.ante * 5;
+      // Auto-sit if we joined via initialTableId and haven't sat yet
+      if (initialTableId && !seated && !hasAttemptedAutoSit) {
+        const emptySeatIndex = state.seats.findIndex(s => !s || !s.playerId);
+        if (emptySeatIndex !== -1 && state.ante > 0) {  // Ensure ante is set
+          const minBuyIn = state.ante * 5;
           console.log('[CK Flipz] Auto-sitting at seat', emptySeatIndex, 'with buy-in:', minBuyIn);
+          setHasAttemptedAutoSit(true);
           newSocket.emit('sit_down', {
-            tableId: data.tableId,
             seatIndex: emptySeatIndex,
-            buyInAmount: minBuyIn
+            buyInAmount: minBuyIn * 100  // Convert to pennies (backend expects this)
           });
         }
       }
+    });
+
+    // Joined table
+    newSocket.on('table_joined', (data: { tableId: string }) => {
+      console.log('[CK Flipz] Joined table:', data.tableId);
+      setSelectedTable(data.tableId);
+      // Game state will come via separate game_state event
     });
 
     // Error handling
