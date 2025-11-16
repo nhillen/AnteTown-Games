@@ -166,7 +166,7 @@ export default function CKFlipzApp({
           setHasAttemptedAutoSit(true);
           newSocket.emit('sit_down', {
             seatIndex: emptySeatIndex,
-            buyInAmount: buyIn * 100  // Convert to pennies (backend expects this)
+            buyInAmount: buyIn  // TC amount directly, no conversion needed
           });
         }
       }
@@ -229,7 +229,7 @@ export default function CKFlipzApp({
     socket.emit('sit_down', {
       tableId: selectedTable,
       seatIndex,
-      buyInAmount: buyInAmount * 100 // Convert to pennies
+      buyInAmount: buyInAmount  // TC amount directly, no conversion needed
     });
   };
 
