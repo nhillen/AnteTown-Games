@@ -120,6 +120,23 @@ export default function CKFlipzApp({ initialTableId }: { initialTableId?: string
       console.log('[CK Flipz] Joined table:', data.tableId);
       setSelectedTable(data.tableId);
       setGameState(data.state);
+
+      // Auto-sit at first available seat
+      const isAlreadySeated = data.state.seats.some(s => s?.playerId === newSocket.id);
+      if (!isAlreadySeated) {
+        // Find first empty seat
+        const emptySeatIndex = data.state.seats.findIndex(s => !s || !s.playerId);
+        if (emptySeatIndex !== -1) {
+          // Calculate buy-in: minimum is 5x ante (from CoinFlipGame backend)
+          const minBuyIn = data.state.ante * 5;
+          console.log('[CK Flipz] Auto-sitting at seat', emptySeatIndex, 'with buy-in:', minBuyIn);
+          newSocket.emit('sit_down', {
+            tableId: data.tableId,
+            seatIndex: emptySeatIndex,
+            buyInAmount: minBuyIn
+          });
+        }
+      }
     });
 
     // Error handling
