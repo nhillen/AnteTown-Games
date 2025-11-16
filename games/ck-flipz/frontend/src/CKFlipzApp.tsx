@@ -59,6 +59,10 @@ export default function CKFlipzApp() {
       console.log('[CK Flipz] Connected to server, socket ID:', newSocket.id);
       setMyId(newSocket.id || '');
       setConnectionStatus('connected');
+
+      // Request table stats after connection established
+      console.log('[CK Flipz] Requesting table stats...');
+      newSocket.emit('request_table_stats');
     });
 
     newSocket.on('connect_error', (error) => {
