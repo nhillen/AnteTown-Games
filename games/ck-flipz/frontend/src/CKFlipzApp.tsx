@@ -79,9 +79,14 @@ export default function CKFlipzApp({
     );
   }
 
-  // Connect to socket
+  // Connect to socket (only after we have user credentials)
   useEffect(() => {
-    console.log('[CK Flipz] Connecting to backend:', BACKEND_URL);
+    if (!userId || !username) {
+      console.log('[CK Flipz] Waiting for user credentials before connecting...');
+      return;
+    }
+
+    console.log('[CK Flipz] Connecting to backend:', BACKEND_URL, 'with user:', username);
     const newSocket = io(BACKEND_URL, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
@@ -202,7 +207,7 @@ export default function CKFlipzApp({
       console.log('[CK Flipz] Cleaning up socket connection');
       newSocket.close();
     };
-  }, []);
+  }, [userId, username]);
 
   // Handle player actions
   const handlePlayerAction = (action: string, amount?: number) => {
