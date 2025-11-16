@@ -72,8 +72,8 @@ export default function CKFlipzApp() {
     });
 
     // Table discovery
-    newSocket.on('table_stats_update', (stats: Record<string, any>) => {
-      console.log('[CK Flipz] Received table_stats_update:', stats);
+    newSocket.on('table_stats', (stats: Record<string, any>) => {
+      console.log('[CK Flipz] Received table_stats:', stats);
 
       const ckFlipzTables = Object.entries(stats)
         .filter(([tableId]) => tableId.startsWith('ck-flipz-'))
