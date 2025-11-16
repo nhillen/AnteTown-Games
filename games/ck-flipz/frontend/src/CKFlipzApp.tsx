@@ -38,7 +38,13 @@ type Table = {
 
 const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || window.location.origin;
 
-export default function CKFlipzApp({ initialTableId }: { initialTableId?: string | null } = {}) {
+export default function CKFlipzApp({
+  initialTableId,
+  initialBuyIn
+}: {
+  initialTableId?: string | null;
+  initialBuyIn?: number;
+} = {}) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedTable, setSelectedTable] = useState<string | null>(initialTableId || null);
@@ -118,13 +124,14 @@ export default function CKFlipzApp({ initialTableId }: { initialTableId?: string
       // Auto-sit if we joined via initialTableId and haven't sat yet
       if (initialTableId && !seated && !hasAttemptedAutoSit) {
         const emptySeatIndex = state.seats.findIndex(s => !s || !s.playerId);
-        if (emptySeatIndex !== -1 && state.ante > 0) {  // Ensure ante is set
-          const minBuyIn = state.ante * 5;
-          console.log('[CK Flipz] Auto-sitting at seat', emptySeatIndex, 'with buy-in:', minBuyIn);
+        if (emptySeatIndex !== -1) {
+          // Use provided buy-in or calculate default (5x ante, min 100 TC)
+          const buyIn = initialBuyIn || Math.max(state.ante * 5, 100);
+          console.log('[CK Flipz] Auto-sitting at seat', emptySeatIndex, 'with buy-in:', buyIn, 'TC');
           setHasAttemptedAutoSit(true);
           newSocket.emit('sit_down', {
             seatIndex: emptySeatIndex,
-            buyInAmount: minBuyIn * 100  // Convert to pennies (backend expects this)
+            buyInAmount: buyIn * 100  // Convert to pennies (backend expects this)
           });
         }
       }
