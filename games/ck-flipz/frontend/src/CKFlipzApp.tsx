@@ -73,6 +73,8 @@ export default function CKFlipzApp() {
 
     // Table discovery
     newSocket.on('table_stats_update', (stats: Record<string, any>) => {
+      console.log('[CK Flipz] Received table_stats_update:', stats);
+
       const ckFlipzTables = Object.entries(stats)
         .filter(([tableId]) => tableId.startsWith('ck-flipz-'))
         .map(([tableId, data]: [string, any]) => ({
@@ -86,16 +88,11 @@ export default function CKFlipzApp() {
           emoji: data.config?.variant === 'card-flip' ? '🃏' : '🪙'
         }));
 
-      console.log('[CK Flipz] Available tables:', ckFlipzTables);
+      console.log('[CK Flipz] Filtered CK Flipz tables:', ckFlipzTables);
       setTables(ckFlipzTables);
 
-      // Auto-select first table if none selected
-      if (!selectedTable && ckFlipzTables.length > 0) {
-        const firstTable = ckFlipzTables[0];
-        setSelectedTable(firstTable.tableId);
-        console.log('[CK Flipz] Auto-selecting table:', firstTable.tableId);
-        newSocket.emit('join', { tableId: firstTable.tableId });
-      }
+      // Don't auto-join - wait for user to select
+      // Auto-join was causing disconnect issues
     });
 
     // Game state updates
@@ -116,13 +113,19 @@ export default function CKFlipzApp() {
     });
 
     // Error handling
-    newSocket.on('error', (error: { message: string }) => {
+    newSocket.on('error', (error: any) => {
       console.error('[CK Flipz] Server error:', error);
+    });
+
+    // Catch-all for any errors
+    newSocket.on('exception', (error: any) => {
+      console.error('[CK Flipz] Server exception:', error);
     });
 
     setSocket(newSocket);
 
     return () => {
+      console.log('[CK Flipz] Cleaning up socket connection');
       newSocket.close();
     };
   }, []);
@@ -195,6 +198,8 @@ export default function CKFlipzApp() {
 
   // Table selection screen
   if (!selectedTable || !gameState) {
+    console.log('[CK Flipz] Rendering table selection screen. Tables:', tables, 'Selected:', selectedTable, 'GameState:', gameState);
+
     return (
       <div className="h-screen flex items-center justify-center bg-slate-900 p-4">
         <div className="max-w-2xl w-full">
@@ -202,19 +207,23 @@ export default function CKFlipzApp() {
             🪙 CK Flipz
           </h1>
 
+          <div className="text-center text-sm text-gray-500 mb-4">
+            Socket: {connectionStatus} | Tables: {tables.length}
+          </div>
+
           {tables.length === 0 ? (
             <div className="text-center text-gray-400">
-              <div className="text-xl mb-2">No tables available</div>
-              <div className="text-sm">Waiting for tables to be created...</div>
+              <div className="text-xl mb-2">Looking for tables...</div>
+              <div className="text-sm">Waiting for table discovery to complete</div>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="text-center text-gray-400 mb-4">Select a table to join:</div>
+              <div className="text-center text-gray-300 mb-4 text-lg">Select a table to join:</div>
               {tables.map((table) => (
                 <button
                   key={table.tableId}
                   onClick={() => handleSelectTable(table.tableId)}
-                  className="w-full p-4 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 transition-colors text-left"
+                  className="w-full p-4 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 hover:border-emerald-500 transition-all text-left"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
