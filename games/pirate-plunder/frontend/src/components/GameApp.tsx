@@ -1,5 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
-import { io } from 'socket.io-client'
+import { useEffect, useState } from 'react'
 import ImprovedGameTable from './ImprovedGameTable'
 import Button from './ui/Button'
 import Panel from './ui/Panel'
@@ -112,7 +111,7 @@ interface GameAppProps {
 export default function GameApp({ platformMode = false, tableId, BuyInModalComponent }: GameAppProps = {}) {
   // Use platform's BuyInModal if provided, otherwise use local version
   const BuyInModalToUse = BuyInModalComponent || BuyInModal
-  const { user, loading, refreshUser } = useAuth()
+  const { user, loading, refreshUser, socket } = useAuth()
   const [connected, setConnected] = useState(false)
   const [me, setMe] = useState<Player | null>(null)
   const [_lobby, setLobby] = useState<LobbyState>({ players: [] })
@@ -150,17 +149,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
     }
   }, [user])
 
-  // Restore socket useMemo to prevent connection spam
-  const socket = useMemo(() => {
-    if (!user) return null
-    // Connect to /pirateplunder namespace to avoid conflicts with other games on /
-    const socketUrl = BACKEND_URL ? `${BACKEND_URL}/pirateplunder` : '/pirateplunder'
-    return io(socketUrl, {
-      withCredentials: true,
-      transports: ['websocket', 'polling'] // Disable WebRTC to prevent local network prompt
-    })
-  }, [Boolean(user)])
-
   // Debug: Track when me changes
   useEffect(() => {
     console.log(`👤 me state changed:`, { hasMe: !!me, meId: me?.id, meName: me?.name, meData: me });
@@ -181,7 +169,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
 
     const handleConnect = async () => {
       setConnected(true)
-      
+
       // Check deployment info for debugging
       const deployInfo = await checkDeploymentInfo()
       if (deployInfo) {
@@ -192,15 +180,9 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
         }))
       }
 
-      // Join with authenticated user's name, cosmetics, and bankroll
-      // NOTE: Auth API returns dollars, convert to TC (1 dollar = 100 TC)
-      console.log('📤 Emitting join with:', { name: user.name, bankroll: Math.round(user.bankroll * 100), tableId });
-      socket.emit('join', {
-        name: user.name,
-        cosmetics: user.cosmetics,
-        bankroll: Math.round(user.bankroll * 100), // Convert dollars to TC
-        tableId // Table ID for multi-table platform mode
-      })
+      // Join table with platform socket
+      console.log('📤 Emitting join_table with:', { tableId });
+      socket.emit('join_table', { tableId })
     }
 
     const handleDisconnect = (reason: string) => {
@@ -211,12 +193,19 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
       setGame(null)
     }
 
-    const handleJoined = (data: { player: Player; isAdmin?: boolean }) => {
-      console.log(`🔗 Joined response:`, { playerId: data.player.id?.slice(0,6), name: data.player.name, isAdmin: data.isAdmin });
-      console.log(`🔗 Setting me to:`, data.player);
-      setMe(data.player)
-      console.log(`🔗 setMe called`);
-      setIsGameAdmin(data.isAdmin || false)
+    const handleTableJoined = (data: { tableId: string; state: any }) => {
+      console.log(`🔗 Table joined:`, { tableId: data.tableId, phase: data.state?.phase });
+      // Platform provides full game state, not just player info
+      // Extract me from socket auth
+      const myId = socket?.id;
+      if (myId) {
+        setMe({
+          id: myId,
+          name: user.name,
+          isAI: false,
+          bankroll: user.bankroll
+        });
+      }
       // Don't auto-sit - let user choose
     }
 
@@ -327,7 +316,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
       console.log('🔌 Registering socket event listeners');
       socket.on('connect', handleConnect)
       socket.on('disconnect', handleDisconnect)
-      socket.on('joined', handleJoined)
+      socket.on('table_joined', handleTableJoined)
       socket.on('lobby_state', handleLobbyState)
       socket.on('table_state', handleTableState)
       socket.on('game_state', handleGameState)
@@ -342,7 +331,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
       console.log('🔌 Unregistering socket event listeners');
       socket.off('connect', handleConnect)
       socket.off('disconnect', handleDisconnect)
-      socket.off('joined', handleJoined)
+      socket.off('table_joined', handleTableJoined)
       socket.off('lobby_state', handleLobbyState)
       socket.off('table_state', handleTableState)
       socket.off('game_state', handleGameState)
@@ -361,12 +350,8 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
       unregisterListeners()
       registerListeners()
       // Request fresh game state after reconnection
-      if (user) {
-        socket.emit('join', {
-          name: user.name,
-          cosmetics: user.cosmetics,
-          bankroll: Math.round(user.bankroll * 100) // Convert dollars to TC
-        })
+      if (user && tableId) {
+        socket.emit('join_table', { tableId })
       }
     }
     socket.on('reconnect', handleReconnect)
@@ -432,12 +417,8 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
   }
 
   const handleJoinLobby = () => {
-    if (socket && user) {
-      socket.emit('join', {
-        name: user.name,
-        cosmetics: user.cosmetics,
-        bankroll: Math.round(user.bankroll * 100) // Convert dollars to TC
-      })
+    if (socket && user && tableId) {
+      socket.emit('join_table', { tableId })
     }
   }
 
