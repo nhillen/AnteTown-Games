@@ -80,6 +80,8 @@ export default function CKFlipzApp({
 
   // Use platform-provided socket
   useEffect(() => {
+    console.log('[CK Flipz] useEffect triggered - socket:', socket?.id, 'tableId:', initialTableId, 'buyIn:', initialBuyIn);
+
     if (!socket) {
       console.log('[CK Flipz] Waiting for platform socket...');
       return;
@@ -90,7 +92,7 @@ export default function CKFlipzApp({
       return;
     }
 
-    console.log('[CK Flipz] Using platform socket:', socket.id, 'for user:', username);
+    console.log('[CK Flipz] Setting up game event listeners on socket:', socket.id, 'for user:', username);
 
     // Set my socket ID
     setMyId(socket.id || '');
@@ -197,14 +199,16 @@ export default function CKFlipzApp({
     });
 
     return () => {
-      console.log('[CK Flipz] Cleaning up game event listeners');
+      console.log('[CK Flipz] Cleaning up game event listeners - socket:', socket?.id, 'tableId:', initialTableId, 'buyIn:', initialBuyIn);
       // Remove only game-specific listeners, don't close the socket
-      socket.off('table_stats');
-      socket.off('game_state');
-      socket.off('table_joined');
-      socket.off('stood_up');
-      socket.off('error');
-      socket.off('exception');
+      if (socket) {
+        socket.off('table_stats');
+        socket.off('game_state');
+        socket.off('table_joined');
+        socket.off('stood_up');
+        socket.off('error');
+        socket.off('exception');
+      }
     };
   }, [socket, initialTableId, initialBuyIn]);
 
