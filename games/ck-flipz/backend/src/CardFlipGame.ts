@@ -112,6 +112,22 @@ export class CardFlipGame extends GameBase {
     if (result.success) {
       // Track initial activity when player sits down
       this.trackActivity(player.id);
+
+      // Auto-add AI opponent for PvE mode
+      if (!player.isAI && this.gameState) {
+        const seatedCount = this.gameState.seats.filter(s => s !== null).length;
+        const humanCount = this.gameState.seats.filter(s => s && !s.isAI).length;
+
+        // If this is PvE mode and only 1 player seated, add an AI opponent
+        if (humanCount === 1 && seatedCount === 1) {
+          console.log('🤖 [CardFlip] PvE mode detected - adding AI opponent');
+          const aiPlayer = this.createAIPlayer();
+          const aiResult = super.sitPlayer(aiPlayer, undefined, actualBuyIn);
+          if (aiResult.success) {
+            console.log(`🤖 [CardFlip] AI opponent ${aiPlayer.name} added`);
+          }
+        }
+      }
     }
     return result;
   }
