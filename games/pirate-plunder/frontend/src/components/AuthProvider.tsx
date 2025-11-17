@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, type ReactNode } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import { getBackendUrl } from '../utils/backendUrl';
 
 export interface PlayerCosmetics {
@@ -45,6 +46,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  socket: Socket | null;
   login: () => void;
   logout: () => void;
   updateProfile: (updates: { name?: string; cosmetics?: Partial<PlayerCosmetics> }) => Promise<void>;
@@ -72,6 +74,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const backendUrl = getBackendUrl();
+
+  // Create socket connection when user is authenticated
+  const socket = useMemo(() => {
+    if (!user) return null;
+    console.log('🔌 Creating platform socket connection');
+    return io(backendUrl, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      auth: {
+        userId: user.id,
+        username: user.name
+      }
+    });
+  }, [user?.id, backendUrl]);
 
   const fetchUser = async () => {
     try {
@@ -191,6 +207,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     loading,
+    socket,
     login,
     logout,
     updateProfile,

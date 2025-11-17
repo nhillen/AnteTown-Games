@@ -124,7 +124,6 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
   const [showStore, setShowStore] = useState(false)
   const [showAdminMenu, setShowAdminMenu] = useState(false)
   const [isSeated, setIsSeated] = useState(false)
-  const [isGameAdmin, setIsGameAdmin] = useState(false) // Server-verified admin status
   const [showBuyInModal, setShowBuyInModal] = useState(false)
   const [buyInAmount, setBuyInAmount] = useState(10)
   const [selectedSeatIndex, setSelectedSeatIndex] = useState<number | null>(null)  // For ImprovedGameTable sit-down
@@ -698,7 +697,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
               >
                 {showRules ? 'Hide Rules' : 'Rules'}
               </Button>
-              {isGameAdmin && (
+              {user?.isAdmin && (
                 <Button
                   onClick={() => window.location.hash = 'backoffice'}
                   variant="secondary"
@@ -798,7 +797,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
             )}
 
             {/* Admin Controls - Server verified */}
-            {connected && isGameAdmin && table && (
+            {connected && user?.isAdmin && table && (
               <Panel title="⚙️ Admin Controls">
                 <div className="space-y-3">
                   <p className="text-xs text-gray-400 text-center">
@@ -810,7 +809,7 @@ export default function GameApp({ platformMode = false, tableId, BuyInModalCompo
 
             {/* Game starts automatically when enough players join */}
 
-            {connected && !isGameAdmin && (
+            {connected && !user?.isAdmin && (
               <Panel title="ℹ️ Info">
                 <div className="space-y-3">
                   <p className="text-sm text-gray-400 text-center">
