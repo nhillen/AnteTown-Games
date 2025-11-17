@@ -111,29 +111,33 @@ export default function CKFlipzApp({
     // Note: Socket lifecycle (connect/disconnect) is managed by AuthProvider
     // We only handle game-specific events here
 
-    // Table discovery
-    socket.on('table_stats', (stats: Record<string, any>) => {
-      console.log('[CK Flipz] Received table_stats:', stats);
+    // Table discovery - ONLY if we don't have an initialTableId (i.e., showing table browser)
+    if (!initialTableId) {
+      socket.on('table_stats', (stats: Record<string, any>) => {
+        console.log('[CK Flipz] Received table_stats:', stats);
 
-      const ckFlipzTables = Object.entries(stats)
-        .filter(([tableId]) => tableId.startsWith('ck-flipz-'))
-        .map(([tableId, data]: [string, any]) => ({
-          tableId,
-          displayName: data.displayName || tableId,
-          variant: data.config?.variant || 'coin-flip',
-          ante: data.config?.ante || 100,
-          maxSeats: data.config?.maxSeats || 2,
-          currentPlayers: data.playerCount || 0,
-          description: data.config?.description || 'Coin flip game',
-          emoji: data.config?.variant === 'card-flip' ? '🃏' : '🪙'
-        }));
+        const ckFlipzTables = Object.entries(stats)
+          .filter(([tableId]) => tableId.startsWith('ck-flipz-'))
+          .map(([tableId, data]: [string, any]) => ({
+            tableId,
+            displayName: data.displayName || tableId,
+            variant: data.config?.variant || 'coin-flip',
+            ante: data.config?.ante || 100,
+            maxSeats: data.config?.maxSeats || 2,
+            currentPlayers: data.playerCount || 0,
+            description: data.config?.description || 'Coin flip game',
+            emoji: data.config?.variant === 'card-flip' ? '🃏' : '🪙'
+          }));
 
-      console.log('[CK Flipz] Filtered CK Flipz tables:', ckFlipzTables);
-      setTables(ckFlipzTables);
+        console.log('[CK Flipz] Filtered CK Flipz tables:', ckFlipzTables);
+        setTables(ckFlipzTables);
 
-      // Don't auto-join - wait for user to select
-      // Auto-join was causing disconnect issues
-    });
+        // Don't auto-join - wait for user to select
+        // Auto-join was causing disconnect issues
+      });
+    } else {
+      console.log('[CK Flipz] Skipping table_stats listener - already have initialTableId');
+    }
 
     // Game state updates
     socket.on('game_state', (state: CoinFlipGameState) => {
@@ -202,7 +206,10 @@ export default function CKFlipzApp({
       console.log('[CK Flipz] Cleaning up game event listeners - socket:', socket?.id, 'tableId:', initialTableId, 'buyIn:', initialBuyIn);
       // Remove only game-specific listeners, don't close the socket
       if (socket) {
-        socket.off('table_stats');
+        // Only remove table_stats listener if we added it (no initialTableId)
+        if (!initialTableId) {
+          socket.off('table_stats');
+        }
         socket.off('game_state');
         socket.off('table_joined');
         socket.off('stood_up');
