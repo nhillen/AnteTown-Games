@@ -8,7 +8,7 @@
  * - Standardized types
  */
 
-import { Namespace, Socket } from 'socket.io';
+import { Socket } from 'socket.io';
 import { GameBase, Player, Seat as SDKSeat, GameMetadata, GameState, WinnerResult, TableConfig } from '@antetown/game-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -520,12 +520,11 @@ function mergeConfig(partial: Partial<PiratePlunderConfig> | undefined): PirateP
 export class PiratePlunderTable extends GameBase {
   private config: PiratePlunderTableConfig;
   private fullConfig: PiratePlunderConfig;  // Merged full configuration
-  private namespace: Namespace;
   public gameState: PiratePlunderGameState | null = null;
   private phaseTimer: NodeJS.Timeout | null = null;
   private aiProfiles: AIProfile[] = [];
 
-  constructor(config: PiratePlunderTableConfig, namespace: Namespace) {
+  constructor(config: PiratePlunderTableConfig) {
     // Merge incoming config with defaults
     const fullConfig = mergeConfig(config.fullConfig);
 
@@ -554,7 +553,6 @@ export class PiratePlunderTable extends GameBase {
     super(tableConfig);
     this.config = config;
     this.fullConfig = storedFullConfig;
-    this.namespace = namespace;
     this.gameType = 'pirate-plunder';
 
     // Load AI profiles from JSON file
