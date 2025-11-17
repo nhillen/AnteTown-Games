@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react';
 import { Socket } from 'socket.io-client';
 import CoinFlipClient from './CoinFlipClient';
+import CardFlipClient from './CardFlipClient';
 
 type CoinFlipGameState = {
   phase: 'Lobby' | 'Ante' | 'CallSide' | 'Flip' | 'Payout' | 'HandEnd';
@@ -53,6 +54,7 @@ export default function CKFlipzApp({
 } = {} as any) {
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedTable, setSelectedTable] = useState<string | null>(initialTableId || null);
+  const [currentVariant, setCurrentVariant] = useState<'coin-flip' | 'card-flip'>('coin-flip');
   const [gameState, setGameState] = useState<CoinFlipGameState | null>(null);
   const [myId, setMyId] = useState<string>('');
   const [isSeated, setIsSeated] = useState(false);
@@ -256,6 +258,10 @@ export default function CKFlipzApp({
     if (!socket) return;
 
     console.log('[CK Flipz] Selecting table:', tableId);
+    const table = tables.find(t => t.tableId === tableId);
+    if (table) {
+      setCurrentVariant(table.variant);
+    }
     setSelectedTable(tableId);
     socket.emit('join_table', { tableId });
   };
@@ -354,10 +360,12 @@ export default function CKFlipzApp({
     );
   }
 
-  // Game screen
+  // Game screen - render appropriate client based on variant
+  const GameClient = currentVariant === 'card-flip' ? CardFlipClient : CoinFlipClient;
+
   return (
-    <CoinFlipClient
-      game={gameState}
+    <GameClient
+      game={gameState as any}
       meId={myId}
       onPlayerAction={handlePlayerAction}
       onSitDown={handleSitDown}
