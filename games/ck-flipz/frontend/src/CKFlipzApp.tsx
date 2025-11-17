@@ -82,19 +82,13 @@ export default function CKFlipzApp({
 
   // Use platform-provided socket
   useEffect(() => {
-    console.log('[CK Flipz] useEffect triggered - socket:', socket?.id, 'tableId:', initialTableId, 'buyIn:', initialBuyIn);
-
     if (!socket) {
-      console.log('[CK Flipz] Waiting for platform socket...');
       return;
     }
 
     if (!userId || !username) {
-      console.log('[CK Flipz] Waiting for user credentials...');
       return;
     }
-
-    console.log('[CK Flipz] Setting up game event listeners on socket:', socket.id, 'for user:', username);
 
     // Set my socket ID
     setMyId(socket.id || '');
@@ -102,11 +96,9 @@ export default function CKFlipzApp({
 
     // Join table on mount
     if (initialTableId) {
-      console.log('[CK Flipz] Auto-joining table:', initialTableId);
       socket.emit('join_table', { tableId: initialTableId });
     } else {
       // Otherwise request table stats for selection
-      console.log('[CK Flipz] Requesting table stats...');
       socket.emit('request_table_stats');
     }
 
@@ -116,10 +108,8 @@ export default function CKFlipzApp({
     // Table discovery - ONLY if we don't have an initialTableId (i.e., showing table browser)
     if (!initialTableId) {
       socket.on('table_stats', (stats: Record<string, any>) => {
-        console.log('[CK Flipz] Received table_stats:', stats);
-
         const ckFlipzTables = Object.entries(stats)
-          .filter(([tableId]) => tableId.startsWith('ck-flipz-'))
+          .filter(([tableId]) => tableId.startsWith('flipz-'))
           .map(([tableId, data]: [string, any]) => ({
             tableId,
             displayName: data.displayName || tableId,
@@ -131,19 +121,18 @@ export default function CKFlipzApp({
             emoji: data.config?.variant === 'card-flip' ? '🃏' : '🪙'
           }));
 
-        console.log('[CK Flipz] Filtered CK Flipz tables:', ckFlipzTables);
+        if (ckFlipzTables.length === 0) {
+          console.warn('[CK Flipz] No tables found in table_stats');
+        }
         setTables(ckFlipzTables);
 
         // Don't auto-join - wait for user to select
         // Auto-join was causing disconnect issues
       });
-    } else {
-      console.log('[CK Flipz] Skipping table_stats listener - already have initialTableId');
     }
 
     // Game state updates
     socket.on('game_state', (state: CoinFlipGameState) => {
-      console.log('[CK Flipz] Game state update:', state);
       setGameState(state);
 
       // Check if we're seated
@@ -159,7 +148,6 @@ export default function CKFlipzApp({
         if (emptySeatIndex !== -1) {
           // Use provided buy-in or calculate default (5x ante, min 100 TC)
           const buyIn = initialBuyIn || Math.max(state.ante * 5, 100);
-          console.log('[CK Flipz] Auto-sitting at seat', emptySeatIndex, 'with buy-in:', buyIn, 'TC');
           setHasAttemptedAutoSit(true);
           socket.emit('sit_down', {
             seatIndex: emptySeatIndex,
@@ -171,7 +159,6 @@ export default function CKFlipzApp({
 
     // Joined table
     socket.on('table_joined', (data: { tableId: string }) => {
-      console.log('[CK Flipz] Joined table:', data.tableId);
       setSelectedTable(data.tableId);
       // Game state will come via separate game_state event
     });
@@ -180,8 +167,7 @@ export default function CKFlipzApp({
     // No need to listen here - the platform socket already handles it
 
     // Stood up - return to lobby
-    socket.on('stood_up', (data: { tableId: string }) => {
-      console.log('[CK Flipz] Stood up from table:', data.tableId);
+    socket.on('stood_up', () => {
       setSelectedTable(null);
       setGameState(null);
       setIsSeated(false);
@@ -225,7 +211,6 @@ export default function CKFlipzApp({
   const handlePlayerAction = (action: string, amount?: number) => {
     if (!socket || !selectedTable) return;
 
-    console.log('[CK Flipz] Player action:', action, amount);
     socket.emit('player_action', {
       tableId: selectedTable,
       action,
@@ -237,7 +222,6 @@ export default function CKFlipzApp({
   const handleSitDown = (seatIndex: number, buyInAmount: number) => {
     if (!socket || !selectedTable) return;
 
-    console.log('[CK Flipz] Sitting down at seat:', seatIndex, 'with buy-in:', buyInAmount);
     socket.emit('sit_down', {
       tableId: selectedTable,
       seatIndex,
@@ -249,7 +233,6 @@ export default function CKFlipzApp({
   const handleStandUp = () => {
     if (!socket || !selectedTable) return;
 
-    console.log('[CK Flipz] Standing up');
     socket.emit('stand_up', { tableId: selectedTable });
   };
 
@@ -257,7 +240,6 @@ export default function CKFlipzApp({
   const handleSelectTable = (tableId: string) => {
     if (!socket) return;
 
-    console.log('[CK Flipz] Selecting table:', tableId);
     const table = tables.find(t => t.tableId === tableId);
     if (table) {
       setCurrentVariant(table.variant);
