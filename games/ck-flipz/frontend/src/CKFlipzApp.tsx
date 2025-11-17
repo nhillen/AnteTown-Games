@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
 import CoinFlipClient from './CoinFlipClient';
 
 type CoinFlipGameState = {
@@ -36,24 +36,21 @@ type Table = {
   emoji: string;
 };
 
-const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || window.location.origin;
-
 export default function CKFlipzApp({
+  socket,
   initialTableId,
   initialBuyIn,
   userId,
   username,
-  onLeaveTable,
-  onBalanceUpdate
+  onLeaveTable
 }: {
+  socket: Socket | null;
   initialTableId?: string | null;
   initialBuyIn?: number;
   userId?: string;
   username?: string;
   onLeaveTable?: () => void;
-  onBalanceUpdate?: (currencyCode: string, newBalance: number, reason?: string) => void;
-} = {}) {
-  const [socket, setSocket] = useState<Socket | null>(null);
+} = {} as any) {
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedTable, setSelectedTable] = useState<string | null>(initialTableId || null);
   const [gameState, setGameState] = useState<CoinFlipGameState | null>(null);
@@ -81,52 +78,39 @@ export default function CKFlipzApp({
     );
   }
 
-  // Connect to socket (only after we have user credentials)
+  // Use platform-provided socket
   useEffect(() => {
-    if (!userId || !username) {
-      console.log('[CK Flipz] Waiting for user credentials before connecting...');
+    if (!socket) {
+      console.log('[CK Flipz] Waiting for platform socket...');
       return;
     }
 
-    console.log('[CK Flipz] Connecting to backend:', BACKEND_URL, 'with user:', username);
-    const newSocket = io(BACKEND_URL, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      withCredentials: true,
-      auth: {
-        userId: userId,
-        username: username
-      }
-    });
+    if (!userId || !username) {
+      console.log('[CK Flipz] Waiting for user credentials...');
+      return;
+    }
 
-    newSocket.on('connect', () => {
-      console.log('[CK Flipz] Connected to server, socket ID:', newSocket.id);
-      setMyId(newSocket.id || '');
-      setConnectionStatus('connected');
+    console.log('[CK Flipz] Using platform socket:', socket.id, 'for user:', username);
 
-      // If initialTableId provided, auto-join that table
-      if (initialTableId) {
-        console.log('[CK Flipz] Auto-joining table:', initialTableId);
-        newSocket.emit('join_table', { tableId: initialTableId });
-      } else {
-        // Otherwise request table stats for selection
-        console.log('[CK Flipz] Requesting table stats...');
-        newSocket.emit('request_table_stats');
-      }
-    });
+    // Set my socket ID
+    setMyId(socket.id || '');
+    setConnectionStatus('connected');
 
-    newSocket.on('connect_error', (error) => {
-      console.error('[CK Flipz] Connection error:', error);
-      setConnectionStatus('error');
-    });
+    // Join table on mount
+    if (initialTableId) {
+      console.log('[CK Flipz] Auto-joining table:', initialTableId);
+      socket.emit('join_table', { tableId: initialTableId });
+    } else {
+      // Otherwise request table stats for selection
+      console.log('[CK Flipz] Requesting table stats...');
+      socket.emit('request_table_stats');
+    }
 
-    newSocket.on('disconnect', () => {
-      console.log('[CK Flipz] Disconnected from server');
-      setConnectionStatus('connecting');
-    });
+    // Note: Socket lifecycle (connect/disconnect) is managed by AuthProvider
+    // We only handle game-specific events here
 
     // Table discovery
-    newSocket.on('table_stats', (stats: Record<string, any>) => {
+    socket.on('table_stats', (stats: Record<string, any>) => {
       console.log('[CK Flipz] Received table_stats:', stats);
 
       const ckFlipzTables = Object.entries(stats)
@@ -150,12 +134,12 @@ export default function CKFlipzApp({
     });
 
     // Game state updates
-    newSocket.on('game_state', (state: CoinFlipGameState) => {
+    socket.on('game_state', (state: CoinFlipGameState) => {
       console.log('[CK Flipz] Game state update:', state);
       setGameState(state);
 
       // Check if we're seated
-      const seated = state.seats.some(s => s?.playerId === newSocket.id);
+      const seated = state.seats.some(s => s?.playerId === socket.id);
       setIsSeated(seated);
 
       // DISABLED: Refresh on sit causes disconnect issues
@@ -169,7 +153,7 @@ export default function CKFlipzApp({
           const buyIn = initialBuyIn || Math.max(state.ante * 5, 100);
           console.log('[CK Flipz] Auto-sitting at seat', emptySeatIndex, 'with buy-in:', buyIn, 'TC');
           setHasAttemptedAutoSit(true);
-          newSocket.emit('sit_down', {
+          socket.emit('sit_down', {
             seatIndex: emptySeatIndex,
             buyInAmount: buyIn  // TC amount directly, no conversion needed
           });
@@ -178,22 +162,17 @@ export default function CKFlipzApp({
     });
 
     // Joined table
-    newSocket.on('table_joined', (data: { tableId: string }) => {
+    socket.on('table_joined', (data: { tableId: string }) => {
       console.log('[CK Flipz] Joined table:', data.tableId);
       setSelectedTable(data.tableId);
       // Game state will come via separate game_state event
     });
 
-    // Balance updates from platform (Balance Transfer pattern)
-    newSocket.on('balance_updated', (data: { currencyCode: string; newBalance: number; change: number; reason: string; tableId?: string }) => {
-      console.log('[CK Flipz] Balance updated:', data);
-      if (onBalanceUpdate) {
-        onBalanceUpdate(data.currencyCode, data.newBalance, data.reason);
-      }
-    });
+    // Balance updates are handled by AuthProvider
+    // No need to listen here - the platform socket already handles it
 
     // Stood up - return to lobby
-    newSocket.on('stood_up', (data: { tableId: string }) => {
+    socket.on('stood_up', (data: { tableId: string }) => {
       console.log('[CK Flipz] Stood up from table:', data.tableId);
       setSelectedTable(null);
       setGameState(null);
@@ -208,22 +187,26 @@ export default function CKFlipzApp({
     });
 
     // Error handling
-    newSocket.on('error', (error: any) => {
+    socket.on('error', (error: any) => {
       console.error('[CK Flipz] Server error:', error);
     });
 
     // Catch-all for any errors
-    newSocket.on('exception', (error: any) => {
+    socket.on('exception', (error: any) => {
       console.error('[CK Flipz] Server exception:', error);
     });
 
-    setSocket(newSocket);
-
     return () => {
-      console.log('[CK Flipz] Cleaning up socket connection');
-      newSocket.close();
+      console.log('[CK Flipz] Cleaning up game event listeners');
+      // Remove only game-specific listeners, don't close the socket
+      socket.off('table_stats');
+      socket.off('game_state');
+      socket.off('table_joined');
+      socket.off('stood_up');
+      socket.off('error');
+      socket.off('exception');
     };
-  }, [userId, username]);
+  }, [socket, initialTableId, initialBuyIn]);
 
   // Handle player actions
   const handlePlayerAction = (action: string, amount?: number) => {
