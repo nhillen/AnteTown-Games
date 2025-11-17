@@ -605,7 +605,7 @@ export class CoinFlipGame extends GameBase {
       seats: emptySeats,
       pot: 0,
       currentBet: 0,
-      ante: 0,
+      ante: this.getAnteAmount(),  // Use configured ante amount
       handCount: 0,
     };
   }
