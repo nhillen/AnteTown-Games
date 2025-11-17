@@ -161,8 +161,14 @@ export default function CKFlipzApp({
 
       // Refresh currency when we sit down (seated changed from false to true)
       if (seated && !wasSeated && onCurrencyChange) {
-        console.log('[CK Flipz] Seated - refreshing currency balance');
-        onCurrencyChange();
+        console.log('[CK Flipz] Seated - will refresh currency in 500ms');
+        // Delay refresh to avoid component lifecycle issues
+        setTimeout(() => {
+          console.log('[CK Flipz] Refreshing currency balance now');
+          Promise.resolve(onCurrencyChange()).catch(err =>
+            console.error('[CK Flipz] Error refreshing currency:', err)
+          );
+        }, 500);
       }
 
       // Auto-sit if we joined via initialTableId and haven't sat yet
