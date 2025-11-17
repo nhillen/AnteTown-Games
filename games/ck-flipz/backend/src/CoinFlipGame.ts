@@ -642,6 +642,7 @@ export class CoinFlipGame extends GameBase {
       currentBet: 0,
       ante: this.getAnteAmount(),  // Use configured ante amount
       handCount: 0,
+      gameType: this.gameType,  // Include game type in state
     };
   }
 

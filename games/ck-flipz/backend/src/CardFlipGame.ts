@@ -653,6 +653,7 @@ export class CardFlipGame extends GameBase {
       flippedCards: [],
       redCount: 0,
       blackCount: 0,
+      gameType: this.gameType,  // Include game type in state
     };
   }
 

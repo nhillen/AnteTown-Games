@@ -24,6 +24,7 @@ type CoinFlipGameState = {
   calledSide?: 'heads' | 'tails';
   callerPlayerId?: string;
   flipResult?: 'heads' | 'tails';
+  gameType?: string; // 'flipz' for coin, 'card-flip' for cards
 };
 
 type Table = {
@@ -134,6 +135,12 @@ export default function CKFlipzApp({
     // Game state updates
     socket.on('game_state', (state: CoinFlipGameState) => {
       setGameState(state);
+
+      // Update variant from game state if available
+      if (state.gameType) {
+        const variant = state.gameType === 'card-flip' ? 'card-flip' : 'coin-flip';
+        setCurrentVariant(variant);
+      }
 
       // Check if we're seated
       const seated = state.seats.some(s => s?.playerId === socket.id);
