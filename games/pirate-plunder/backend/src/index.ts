@@ -31,7 +31,7 @@ export const GAME_METADATA = {
 export type {
   ValidatedPiratePlunderConfig,
   ValidatedFullPiratePlunderConfig,
-  type PlatformGameConfig
+  PlatformGameConfig
 } from './config/index.js';
 
 export {
