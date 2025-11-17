@@ -16,23 +16,26 @@ This repository consolidates:
 ```
 AnteTown-Games/
 ├── games/
-│   ├── pirate-plunder/      # Dice game - Roll to be Captain or Crew (primary reference)
-│   ├── ck-flipz/            # Simple coin/card flip betting (minimal reference implementation)
-│   ├── war-faire/           # Strategic card game across three fairs
-│   ├── houserules-poker/    # Texas Hold'em poker
-│   └── last-breath/         # Additional game
+│   ├── pirate-plunder/      # Dice game - Roll to be Captain or Crew (complex multi-phase)
+│   ├── ck-flipz/            # Simple coin/card flip betting (minimal reference)
+│   ├── war-faire/           # Strategic card game across three fairs (legacy structure)
+│   ├── houserules-poker/    # Texas Hold'em poker (advanced rules engine)
+│   └── last-breath/         # Push-your-luck survival game (shared run system)
 ├── packages/
 │   └── game-sdk/            # Shared game framework (GameBase, GameRegistry, MultiTableLobby)
 └── tools/                   # Build and development tools (TODO)
 ```
 
-Each game follows this structure:
+### Game Structure Variations
+
+**Standard structure** (CK Flipz, HouseRules Poker, Last Breath):
 ```
 games/{game-name}/
 ├── backend/
 │   ├── src/
-│   │   ├── index.ts           # Exports: initializeGame(), GAME_METADATA
-│   │   ├── {GameName}Table.ts # Game logic class (extends GameBase)
+│   │   ├── index.ts           # Exports: gameInitializer, GAME_METADATA
+│   │   ├── {GameName}Game.ts  # Game logic class (extends GameBase)
+│   │   ├── initializer.ts     # GameInitializer implementation
 │   │   └── types/             # Type definitions
 │   ├── tests/                 # Jest tests
 │   ├── package.json
@@ -45,6 +48,33 @@ games/{game-name}/
 │   └── tsconfig.json
 └── package.json               # Root package for game (coordinates backend/frontend)
 ```
+
+**Legacy flat structure** (War Faire only - avoid for new games):
+```
+games/war-faire/
+├── src/                       # TypeScript source
+├── dist/                      # Compiled output
+├── public/                    # Static assets
+├── game.js, card.js, etc.     # Legacy JS files
+└── package.json               # Single flat package
+```
+
+**Monolithic structure** (Pirate Plunder only - uses legacy initialization):
+```
+games/pirate-plunder/
+├── backend/
+│   ├── src/
+│   │   ├── index.ts           # Exports: initializePiratePlunder() (legacy)
+│   │   └── game-logic/        # Game implementation
+│   └── tests/
+├── frontend/
+│   ├── src/
+│   │   └── components/
+│   └── tests/
+└── package.json               # Root package coordinates both
+```
+
+**Note**: New games should follow the **Standard structure** with `GameInitializer` pattern.
 
 ## Development Commands
 
@@ -240,7 +270,7 @@ if (seat) {  // seat could be undefined from array access
    - Create `YourGame` class extending `GameBase` from game-sdk
    - Create `initializer.ts` implementing `GameInitializer` interface:
      ```typescript
-     import type { GameInitializer } from '@pirate/game-sdk';
+     import type { GameInitializer } from '@antetown/game-sdk';
 
      export const yourGameInitializer: GameInitializer = {
        createInstance(config: any, io?: any): any {
@@ -266,15 +296,16 @@ if (seat) {  // seat could be undefined from array access
 
 5. **Register with platform** (in AnteTown-Platform):
    ```typescript
-   const { yourGameInitializer } = require('@pirate/game-your-game');
+   const { yourGameInitializer } = require('@antetown/game-your-game');
    tableManager.registerGame('your-game', yourGameInitializer);
    ```
 
-6. **Reference implementations:**
-   - **Minimal**: CK Flipz - Simplest game, good starting point, has GameInitializer
-   - **War Faire**: Medium complexity, has GameInitializer
-   - **Poker**: Advanced features, has GameInitializer with config mapper
-   - **Full-featured**: Pirate Plunder - Complex game (still uses legacy initialization)
+6. **Reference implementations by feature:**
+   - **Simplest game**: CK Flipz - Minimal 2-player flip game, clean GameInitializer pattern
+   - **Shared run system**: Last Breath - Single-player with shared leaderboard runs
+   - **Complex rules engine**: HouseRules Poker - Multiple variants, side games, config mapper
+   - **Legacy flat structure**: War Faire - Card game (needs migration to standard structure)
+   - **Complex multi-phase**: Pirate Plunder - Dice game with AI, multiple phases (uses legacy init)
 
 ## Integration with AnteTown Platform
 
@@ -284,20 +315,22 @@ The AnteTown platform imports games from this monorepo using `file:` dependencie
 ```json
 {
   "dependencies": {
-    "@pirate/game-ck-flipz": "file:../AnteTown-Games/games/ck-flipz",
-    "@pirate/game-warfaire": "file:../AnteTown-Games/games/war-faire",
-    "@pirate/game-houserules": "file:../AnteTown-Games/games/houserules-poker/backend",
-    "@pirate/game-pirate-plunder": "file:../AnteTown-Games/games/pirate-plunder"
+    "@antetown/game-ck-flipz": "file:../AnteTown-Games/games/ck-flipz",
+    "@antetown/game-warfaire": "file:../AnteTown-Games/games/war-faire",
+    "@antetown/game-houserules": "file:../AnteTown-Games/games/houserules-poker/backend",
+    "@antetown/game-pirate-plunder": "file:../AnteTown-Games/games/pirate-plunder"
   }
 }
 ```
 
+**Note**: Some legacy code may still use `@pirate/*` namespace - being migrated to `@antetown/*`.
+
 **Platform backend** registers game initializers:
 ```typescript
-// Import game initializers
-const { ckFlipzInitializer } = require('@pirate/game-ck-flipz');
-const { warFaireInitializer } = require('@pirate/game-warfaire');
-const { pokerInitializer } = await import('@pirate/game-houserules');
+// Import game initializers (modern pattern)
+const { ckFlipzInitializer } = require('@antetown/game-ck-flipz');
+const { warFaireInitializer } = require('@antetown/game-warfaire');
+const { pokerInitializer } = await import('@antetown/game-houserules');
 
 // Register with TableManager
 tableManager.registerGame('ck-flipz', ckFlipzInitializer);
@@ -318,14 +351,14 @@ for (const config of configs) {
 }
 
 // Legacy: Pirate Plunder still uses old initialization
-const { initializePiratePlunder } = require('@pirate/game-pirate-plunder');
+const { initializePiratePlunder } = require('@antetown/game-pirate-plunder');
 initializePiratePlunder(io, { namespace: '/pirateplunder', tables: [...] });
 ```
 
 **Platform frontend** imports and renders:
 ```typescript
-import { CKFlipzClient } from '@pirate/game-ck-flipz/client';
-import { WarFaireClient } from '@pirate/game-warfaire/client';
+import { CKFlipzClient } from '@antetown/game-ck-flipz/client';
+import { WarFaireClient } from '@antetown/game-warfaire/client';
 
 // In game router:
 <Route path="/ck-flipz" element={<CKFlipzClient />} />
@@ -334,9 +367,12 @@ import { WarFaireClient } from '@pirate/game-warfaire/client';
 
 ## Package Naming Convention
 
-- Backend package: `@antetown/game-{name}`
+- Backend package: `@antetown/game-{name}` (standard)
 - Frontend export: `@antetown/game-{name}/client`
-- Table class: `{GameName}Table` (e.g., `PiratePlunderTable`)
+- Game class: `{GameName}Game` (e.g., `CoinFlipGame`, `LastBreathGame`)
+- Table class: `{GameName}Table` (legacy pattern, e.g., `PiratePlunderTable`)
+
+**Note**: Some legacy code may reference `@pirate/*` namespace - this is being phased out in favor of `@antetown/*`.
 
 **Example exports in package.json:**
 ```json
@@ -354,19 +390,34 @@ import { WarFaireClient } from '@pirate/game-warfaire/client';
 
 Located in `packages/game-sdk/`, provides shared framework:
 
-**Exports:**
-- `GameBase` - Base class for game tables (state management, player handling)
+**Key Exports:**
+- `GameBase` - Abstract base class with standard table methods (state management, player handling)
+- `GameInitializer` interface - Required for TableManager integration (modern pattern)
 - `GameRegistry` - Registry for all available games
 - `MultiTableLobby` - React component for multi-table UI
-- Types: `GamePhase`, `Player`, `Seat`, `TableConfig`, `GameState`, `GameMetadata`
+- Types: `GamePhase`, `Player`, `Seat`, `TableConfig`, `GameState`, `GameMetadata`, `GameInstance`
+- Socket.IO type helpers and utilities
+- Zod validation schemas for common game patterns
+
+**Dependencies:**
+- `socket.io` - Real-time communication
+- `zod` - Runtime type validation
+- `react` / `react-dom` - UI components (peer dependencies)
 
 **Usage in games:**
 ```typescript
 import { GameBase, type TableConfig, type GameState } from '@antetown/game-sdk';
+import type { GameInitializer } from '@antetown/game-sdk';
 
-class MyGameTable extends GameBase {
+class MyGame extends GameBase {
   // Implement game logic
 }
+
+export const myGameInitializer: GameInitializer = {
+  createInstance(config: any, io?: any) {
+    return new MyGame(config);
+  }
+};
 ```
 
 ## Development Workflow
