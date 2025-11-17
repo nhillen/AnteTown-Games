@@ -378,11 +378,9 @@ export abstract class GameBase {
       return { success: false, error: 'Game not initialized' };
     }
 
-    // Validate buy-in amount (currency units, no conversion)
+    // Platform validates affordability via currencyManager BEFORE calling this
+    // Games should NOT check or modify player.bankroll - that's the platform's job
     const requiredBuyIn = buyInAmount || 1000; // Default minimum buy-in
-    if (player.bankroll < requiredBuyIn) {
-      return { success: false, error: 'Insufficient bankroll' };
-    }
 
     // Find empty seat
     let targetSeat = seatIndex;
@@ -398,12 +396,12 @@ export abstract class GameBase {
       return { success: false, error: 'Seat already taken' };
     }
 
-    // Create seat
+    // Create seat with table stack (balance transfer from wallet to table)
     const seat: Seat = {
       playerId: player.id,
       name: player.name,
       isAI: player.isAI,
-      tableStack: requiredBuyIn,
+      tableStack: requiredBuyIn,  // This is the player's table balance
       hasFolded: false,
       currentBet: 0,
       hasActed: false,
@@ -413,9 +411,8 @@ export abstract class GameBase {
 
     this.gameState.seats[targetSeat] = seat;
 
-    // Deduct from player bankroll (would normally persist to DB)
-    player.bankroll -= requiredBuyIn;
-    player.tableStack = requiredBuyIn;
+    // DO NOT modify player.bankroll - platform handles wallet transactions
+    // The buy-in was already deducted from database by platform layer
 
     return { success: true, seatIndex: targetSeat };
   }
@@ -439,11 +436,8 @@ export abstract class GameBase {
     }
 
     if (immediate || this.gameState.phase === 'Lobby') {
-      // Return table stack to bankroll
-      const player = this.getPlayer(playerId);
-      if (player) {
-        player.bankroll += seat.tableStack;
-      }
+      // Platform handles crediting tableStack back to wallet (Balance Transfer pattern)
+      // Game just removes player from seat - DO NOT modify player.bankroll
 
       // Remove from seat
       this.gameState.seats[seatIndex] = null as any; // Type cast for now
