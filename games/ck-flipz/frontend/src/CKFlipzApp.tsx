@@ -44,14 +44,14 @@ export default function CKFlipzApp({
   userId,
   username,
   onLeaveTable,
-  onCurrencyChange
+  onBalanceUpdate
 }: {
   initialTableId?: string | null;
   initialBuyIn?: number;
   userId?: string;
   username?: string;
   onLeaveTable?: () => void;
-  onCurrencyChange?: () => void | Promise<void>;
+  onBalanceUpdate?: (currencyCode: string, newBalance: number, reason?: string) => void;
 } = {}) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
@@ -184,6 +184,14 @@ export default function CKFlipzApp({
       // Game state will come via separate game_state event
     });
 
+    // Balance updates from platform (Balance Transfer pattern)
+    newSocket.on('balance_updated', (data: { currencyCode: string; newBalance: number; change: number; reason: string; tableId?: string }) => {
+      console.log('[CK Flipz] Balance updated:', data);
+      if (onBalanceUpdate) {
+        onBalanceUpdate(data.currencyCode, data.newBalance, data.reason);
+      }
+    });
+
     // Stood up - return to lobby
     newSocket.on('stood_up', (data: { tableId: string }) => {
       console.log('[CK Flipz] Stood up from table:', data.tableId);
@@ -191,11 +199,7 @@ export default function CKFlipzApp({
       setGameState(null);
       setIsSeated(false);
 
-      // Refresh currency when we stand up (cashout happens)
-      if (onCurrencyChange) {
-        console.log('[CK Flipz] Stood up - refreshing currency balance');
-        onCurrencyChange();
-      }
+      // Balance will be updated via balance_updated event from platform
 
       // Notify parent component to return to lobby
       if (onLeaveTable) {
