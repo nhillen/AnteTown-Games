@@ -59,9 +59,13 @@ export const ckFlipzInitializer: GameInitializer = {
    * Validate config before creating instance
    */
   validateConfig(config: any): { valid: boolean; error?: string } {
+    console.log('🔍 [validateConfig] Received config:', JSON.stringify(config, null, 2));
+
     // Validate ante
     const ante = config.ante || config.anteAmount;
+    console.log('🔍 [validateConfig] ante value:', ante, 'type:', typeof ante);
     if (!ante || typeof ante !== 'number' || ante <= 0) {
+      console.log('❌ [validateConfig] Validation failed - ante:', ante, 'typeof:', typeof ante);
       return { valid: false, error: 'Invalid ante amount: must be a positive number' };
     }
 
