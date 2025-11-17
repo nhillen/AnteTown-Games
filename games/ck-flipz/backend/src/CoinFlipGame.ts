@@ -109,6 +109,14 @@ export class CoinFlipGame extends GameBase {
           const aiResult = super.sitPlayer(aiPlayer, undefined, actualBuyIn);
           if (aiResult.success) {
             console.log(`🤖 [CoinFlip] AI opponent ${aiPlayer.name} added`);
+            // Auto-mark AI as ready
+            if (!this.gameState.readyPlayers) {
+              this.gameState.readyPlayers = [];
+            }
+            if (!this.gameState.readyPlayers.includes(aiPlayer.id)) {
+              this.gameState.readyPlayers.push(aiPlayer.id);
+              console.log(`🤖 [CoinFlip] AI opponent auto-marked ready`);
+            }
           }
         }
       }
@@ -250,8 +258,19 @@ export class CoinFlipGame extends GameBase {
       return;
     }
 
-    // Side bet - no money collected at start, settled after flip
-    console.log(`🪙 [Flipz] Side bet mode - ante is ${anteAmount}`);
+    // Collect antes from each player and add to pot
+    let totalAntes = 0;
+    for (const seat of this.gameState.seats) {
+      if (seat && !seat.hasFolded) {
+        seat.tableStack -= anteAmount;
+        seat.currentBet = anteAmount;
+        seat.totalContribution = anteAmount;
+        totalAntes += anteAmount;
+        console.log(`🪙 [Flipz] Collected ${anteAmount} ante from ${seat.name} (stack now: ${seat.tableStack})`);
+      }
+    }
+    this.gameState.pot = totalAntes;
+    console.log(`🪙 [Flipz] Total pot after antes: ${this.gameState.pot}`);
 
     // Move to call side phase after 1 second
     this.phaseTimer = setTimeout(() => {

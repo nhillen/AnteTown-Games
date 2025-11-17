@@ -125,6 +125,14 @@ export class CardFlipGame extends GameBase {
           const aiResult = super.sitPlayer(aiPlayer, undefined, actualBuyIn);
           if (aiResult.success) {
             console.log(`🤖 [CardFlip] AI opponent ${aiPlayer.name} added`);
+            // Auto-mark AI as ready
+            if (!this.gameState.readyPlayers) {
+              this.gameState.readyPlayers = [];
+            }
+            if (!this.gameState.readyPlayers.includes(aiPlayer.id)) {
+              this.gameState.readyPlayers.push(aiPlayer.id);
+              console.log(`🤖 [CardFlip] AI opponent auto-marked ready`);
+            }
           }
         }
       }
@@ -250,8 +258,19 @@ export class CardFlipGame extends GameBase {
       return;
     }
 
-    // Side bet - no money collected at start, settled after flip
-    console.log(`🎴 [CardFlip] Side bet mode - ante is ${anteAmount}, max payout is ${anteAmount * 6}`);
+    // Collect antes from each player and add to pot
+    let totalAntes = 0;
+    for (const seat of this.gameState.seats) {
+      if (seat && !seat.hasFolded) {
+        seat.tableStack -= anteAmount;
+        seat.currentBet = anteAmount;
+        seat.totalContribution = anteAmount;
+        totalAntes += anteAmount;
+        console.log(`🎴 [CardFlip] Collected ${anteAmount} ante from ${seat.name} (stack now: ${seat.tableStack})`);
+      }
+    }
+    this.gameState.pot = totalAntes;
+    console.log(`🎴 [CardFlip] Total pot after antes: ${this.gameState.pot}, max payout is ${anteAmount * 6}`);
 
     this.phaseTimer = setTimeout(() => {
       this.transitionToPhase('PickSide');
