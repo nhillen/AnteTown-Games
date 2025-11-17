@@ -43,13 +43,15 @@ export default function CKFlipzApp({
   initialBuyIn,
   userId,
   username,
-  onLeaveTable
+  onLeaveTable,
+  onCurrencyChange
 }: {
   initialTableId?: string | null;
   initialBuyIn?: number;
   userId?: string;
   username?: string;
   onLeaveTable?: () => void;
+  onCurrencyChange?: () => void | Promise<void>;
 } = {}) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
@@ -154,7 +156,14 @@ export default function CKFlipzApp({
 
       // Check if we're seated
       const seated = state.seats.some(s => s?.playerId === newSocket.id);
+      const wasSeated = isSeated;
       setIsSeated(seated);
+
+      // Refresh currency when we sit down (seated changed from false to true)
+      if (seated && !wasSeated && onCurrencyChange) {
+        console.log('[CK Flipz] Seated - refreshing currency balance');
+        onCurrencyChange();
+      }
 
       // Auto-sit if we joined via initialTableId and haven't sat yet
       if (initialTableId && !seated && !hasAttemptedAutoSit) {
@@ -185,6 +194,13 @@ export default function CKFlipzApp({
       setSelectedTable(null);
       setGameState(null);
       setIsSeated(false);
+
+      // Refresh currency when we stand up (cashout happens)
+      if (onCurrencyChange) {
+        console.log('[CK Flipz] Stood up - refreshing currency balance');
+        onCurrencyChange();
+      }
+
       // Notify parent component to return to lobby
       if (onLeaveTable) {
         onLeaveTable();
