@@ -156,20 +156,10 @@ export default function CKFlipzApp({
 
       // Check if we're seated
       const seated = state.seats.some(s => s?.playerId === newSocket.id);
-      const wasSeated = isSeated;
       setIsSeated(seated);
 
-      // Refresh currency when we sit down (seated changed from false to true)
-      if (seated && !wasSeated && onCurrencyChange) {
-        console.log('[CK Flipz] Seated - will refresh currency in 500ms');
-        // Delay refresh to avoid component lifecycle issues
-        setTimeout(() => {
-          console.log('[CK Flipz] Refreshing currency balance now');
-          Promise.resolve(onCurrencyChange()).catch(err =>
-            console.error('[CK Flipz] Error refreshing currency:', err)
-          );
-        }, 500);
-      }
+      // DISABLED: Refresh on sit causes disconnect issues
+      // Balance will be refreshed when standing up instead
 
       // Auto-sit if we joined via initialTableId and haven't sat yet
       if (initialTableId && !seated && !hasAttemptedAutoSit) {
