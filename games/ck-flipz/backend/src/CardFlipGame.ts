@@ -66,7 +66,7 @@ export class CardFlipGame extends GameBase {
     return {
       emoji: '🎴',
       botNamePrefix: 'CardBot',
-      defaultBuyIn: this.getAnteAmount() * 5  // 5x ante
+      defaultBuyIn: this.getAnteAmount() * 6  // 6x ante (minimum required)
     };
   }
 
@@ -89,16 +89,17 @@ export class CardFlipGame extends GameBase {
 
   /**
    * Override sitPlayer to enforce minimum buy-in based on ante
+   * Minimum = 6x ante (worst case: 3 cards × 2x multiplier when all same color)
    */
   public sitPlayer(player: Player, seatIndex?: number, buyInAmount?: number): { success: boolean; error?: string; seatIndex?: number } {
     const anteAmount = this.getAnteAmount();
-    const minimumBuyIn = anteAmount * this.minBuyInMultiplier;
+    const minimumBuyIn = anteAmount * 6; // 6x ante to cover max loss (3 cards × 2x when all same color)
 
     // Enforce minimum buy-in
     if (buyInAmount && buyInAmount < minimumBuyIn) {
       return {
         success: false,
-        error: `Minimum buy-in is ${minimumBuyIn} ${this.currency} (${this.minBuyInMultiplier}x the ${anteAmount} ${this.currency} ante)`
+        error: `Minimum buy-in is ${minimumBuyIn} ${this.currency} (6x the ${anteAmount} ${this.currency} stake) to cover maximum possible loss`
       };
     }
 
@@ -230,17 +231,18 @@ export class CardFlipGame extends GameBase {
     if (!this.gameState) return;
 
     const anteAmount = this.getAnteAmount();
-    console.log(`🎴 [CardFlip] Collecting ${anteAmount} ante from each player`);
+    const minimumStack = anteAmount * 6; // 6x ante to cover max loss
+    console.log(`🎴 [CardFlip] Checking minimum balance (${minimumStack} ${this.currency}) for ${anteAmount} ${this.currency} stake`);
 
-    // Check and handle players who can't cover ante
+    // Check and handle players who can't cover maximum possible loss
     for (let i = 0; i < this.gameState.seats.length; i++) {
       const seat = this.gameState.seats[i];
-      if (seat && seat.tableStack < anteAmount) {
+      if (seat && seat.tableStack < minimumStack) {
         const player = this.getPlayer(seat.playerId);
 
         // For AI players, replenish their stack instead of standing them
         if (player && player.isAI) {
-          const replenishAmount = anteAmount * 10; // Give them 10x ante
+          const replenishAmount = minimumStack * 2; // Give them 12x ante
           seat.tableStack += replenishAmount;
           player.bankroll += replenishAmount;
           console.log(`🤖 [CardFlip] AI ${seat.name} low on funds - replenished with ${replenishAmount} (new stack: ${seat.tableStack})`);
@@ -254,7 +256,7 @@ export class CardFlipGame extends GameBase {
         }
 
         // For human players, auto-stand them
-        console.log(`🎴 [CardFlip] Auto-standing ${seat.name} - insufficient funds`);
+        console.log(`🎴 [CardFlip] Auto-standing ${seat.name} - insufficient funds (need ${minimumStack}, have ${seat.tableStack})`);
 
         // Platform will credit tableStack back to database in stand_up handler
         if (player) {
@@ -264,7 +266,7 @@ export class CardFlipGame extends GameBase {
         this.broadcast('player_action', {
           playerName: seat.name,
           action: 'stood up',
-          details: 'Insufficient funds for ante',
+          details: `Insufficient funds (need ${minimumStack} ${this.currency}, have ${seat.tableStack} ${this.currency})`,
           isAI: seat.isAI,
         });
         this.gameState.seats[i] = null as any;
@@ -278,19 +280,9 @@ export class CardFlipGame extends GameBase {
       return;
     }
 
-    // Collect antes from each player and add to pot
-    let totalAntes = 0;
-    for (const seat of this.gameState.seats) {
-      if (seat && !seat.hasFolded) {
-        seat.tableStack -= anteAmount;
-        seat.currentBet = anteAmount;
-        seat.totalContribution = anteAmount;
-        totalAntes += anteAmount;
-        console.log(`🎴 [CardFlip] Collected ${anteAmount} ante from ${seat.name} (stack now: ${seat.tableStack})`);
-      }
-    }
-    this.gameState.pot = totalAntes;
-    console.log(`🎴 [CardFlip] Total pot after antes: ${this.gameState.pot}, max payout is ${anteAmount * 6}`);
+    // NO ANTE COLLECTED - money stays in player stacks until payout
+    this.gameState.pot = 0;
+    console.log(`🎴 [CardFlip] Starting hand - no ante collected upfront, stakes are ${anteAmount} ${this.currency} per card`);
 
     this.phaseTimer = setTimeout(() => {
       this.transitionToPhase('PickSide');
@@ -377,63 +369,63 @@ export class CardFlipGame extends GameBase {
     const winnersBeforeRake = this.evaluateWinners();
     console.log(`🎴 [CardFlip] Winners before rake:`, winnersBeforeRake);
 
-    // Side bet settlement: apply rake and transfer between players
-    const winnersAfterRake = winnersBeforeRake.map(winner => {
-      const rake = Math.floor(winner.payout * (this.rakePercentage / 100));
-      const payoutAfterRake = winner.payout - rake;
-      console.log(`🎴 [CardFlip] ${winner.name}: ${winner.payout} - ${this.rakePercentage}% rake (${rake}) = ${payoutAfterRake}`);
-      return {
-        ...winner,
-        payout: payoutAfterRake,
-        description: `${winner.description} (${this.rakePercentage}% rake: -${rake})`
-      };
-    });
-
-    console.log(`🎴 [CardFlip] Winners after rake:`, winnersAfterRake);
-
-    // Distribute pot and settle side bets
-    for (const winner of winnersAfterRake) {
-      const winnerSeat = this.findSeat(winner.playerId);
-      if (!winnerSeat) continue;
-
-      // Find the loser (the other active player)
-      const loserSeat = this.gameState.seats.find(
-        s => s && !s.hasFolded && s.playerId !== winner.playerId
-      );
-
-      if (loserSeat && winner.payout > 0) {
-        // Winner gets their ante back from pot, plus net payout from loser
-        const potContribution = Math.min(this.gameState.pot, winner.payout);
-        const loserOwes = winner.payout - potContribution;
-
-        // Distribute pot to winner
-        winnerSeat.tableStack += potContribution;
-        this.gameState.pot -= potContribution;
-
-        // Loser pays remaining amount
-        if (loserOwes > 0) {
-          loserSeat.tableStack -= loserOwes;
-          winnerSeat.tableStack += loserOwes;
-        }
-
-        console.log(`🎴 [CardFlip] Settlement: ${winnerSeat.name} gets ${potContribution} from pot + ${loserOwes} from ${loserSeat.name}`);
-        console.log(`🎴 [CardFlip] New stacks - ${loserSeat.name}: ${loserSeat.tableStack}, ${winnerSeat.name}: ${winnerSeat.tableStack}`);
-      }
+    if (winnersBeforeRake.length === 0) {
+      console.log(`🎴 [CardFlip] No winners (tie or error)`);
+      this.transitionToPhase('HandEnd');
+      return;
     }
 
-    // Any remaining pot goes to house as rake
-    if (this.gameState.pot > 0) {
-      console.log(`🎴 [CardFlip] Remaining pot ${this.gameState.pot} goes to house`);
-      this.gameState.pot = 0;
+    const winner = winnersBeforeRake[0];
+    const winnerSeat = this.findSeat(winner.playerId);
+    if (!winnerSeat) {
+      console.error(`🎴 [CardFlip] Winner seat not found`);
+      this.transitionToPhase('HandEnd');
+      return;
     }
+
+    // Find the loser (the other active player)
+    const loserSeat = this.gameState.seats.find(
+      s => s && !s.hasFolded && s.playerId !== winner.playerId
+    );
+
+    if (!loserSeat) {
+      console.error(`🎴 [CardFlip] Loser seat not found`);
+      this.transitionToPhase('HandEnd');
+      return;
+    }
+
+    // Calculate rake and net payout
+    const rake = Math.floor(winner.payout * (this.rakePercentage / 100));
+    const payoutAfterRake = winner.payout - rake;
+
+    console.log(`🎴 [CardFlip] Settlement:`);
+    console.log(`  Gross winnings: ${winner.payout} ${this.currency}`);
+    console.log(`  Rake (${this.rakePercentage}%): ${rake} ${this.currency}`);
+    console.log(`  Net payout: ${payoutAfterRake} ${this.currency}`);
+    console.log(`  ${loserSeat.name} pays ${payoutAfterRake} ${this.currency} to ${winnerSeat.name}`);
+    console.log(`  House takes ${rake} ${this.currency} rake from ${loserSeat.name}`);
+
+    // Transfer money: loser pays winner + rake to house
+    loserSeat.tableStack -= winner.payout; // Full amount (includes rake)
+    winnerSeat.tableStack += payoutAfterRake; // Net amount after rake
+    // Rake is effectively removed from the game (loserSeat paid full amount, winner got net)
+
+    console.log(`🎴 [CardFlip] New stacks - ${loserSeat.name}: ${loserSeat.tableStack}, ${winnerSeat.name}: ${winnerSeat.tableStack}`);
 
     this.broadcastGameState();
 
     this.broadcast('player_action', {
-      playerName: winnersAfterRake[0]?.name || 'Unknown',
+      playerName: winnerSeat.name,
       action: 'won',
-      details: `${winnersAfterRake[0]?.payout || 0}`,
-      isAI: false,
+      details: `+${payoutAfterRake} ${this.currency} (${winner.description})`,
+      isAI: winnerSeat.isAI,
+    });
+
+    this.broadcast('player_action', {
+      playerName: loserSeat.name,
+      action: 'lost',
+      details: `-${winner.payout} ${this.currency} (${rake} ${this.currency} rake)`,
+      isAI: loserSeat.isAI,
     });
 
     // Move to hand end after 5 seconds (more time to see results)
