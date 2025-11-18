@@ -125,15 +125,21 @@ export class CardFlipGame extends GameBase {
           const aiResult = super.sitPlayer(aiPlayer, undefined, actualBuyIn);
           if (aiResult.success) {
             console.log(`🤖 [CardFlip] AI opponent ${aiPlayer.name} added`);
-            // Auto-mark AI as ready
-            if (!this.gameState.readyPlayers) {
-              this.gameState.readyPlayers = [];
-            }
-            if (!this.gameState.readyPlayers.includes(aiPlayer.id)) {
-              this.gameState.readyPlayers.push(aiPlayer.id);
-              console.log(`🤖 [CardFlip] AI opponent auto-marked ready`);
-            }
           }
+        }
+      }
+
+      // Auto-start game when 2 players are seated
+      if (this.gameState && this.gameState.phase === 'Lobby') {
+        const activePlayers = this.getActivePlayers();
+        if (activePlayers.length >= 2) {
+          console.log('🎴 [CardFlip] 2 players seated, auto-starting game');
+          // Small delay for UX
+          setTimeout(() => {
+            if (this.gameState && this.gameState.phase === 'Lobby') {
+              this.startHand();
+            }
+          }, 1500);
         }
       }
     }
@@ -168,8 +174,6 @@ export class CardFlipGame extends GameBase {
     this.gameState.flippedCards = [];
     this.gameState.redCount = 0;
     this.gameState.blackCount = 0;
-    delete this.gameState.readyPlayers; // Clear ready state
-    delete this.gameState.lobbyTimerEndsAt; // Clear lobby timer
 
     // Reset all seats
     for (const seat of this.gameState.seats) {
@@ -228,16 +232,32 @@ export class CardFlipGame extends GameBase {
     const anteAmount = this.getAnteAmount();
     console.log(`🎴 [CardFlip] Collecting ${anteAmount} ante from each player`);
 
-    // Auto-stand players who can't cover ante
+    // Check and handle players who can't cover ante
     for (let i = 0; i < this.gameState.seats.length; i++) {
       const seat = this.gameState.seats[i];
       if (seat && seat.tableStack < anteAmount) {
+        const player = this.getPlayer(seat.playerId);
+
+        // For AI players, replenish their stack instead of standing them
+        if (player && player.isAI) {
+          const replenishAmount = anteAmount * 10; // Give them 10x ante
+          seat.tableStack += replenishAmount;
+          player.bankroll += replenishAmount;
+          console.log(`🤖 [CardFlip] AI ${seat.name} low on funds - replenished with ${replenishAmount} (new stack: ${seat.tableStack})`);
+          this.broadcast('player_action', {
+            playerName: seat.name,
+            action: 'replenished',
+            details: `Added ${replenishAmount} TC`,
+            isAI: true,
+          });
+          continue;
+        }
+
+        // For human players, auto-stand them
         console.log(`🎴 [CardFlip] Auto-standing ${seat.name} - insufficient funds`);
 
         // Platform will credit tableStack back to database in stand_up handler
-        // For AI players, bankroll is tracked in-memory so update it here
-        const player = this.getPlayer(seat.playerId);
-        if (player && player.isAI) {
+        if (player) {
           player.bankroll += seat.tableStack;
         }
 
@@ -371,7 +391,7 @@ export class CardFlipGame extends GameBase {
 
     console.log(`🎴 [CardFlip] Winners after rake:`, winnersAfterRake);
 
-    // Side bet: transfer money directly between players
+    // Distribute pot and settle side bets
     for (const winner of winnersAfterRake) {
       const winnerSeat = this.findSeat(winner.playerId);
       if (!winnerSeat) continue;
@@ -382,13 +402,29 @@ export class CardFlipGame extends GameBase {
       );
 
       if (loserSeat && winner.payout > 0) {
-        // Deduct from loser, add to winner
-        loserSeat.tableStack -= winner.payout;
-        winnerSeat.tableStack += winner.payout;
+        // Winner gets their ante back from pot, plus net payout from loser
+        const potContribution = Math.min(this.gameState.pot, winner.payout);
+        const loserOwes = winner.payout - potContribution;
 
-        console.log(`🎴 [CardFlip] Side bet settled: ${loserSeat.name} pays ${winner.payout} to ${winnerSeat.name}`);
+        // Distribute pot to winner
+        winnerSeat.tableStack += potContribution;
+        this.gameState.pot -= potContribution;
+
+        // Loser pays remaining amount
+        if (loserOwes > 0) {
+          loserSeat.tableStack -= loserOwes;
+          winnerSeat.tableStack += loserOwes;
+        }
+
+        console.log(`🎴 [CardFlip] Settlement: ${winnerSeat.name} gets ${potContribution} from pot + ${loserOwes} from ${loserSeat.name}`);
         console.log(`🎴 [CardFlip] New stacks - ${loserSeat.name}: ${loserSeat.tableStack}, ${winnerSeat.name}: ${winnerSeat.tableStack}`);
       }
+    }
+
+    // Any remaining pot goes to house as rake
+    if (this.gameState.pot > 0) {
+      console.log(`🎴 [CardFlip] Remaining pot ${this.gameState.pot} goes to house`);
+      this.gameState.pot = 0;
     }
 
     this.broadcastGameState();
@@ -457,54 +493,8 @@ export class CardFlipGame extends GameBase {
         this.handlePickSide(playerId, 'black');
         break;
 
-      case 'start_hand':
-      case 'mark_ready':
-        if (this.gameState.phase === 'Lobby' && this.canStartHand()) {
-          this.handleMarkReady(playerId);
-        }
-        break;
-
       default:
         console.warn(`🎴 [CardFlip] Unknown action: ${action}`);
-    }
-  }
-
-  private handleMarkReady(playerId: string): void {
-    if (!this.gameState || this.gameState.phase !== 'Lobby') return;
-
-    // Initialize ready players array if not exists
-    if (!this.gameState.readyPlayers) {
-      this.gameState.readyPlayers = [];
-    }
-
-    // Add player to ready list if not already there
-    if (!this.gameState.readyPlayers.includes(playerId)) {
-      this.gameState.readyPlayers.push(playerId);
-      const seat = this.findSeat(playerId);
-      console.log(`🎴 [CardFlip] ${seat?.name} marked ready (${this.gameState.readyPlayers.length}/2)`);
-    }
-
-    const activePlayers = this.getActivePlayers();
-
-    // Start if both players are ready
-    if (this.gameState.readyPlayers.length >= 2 && activePlayers.length >= 2) {
-      console.log(`🎴 [CardFlip] Both players ready, starting hand`);
-      this.startHand();
-    } else {
-      // Set a lobby timer if not already set
-      if (!this.gameState.lobbyTimerEndsAt) {
-        this.gameState.lobbyTimerEndsAt = Date.now() + 10000; // 10 second timer
-        console.log(`🎴 [CardFlip] Starting lobby timer (10s)`);
-
-        this.phaseTimer = setTimeout(() => {
-          if (this.gameState && this.gameState.phase === 'Lobby' && this.canStartHand()) {
-            console.log(`🎴 [CardFlip] Lobby timer expired, starting hand`);
-            this.startHand();
-          }
-        }, 10000);
-      }
-
-      this.broadcastGameState();
     }
   }
 
@@ -599,9 +589,6 @@ export class CardFlipGame extends GameBase {
     if (!this.gameState) return [];
 
     switch (this.gameState.phase) {
-      case 'Lobby':
-        return this.canStartHand() ? ['start_hand'] : [];
-
       case 'PickSide':
         if (this.gameState.currentTurnPlayerId === playerId) {
           return ['pick_red', 'pick_black'];

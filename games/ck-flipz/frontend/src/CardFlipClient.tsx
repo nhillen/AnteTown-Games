@@ -67,6 +67,7 @@ export default function CardFlipClient({
 }: CardFlipTableProps) {
   const [showBuyInModal, setShowBuyInModal] = useState(false)
   const [buyInAmount, setBuyInAmount] = useState(100)
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
 
   // Set default buy-in based on ante
   useEffect(() => {
@@ -74,6 +75,23 @@ export default function CardFlipClient({
       setBuyInAmount(Math.max(game.ante * 10, 100))
     }
   }, [game?.ante])
+
+  // Timer countdown for turn timer
+  useEffect(() => {
+    if (!game?.turnEndsAtMs) {
+      setTimeRemaining(null)
+      return
+    }
+
+    const updateTimer = () => {
+      const remaining = Math.max(0, game.turnEndsAtMs! - Date.now())
+      setTimeRemaining(remaining)
+    }
+
+    updateTimer()
+    const interval = setInterval(updateTimer, 100)
+    return () => clearInterval(interval)
+  }, [game?.turnEndsAtMs])
 
   if (!game) {
     return (
@@ -94,10 +112,6 @@ export default function CardFlipClient({
     onPlayerAction(`pick_${side}`)
   }
 
-  const handleMarkReady = () => {
-    onPlayerAction('mark_ready')
-  }
-
   const handleSitDownClick = () => {
     setShowBuyInModal(true)
   }
@@ -110,8 +124,11 @@ export default function CardFlipClient({
     }
   }
 
-  const getSuitColor = (suit: string): string => {
-    return (suit === '♥' || suit === '♦') ? 'text-red-500' : 'text-gray-900'
+  const getSuitColor = (suit: string): React.CSSProperties => {
+    // Use inline styles for guaranteed color display (like poker cards)
+    return (suit === '♥' || suit === '♦')
+      ? { color: '#ef4444' } // red-500
+      : { color: '#111827' }  // gray-900
   }
 
   const isFlipPhase = game.phase === 'FlipCard1' || game.phase === 'FlipCard2' || game.phase === 'FlipCard3'
@@ -127,7 +144,7 @@ export default function CardFlipClient({
               {game.phase}
             </Badge>
             <span className="text-2xl font-bold text-yellow-400">
-              Pot: {game.pot} TC
+              Pot: 🪙{game.pot} TC
             </span>
           </div>
         </div>
@@ -140,7 +157,7 @@ export default function CardFlipClient({
               <div className="flex gap-8 items-center justify-center mb-4">
                 <div className="text-center">
                   <div className="text-sm text-gray-400 mb-2">Red</div>
-                  <div className={`text-4xl ${game.pickedSide === 'red' || game.opponentSide === 'red' ? 'opacity-100' : 'opacity-30'}`}>
+                  <div className={`text-4xl ${game.pickedSide === 'red' || game.opponentSide === 'red' ? 'opacity-100' : 'opacity-30'}`} style={{ color: '#ef4444' }}>
                     ♥♦
                   </div>
                   {game.pickedSide === 'red' && (
@@ -157,7 +174,7 @@ export default function CardFlipClient({
 
                 <div className="text-center">
                   <div className="text-sm text-gray-400 mb-2">Black</div>
-                  <div className={`text-4xl ${game.pickedSide === 'black' || game.opponentSide === 'black' ? 'opacity-100' : 'opacity-30'}`}>
+                  <div className={`text-4xl ${game.pickedSide === 'black' || game.opponentSide === 'black' ? 'opacity-100' : 'opacity-30'}`} style={{ color: '#111827' }}>
                     ♣♠
                   </div>
                   {game.pickedSide === 'black' && (
@@ -182,7 +199,7 @@ export default function CardFlipClient({
                     key={index}
                     className="bg-white rounded-lg p-6 shadow-lg border-2 border-gray-300 min-w-[80px] text-center animate-fadeIn"
                   >
-                    <div className={`text-5xl font-bold ${getSuitColor(card.suit)}`}>
+                    <div className="text-5xl font-bold" style={getSuitColor(card.suit)}>
                       {card.rank}{card.suit}
                     </div>
                   </div>
@@ -199,12 +216,34 @@ export default function CardFlipClient({
               </div>
             )}
 
-            {/* Score Display */}
+            {/* Score Display with Running TC Total */}
             {game.flippedCards.length > 0 && (
-              <div className="text-center text-xl">
-                <span className="text-red-500 font-bold">Red: {game.redCount}</span>
-                {' | '}
-                <span className="font-bold">Black: {game.blackCount}</span>
+              <div className="text-center space-y-2">
+                <div className="text-xl">
+                  <span style={{ color: '#ef4444' }} className="font-bold">Red: {game.redCount}</span>
+                  {' | '}
+                  <span style={{ color: '#111827' }} className="font-bold">Black: {game.blackCount}</span>
+                </div>
+                {game.flippedCards.length === 3 && (
+                  <div className="text-lg text-gray-400">
+                    {(() => {
+                      const allSame = game.redCount === 3 || game.blackCount === 3;
+                      const cardValue = allSame ? game.ante * 2 : game.ante;
+                      const redValue = game.redCount * cardValue;
+                      const blackValue = game.blackCount * cardValue;
+                      const netPayout = Math.abs(redValue - blackValue);
+                      const winner = redValue > blackValue ? 'Red' : 'Black';
+                      return (
+                        <div className="flex flex-col items-center gap-1">
+                          <div>{allSame && <span className="text-yellow-400 font-bold">DOUBLE PAYOUT! </span>}</div>
+                          <div className="text-2xl font-bold text-yellow-400">
+                            {winner} wins 🪙{netPayout} TC
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )}
 
@@ -215,17 +254,10 @@ export default function CardFlipClient({
                 <p className="text-gray-400">
                   {activePlayers.length} / 2 players seated
                 </p>
-                {isSeated && activePlayers.length >= 2 && (
-                  <div className="space-y-2">
-                    <Button onClick={handleMarkReady} variant="primary" size="md">
-                      Mark Ready
-                    </Button>
-                    {game.readyPlayers && game.readyPlayers.length > 0 && (
-                      <p className="text-sm text-gray-400">
-                        {game.readyPlayers.length}/2 players ready
-                      </p>
-                    )}
-                  </div>
+                {activePlayers.length >= 2 && (
+                  <p className="text-yellow-400 text-lg animate-pulse">
+                    Starting game...
+                  </p>
                 )}
                 {!isSeated && (
                   <Button onClick={handleSitDownClick} variant="primary" size="md">
@@ -238,7 +270,7 @@ export default function CardFlipClient({
             {game.phase === 'Ante' && (
               <div className="text-center">
                 <p className="text-xl">Collecting antes...</p>
-                <p className="text-gray-400">Ante: {game.ante} TC</p>
+                <p className="text-gray-400">Ante: 🪙{game.ante} TC</p>
               </div>
             )}
 
@@ -247,6 +279,19 @@ export default function CardFlipClient({
                 {isMyTurn ? (
                   <>
                     <p className="text-xl mb-4">Pick your color!</p>
+                    {timeRemaining !== null && (
+                      <div className="w-64 mx-auto mb-4">
+                        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-yellow-400 transition-all duration-100"
+                            style={{ width: `${(timeRemaining / 5000) * 100}%` }}
+                          />
+                        </div>
+                        <p className="text-sm text-gray-400 mt-1">
+                          {Math.ceil(timeRemaining / 1000)}s remaining
+                        </p>
+                      </div>
+                    )}
                     <div className="flex gap-4 justify-center">
                       <Button onClick={() => handlePickSide('red')} variant="primary" size="md">
                         ♥ Red
@@ -348,7 +393,7 @@ export default function CardFlipClient({
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-gray-400">
-                      {seat?.tableStack || 0} TC
+                      🪙{seat?.tableStack || 0} TC
                     </span>
                     {isMe && (
                       <Button onClick={onStandUp} size="sm" variant="ghost">
@@ -371,7 +416,7 @@ export default function CardFlipClient({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-2">
-                  Buy-in Amount (minimum {Math.max(game.ante * 5, 100)} TC)
+                  Buy-in Amount (minimum 🪙{Math.max(game.ante * 5, 100)} TC)
                 </label>
                 <input
                   type="number"
@@ -387,7 +432,7 @@ export default function CardFlipClient({
                   Cancel
                 </Button>
                 <Button variant="primary" onClick={confirmBuyIn}>
-                  Sit Down with {buyInAmount} TC
+                  Sit Down with 🪙{buyInAmount} TC
                 </Button>
               </div>
             </div>
