@@ -140,7 +140,7 @@ export class CardFlipGame extends GameBase {
             if (this.gameState && this.gameState.phase === 'Lobby') {
               this.startHand();
             }
-          }, 1500);
+          }, 750); // Halved from 1500ms
         }
       }
     }
@@ -286,7 +286,7 @@ export class CardFlipGame extends GameBase {
 
     this.phaseTimer = setTimeout(() => {
       this.transitionToPhase('PickSide');
-    }, 1000);
+    }, 500); // Halved from 1000ms
   }
 
   private handlePickSidePhase(): void {
@@ -319,12 +319,12 @@ export class CardFlipGame extends GameBase {
       console.log(`🎴 [CardFlip] AI ${pickingPlayer.name} auto-picking ${aiSide}`);
       setTimeout(() => {
         this.handlePickSide(pickingPlayer.playerId, aiSide);
-      }, 1000);
+      }, 500); // Halved from 1000ms
       return;
     }
 
-    // Set 5 second timeout for human players
-    this.gameState.turnEndsAtMs = Date.now() + 5000;
+    // Set 2.5 second timeout for human players (halved from 5s)
+    this.gameState.turnEndsAtMs = Date.now() + 2500;
 
     this.phaseTimer = setTimeout(() => {
       if (!this.gameState?.pickedSide && pickingPlayer) {
@@ -332,7 +332,7 @@ export class CardFlipGame extends GameBase {
         console.log(`🎴 [CardFlip] Auto-picking ${randomSide} for ${pickingPlayer.name} (timer expired)`);
         this.handlePickSide(pickingPlayer.playerId, randomSide);
       }
-    }, 5000);
+    }, 2500); // Halved from 5000ms
   }
 
   private handleFlipCardPhase(): void {
@@ -349,6 +349,9 @@ export class CardFlipGame extends GameBase {
 
     console.log(`🎴 [CardFlip] Flipped ${card.rank}${card.suit} (${card.color}) - Red: ${this.gameState.redCount}, Black: ${this.gameState.blackCount}`);
 
+    // Calculate and broadcast current leader/winnings
+    this.broadcastCurrentLeader();
+
     this.broadcastGameState();
 
     this.phaseTimer = setTimeout(() => {
@@ -360,7 +363,73 @@ export class CardFlipGame extends GameBase {
       } else {
         this.transitionToPhase('Payout');
       }
-    }, 2000);
+    }, 1000); // Halved from 2000ms
+  }
+
+  /**
+   * Calculate and broadcast who is currently winning and by how much
+   */
+  private broadcastCurrentLeader(): void {
+    if (!this.gameState || !this.gameState.pickedSide || !this.gameState.pickerPlayerId || !this.gameState.opponentSide || !this.gameState.opponentPlayerId) {
+      return;
+    }
+
+    const { redCount, blackCount, pickedSide, pickerPlayerId, opponentSide, opponentPlayerId } = this.gameState;
+    const anteAmount = this.getAnteAmount();
+
+    // Determine if all cards match so far (for doubling)
+    const allSameColor = (redCount > 0 && blackCount === 0) || (blackCount > 0 && redCount === 0);
+    const cardValue = allSameColor ? anteAmount * 2 : anteAmount;
+
+    // Calculate gross winnings (before rake)
+    let grossWinnings = 0;
+    let leadingColor: CardColor;
+    let leadingPlayerId: string;
+    let leadingPlayerName: string;
+
+    if (redCount > blackCount) {
+      leadingColor = 'red';
+      grossWinnings = (redCount * cardValue) - (blackCount * cardValue);
+      leadingPlayerId = pickedSide === 'red' ? pickerPlayerId : opponentPlayerId;
+    } else if (blackCount > redCount) {
+      leadingColor = 'black';
+      grossWinnings = (blackCount * cardValue) - (redCount * cardValue);
+      leadingPlayerId = pickedSide === 'black' ? pickerPlayerId : opponentPlayerId;
+    } else {
+      // Tie - no leader yet
+      this.broadcast('current_leader', {
+        status: 'tied',
+        redCount,
+        blackCount,
+        message: 'Tied!'
+      });
+      return;
+    }
+
+    const leadingSeat = this.findSeat(leadingPlayerId);
+    if (!leadingSeat) return;
+
+    leadingPlayerName = leadingSeat.name;
+
+    // Calculate rake and net winnings
+    const rake = Math.floor(grossWinnings * (this.rakePercentage / 100));
+    const netWinnings = grossWinnings - rake;
+
+    console.log(`🎴 [CardFlip] Current leader: ${leadingPlayerName} (${leadingColor}) would win ${netWinnings} TC (gross: ${grossWinnings}, rake: ${rake})`);
+
+    this.broadcast('current_leader', {
+      status: 'leading',
+      playerName: leadingPlayerName,
+      playerId: leadingPlayerId,
+      color: leadingColor,
+      redCount,
+      blackCount,
+      grossWinnings,
+      netWinnings,
+      rake,
+      allSameColor,
+      message: `${leadingPlayerName} (${leadingColor.charAt(0).toUpperCase() + leadingColor.slice(1)}) is winning ${netWinnings} ${this.currency}${allSameColor ? ' 🔥' : ''}`
+    });
   }
 
   private handlePayoutPhase(): void {
@@ -428,10 +497,10 @@ export class CardFlipGame extends GameBase {
       isAI: loserSeat.isAI,
     });
 
-    // Move to hand end after 5 seconds (more time to see results)
+    // Move to hand end after 2.5 seconds (halved from 5s)
     this.phaseTimer = setTimeout(() => {
       this.transitionToPhase('HandEnd');
-    }, 5000);
+    }, 2500); // Halved from 5000ms
   }
 
   private handleHandEndPhase(): void {
@@ -452,7 +521,7 @@ export class CardFlipGame extends GameBase {
 
     this.broadcastGameState();
 
-    // Auto-start next hand after 5 seconds if enough players (gives time to see results and stand up)
+    // Auto-start next hand after 2.5 seconds if enough players (halved from 5s)
     this.phaseTimer = setTimeout(() => {
       if (this.canStartHand()) {
         const activePlayers = this.getActivePlayers();
@@ -463,7 +532,7 @@ export class CardFlipGame extends GameBase {
           console.log(`🎴 [CardFlip] HandEnd: Not enough active players`);
         }
       }
-    }, 5000);
+    }, 2500); // Halved from 5000ms
   }
 
   // ============================================================
