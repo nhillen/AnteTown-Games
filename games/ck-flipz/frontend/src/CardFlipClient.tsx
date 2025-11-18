@@ -139,14 +139,6 @@ export default function CardFlipClient({
         {/* Game Header */}
         <div className="text-center">
           <h1 className="text-4xl font-bold mb-2">🃏 Card Flip</h1>
-          <div className="flex items-center justify-center gap-4">
-            <Badge variant={game.phase === 'Lobby' ? 'warning' : 'success'}>
-              {game.phase}
-            </Badge>
-            <span className="text-2xl font-bold text-yellow-400">
-              Pot: 🪙{game.pot} TC
-            </span>
-          </div>
         </div>
 
         {/* Main Game Area */}
@@ -347,7 +339,17 @@ export default function CardFlipClient({
         </Panel>
 
         {/* Players Panel */}
-        <Panel title="Players" className="max-w-2xl mx-auto">
+        <Panel
+          title={
+            <div className="flex items-center gap-3">
+              <span>Players</span>
+              <Badge variant={game.phase === 'Lobby' ? 'warning' : 'success'}>
+                {game.phase}
+              </Badge>
+            </div>
+          }
+          className="max-w-2xl mx-auto"
+        >
           <div className="space-y-2">
             {game.seats.map((seat, index) => {
               if (!seat) {
