@@ -37,7 +37,7 @@ export function Card({ rank, suit, faceDown = false, size = 'medium' }: CardProp
     return (
       <div className={`${sizeClasses[size]} rounded overflow-hidden shadow-lg`}>
         <img
-          src="/assets/card_art/card_back.png"
+          src="/assets/cards/card_back.svg"
           alt="Card back"
           className="w-full h-full object-cover"
         />
