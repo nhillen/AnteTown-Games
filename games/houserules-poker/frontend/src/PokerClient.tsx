@@ -42,7 +42,7 @@ export interface PokerClientProps {
   myPlayerId: string;
   onAction: (action: PokerAction, amount?: number) => void;
   onSitDown?: (seatIndex: number, buyInAmount: number) => void;
-  onStandUp?: () => void;
+  onStandUp?: (options?: { afterHand?: boolean; immediate?: boolean }) => void;
   isSeated?: boolean;
   onProposeSideGame?: (type: string, config: any) => void;
   onRespondToSideGame?: (sideGameId: string, response: 'in' | 'out') => void;
