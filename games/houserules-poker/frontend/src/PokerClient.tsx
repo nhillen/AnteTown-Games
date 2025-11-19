@@ -151,6 +151,19 @@ const PokerClient: React.FC<PokerClientProps> = ({
     }
   }, [gameState?.currentTurnPlayerId, queuedAction, myPlayerId, gameState, onAction]);
 
+  // Emit poker state to platform overlay
+  useEffect(() => {
+    const mySeat = gameState?.seats?.find((s: any) => s && s.playerId === myPlayerId);
+    const isSeatedNow = !!mySeat && !mySeat.hasFolded;
+
+    window.dispatchEvent(new CustomEvent('poker:stateUpdate', {
+      detail: {
+        isSeated: isSeatedNow,
+        isStanding: !isSeatedNow && isSeated // Was seated but now not
+      }
+    }));
+  }, [gameState?.seats, myPlayerId, isSeated]);
+
   // Listen for platform overlay events
   useEffect(() => {
     const handlePropBetMenu = () => {
@@ -160,6 +173,15 @@ const PokerClient: React.FC<PokerClientProps> = ({
 
     const handleStandUp = () => {
       console.log('🚶 Standing up from platform overlay');
+
+      // Fold current hand if it's my turn
+      const mySeat = gameState?.seats?.find((s: any) => s && s.playerId === myPlayerId);
+      if (mySeat && !mySeat.hasFolded && gameState?.currentTurnPlayerId === myPlayerId) {
+        console.log('🃏 Folding hand before standing up');
+        onAction('fold');
+      }
+
+      // Stand up (backend will return chips to bankroll)
       if (onStandUp) {
         onStandUp();
       }
@@ -172,7 +194,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
       window.removeEventListener('poker:openPropBetMenu', handlePropBetMenu);
       window.removeEventListener('poker:standUp', handleStandUp);
     };
-  }, [onStandUp]);
+  }, [onStandUp, onAction, gameState, myPlayerId]);
 
   const theme = getThemeForVariant(gameState.variant);
 
