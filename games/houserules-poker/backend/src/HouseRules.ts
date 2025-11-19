@@ -73,7 +73,7 @@ export class HouseRules extends GameBase {
   private minBuyIn = 2000;  // Default minimum buy-in in currency units
   private maxBuyIn = 10000; // Default maximum buy-in in currency units
   private turnTimer: NodeJS.Timeout | null = null;
-  private turnTimeoutMs = 30000; // 30 seconds per turn
+  private turnTimeoutMs = 15000; // 15 seconds per turn
 
   constructor(tableConfig: any) {
     super(tableConfig);

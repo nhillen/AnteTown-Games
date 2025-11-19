@@ -45,7 +45,7 @@ export const PropBetNotification: React.FC<PropBetNotificationProps> = ({
           </div>
 
           {/* Bet Details */}
-          <div className="bg-gray-950 bg-opacity-50 rounded-lg p-3 mb-3 space-y-2">
+          <div className="bg-gray-950 rounded-lg p-3 mb-3 space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-gray-400 text-sm">Their Color:</span>
               <span className={`font-bold ${config.proposerColor === 'red' ? 'text-red-500' : 'text-gray-300'}`}>
@@ -69,7 +69,7 @@ export const PropBetNotification: React.FC<PropBetNotificationProps> = ({
           </div>
 
           {/* Quick Payout Info */}
-          <div className="bg-gray-800 bg-opacity-60 rounded p-2 mb-3">
+          <div className="bg-gray-800 rounded p-2 mb-3">
             <div className="text-gray-400 text-xs font-semibold mb-1">PAYOUT:</div>
             <div className="text-xs text-gray-300">
               3 cards your color: <span className="text-green-400 font-semibold">+{Math.floor(maxRisk / 100)} TC</span>
