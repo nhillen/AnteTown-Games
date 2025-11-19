@@ -81,57 +81,67 @@ export function ActionBar({
   }
 
   // When disabled (not player's turn), show pre-action buttons
+  // IMPORTANT: Keep same 3-button layout as active mode to prevent position jumping
   if (disabled && onQueueAction) {
-    // Filter out invalid options based on current state
-    // If there's a bet to call, can't check - so hide Check and show Check/Fold
     const willNeedToCall = callAmount > 0
 
     return (
-      <div className="action-bar">
-        <div className="action-bar__primary" style={{ justifyContent: 'center', gap: '12px' }}>
+      <div className="action-bar" style={{ flexDirection: 'column', gap: '12px' }}>
+        {/* Keep same layout: Fold / Call-Check / Raise to prevent button jumping */}
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
           <button
             onClick={() => onQueueAction?.(queuedAction === 'fold' ? null : 'fold')}
             className={`action-btn action-btn--fold`}
             style={{
-              minWidth: '120px',
+              flex: 1,
               outline: queuedAction === 'fold' ? '3px solid #54d58b' : 'none',
               outlineOffset: '2px'
             }}
           >
             Fold
+            <span className="action-btn__shortcut">F</span>
           </button>
+
           {willNeedToCall ? (
-            // If there's a bet, show Check/Fold (will fold if still a bet, check if bet is gone)
             <button
               onClick={() => onQueueAction?.(queuedAction === 'check_fold' ? null : 'check_fold')}
               className={`action-btn action-btn--check`}
               style={{
-                minWidth: '120px',
+                flex: 1,
                 outline: queuedAction === 'check_fold' ? '3px solid #54d58b' : 'none',
                 outlineOffset: '2px'
               }}
             >
               Check/Fold
+              <span className="action-btn__shortcut">C</span>
             </button>
           ) : (
-            // If no bet, show Check
             <button
               onClick={() => onQueueAction?.(queuedAction === 'check' ? null : 'check')}
               className={`action-btn action-btn--check`}
               style={{
-                minWidth: '120px',
+                flex: 1,
                 outline: queuedAction === 'check' ? '3px solid #54d58b' : 'none',
                 outlineOffset: '2px'
               }}
             >
               Check
+              <span className="action-btn__shortcut">C</span>
             </button>
           )}
+
+          {/* Placeholder to maintain 3-button layout (disabled/hidden) */}
+          <button
+            disabled
+            className="action-btn action-btn--raise"
+            style={{ flex: 1, opacity: 0.3, cursor: 'not-allowed' }}
+          >
+            Raise (wait)
+          </button>
         </div>
-        <div className="action-bar__secondary" style={{ justifyContent: 'center', marginTop: '8px' }}>
-          <div style={{ fontSize: '12px', color: '#888', textAlign: 'center' }}>
-            Pre-select action (executes on your turn)
-          </div>
+
+        <div style={{ fontSize: '11px', color: '#888', textAlign: 'center' }}>
+          Pre-select action (executes on your turn)
         </div>
       </div>
     )
