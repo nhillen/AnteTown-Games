@@ -4,6 +4,7 @@ import type { Card as CardType, PokerPhase, PokerAction, ActiveSideGame } from '
 import { PropBetProposalModal } from './components/PropBetProposalModal';
 import { PropBetSelectionMenu } from './components/PropBetSelectionMenu';
 import { PropBetNotification } from './components/PropBetNotification';
+import { GameInfoDrawer } from './components/GameInfoDrawer';
 import { ThemeProvider } from './themes/ThemeProvider';
 import { TableStage } from './ui/table/TableStage';
 import { HudOverlay } from './ui/hud/HudOverlay';
@@ -73,6 +74,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
   const [showPropBetModal, setShowPropBetModal] = useState(false);
   const [selectedPropBet, setSelectedPropBet] = useState<string | null>(null);
   const [lastLoggedPhase, setLastLoggedPhase] = useState<string>('');
+  const [isStanding, setIsStanding] = useState<boolean>(false);
 
   if (!gameState) {
     return (
@@ -150,6 +152,47 @@ const PokerClient: React.FC<PokerClientProps> = ({
       }
     }
   }, [gameState?.currentTurnPlayerId, queuedAction, myPlayerId, gameState, onAction]);
+
+  // Stand up handlers
+  const handleStandAfterHand = () => {
+    console.log('🃏 Stand up queued for after current hand');
+    // TODO: Implement stand-after-hand logic in game backend
+    // For now, just stand immediately after current action
+    if (onStandUp) {
+      onStandUp();
+    }
+  };
+
+  const handleStandImmediate = () => {
+    console.log('🃏 Standing up immediately (folding current hand)');
+    // Fold if in a hand
+    const mySeat = gameState?.seats?.find((s: any) => s && s.playerId === myPlayerId);
+    if (mySeat && !mySeat.hasFolded && gameState?.currentTurnPlayerId === myPlayerId) {
+      onAction('fold');
+    }
+    // Stand up
+    if (onStandUp) {
+      onStandUp();
+    }
+  };
+
+  const handleSitDown = () => {
+    console.log('🃏 Sitting back down');
+    setIsStanding(false);
+    // TODO: Implement sit down logic
+  };
+
+  const handleLeaveTable = () => {
+    console.log('🃏 Leaving table');
+    if (onStandUp) {
+      onStandUp();
+    }
+  };
+
+  // Check if there are pending prop bets for notification
+  const hasPendingPropBets = gameState?.activeSideGames?.some(
+    (sg: ActiveSideGame) => !sg.participants?.some(p => p.playerId === myPlayerId)
+  ) || false;
 
   const theme = getThemeForVariant(gameState.variant);
 
@@ -295,27 +338,17 @@ const PokerClient: React.FC<PokerClientProps> = ({
             );
           })()}
 
-          {isSeated && (
-            <div style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', gap: '12px' }}>
-              {onStandUp && (
-                <button
-                  onClick={onStandUp}
-                  className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700/80 text-white rounded-lg text-sm backdrop-blur border border-slate-600 hover:border-slate-400 transition-all"
-                >
-                  Leave Table
-                </button>
-              )}
-              {onProposeSideGame && (
-                <button
-                  onClick={() => setShowPropBetSelectionMenu(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white rounded-lg text-sm font-bold backdrop-blur border border-yellow-600 hover:border-yellow-400 transition-all shadow-lg flex items-center gap-2"
-                >
-                  <span>🎴</span>
-                  Prop Betz
-                </button>
-              )}
-            </div>
-          )}
+          {/* Game Info Drawer */}
+          <GameInfoDrawer
+            isSeated={isSeated || false}
+            isStanding={isStanding}
+            onPropBet={onProposeSideGame ? () => setShowPropBetSelectionMenu(true) : undefined}
+            onStandAfterHand={handleStandAfterHand}
+            onStandImmediate={handleStandImmediate}
+            onSitDown={handleSitDown}
+            onLeaveTable={handleLeaveTable}
+            hasPendingPropBets={hasPendingPropBets}
+          />
         </HudOverlay>
       </div>
 
@@ -355,14 +388,21 @@ const PokerClient: React.FC<PokerClientProps> = ({
       )}
 
       {/* Prop bet notifications */}
-      {gameState.activeSideGames && onRespondToSideGame && gameState.activeSideGames.map((sg: ActiveSideGame) => (
-        <PropBetNotification
-          key={sg.id}
-          sideGame={sg}
-          myPlayerId={myPlayerId}
-          onRespond={onRespondToSideGame}
-        />
-      ))}
+      {gameState.activeSideGames && onRespondToSideGame && gameState.activeSideGames.map((sg: ActiveSideGame) => {
+        // Find proposer's name from seats
+        const proposerSeat = gameState.seats.find((s: any) => s && s.playerId === sg.proposedBy);
+        const proposerName = proposerSeat?.name || 'Unknown';
+
+        return (
+          <PropBetNotification
+            key={sg.id}
+            sideGame={sg}
+            myPlayerId={myPlayerId}
+            proposerName={proposerName}
+            onRespond={onRespondToSideGame}
+          />
+        );
+      })}
     </ThemeProvider>
   );
 };
