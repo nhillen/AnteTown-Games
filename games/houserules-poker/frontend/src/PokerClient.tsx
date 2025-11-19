@@ -56,16 +56,10 @@ const CardComponent: React.FC<{ card: Card; faceDown?: boolean }> = ({ card, fac
 
   if (faceDown) {
     return (
-      <div className="w-12 h-16 bg-gradient-to-br from-blue-800 to-blue-950 border-2 border-blue-600 rounded shadow-lg flex items-center justify-center relative overflow-hidden">
-        {/* Diagonal stripe pattern */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0" style={{
-            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.1) 5px, rgba(255,255,255,0.1) 10px)'
-          }}></div>
-        </div>
-        {/* Card back symbol */}
-        <div className="text-blue-400 text-3xl font-bold z-10">♠</div>
-      </div>
+      <div
+        className="w-12 h-16 border-2 border-gray-300 rounded shadow-lg bg-cover bg-center"
+        style={{ backgroundImage: 'url(/assets/cards/card_back.svg)' }}
+      />
     );
   }
 
@@ -289,7 +283,10 @@ const PokerClient: React.FC<PokerClientProps> = ({
   return (
     <div className="w-full space-y-4">
       {/* Poker Table */}
-      <div className="relative w-full h-[600px] bg-green-800 rounded-3xl shadow-2xl p-8">
+      <div
+        className="relative w-full h-[600px] rounded-3xl shadow-2xl p-8 bg-cover bg-center"
+        style={{ backgroundImage: 'url(/assets/table/felt_casino.webp)' }}
+      >
         {/* Table center */}
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
           <div className="bg-gray-900 bg-opacity-95 text-white px-6 py-3 rounded-xl mb-4 shadow-2xl border border-white border-opacity-10 backdrop-blur-sm">
