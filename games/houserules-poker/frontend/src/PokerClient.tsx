@@ -273,7 +273,10 @@ const PokerClient: React.FC<PokerClientProps> = ({
                 <ActionBar
                   key={`action-bar-${isMyTurn ? 'my-turn' : 'not-my-turn'}`}
                   onFold={() => onAction('fold')}
-                  onCall={() => onAction('call')}
+                  onCall={() => {
+                    const callAmount = (gameState.currentBet || 0) - (mySeat?.currentBet || 0);
+                    onAction('call', callAmount);
+                  }}
                   onCheck={() => onAction('check')}
                   onRaise={(amount) => onAction('raise', amount)}
                   callAmount={(gameState.currentBet || 0) - (mySeat?.currentBet || 0)}
@@ -286,7 +289,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
                   onQueueAction={setQueuedAction}
                 />
                 {timeRemaining > 0 && isMyTurn && (
-                  <TimerRing timeRemaining={timeRemaining} totalTime={30000} />
+                  <TimerRing timeRemaining={timeRemaining} totalTime={15000} />
                 )}
               </div>
             );

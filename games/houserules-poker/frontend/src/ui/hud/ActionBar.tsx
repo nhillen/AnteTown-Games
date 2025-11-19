@@ -82,6 +82,10 @@ export function ActionBar({
 
   // When disabled (not player's turn), show pre-action buttons
   if (disabled && onQueueAction) {
+    // Filter out invalid options based on current state
+    // If there's a bet to call, can't check - so hide Check and show Check/Fold
+    const willNeedToCall = callAmount > 0
+
     return (
       <div className="action-bar">
         <div className="action-bar__primary" style={{ justifyContent: 'center', gap: '12px' }}>
@@ -96,28 +100,33 @@ export function ActionBar({
           >
             Fold
           </button>
-          <button
-            onClick={() => onQueueAction?.(queuedAction === 'check_fold' ? null : 'check_fold')}
-            className={`action-btn action-btn--check`}
-            style={{
-              minWidth: '120px',
-              outline: queuedAction === 'check_fold' ? '3px solid #54d58b' : 'none',
-              outlineOffset: '2px'
-            }}
-          >
-            Check/Fold
-          </button>
-          <button
-            onClick={() => onQueueAction?.(queuedAction === 'check' ? null : 'check')}
-            className={`action-btn action-btn--check`}
-            style={{
-              minWidth: '120px',
-              outline: queuedAction === 'check' ? '3px solid #54d58b' : 'none',
-              outlineOffset: '2px'
-            }}
-          >
-            Check
-          </button>
+          {willNeedToCall ? (
+            // If there's a bet, show Check/Fold (will fold if still a bet, check if bet is gone)
+            <button
+              onClick={() => onQueueAction?.(queuedAction === 'check_fold' ? null : 'check_fold')}
+              className={`action-btn action-btn--check`}
+              style={{
+                minWidth: '120px',
+                outline: queuedAction === 'check_fold' ? '3px solid #54d58b' : 'none',
+                outlineOffset: '2px'
+              }}
+            >
+              Check/Fold
+            </button>
+          ) : (
+            // If no bet, show Check
+            <button
+              onClick={() => onQueueAction?.(queuedAction === 'check' ? null : 'check')}
+              className={`action-btn action-btn--check`}
+              style={{
+                minWidth: '120px',
+                outline: queuedAction === 'check' ? '3px solid #54d58b' : 'none',
+                outlineOffset: '2px'
+              }}
+            >
+              Check
+            </button>
+          )}
         </div>
         <div className="action-bar__secondary" style={{ justifyContent: 'center', marginTop: '8px' }}>
           <div style={{ fontSize: '12px', color: '#888', textAlign: 'center' }}>
