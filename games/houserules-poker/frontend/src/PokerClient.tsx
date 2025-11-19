@@ -171,19 +171,27 @@ const PokerClient: React.FC<PokerClientProps> = ({
       setShowPropBetSelectionMenu(true);
     };
 
-    const handleStandUp = () => {
-      console.log('🚶 Standing up from platform overlay');
+    const handleStandUp = (e: any) => {
+      const { afterHand, immediate } = e.detail || {};
+      console.log('🚶 Standing up from platform overlay', { afterHand, immediate });
 
-      // Fold current hand if it's my turn
-      const mySeat = gameState?.seats?.find((s: any) => s && s.playerId === myPlayerId);
-      if (mySeat && !mySeat.hasFolded && gameState?.currentTurnPlayerId === myPlayerId) {
-        console.log('🃏 Folding hand before standing up');
-        onAction('fold');
+      if (immediate) {
+        // Immediate: Fold if it's my turn or queue a fold
+        const mySeat = gameState?.seats?.find((s: any) => s && s.playerId === myPlayerId);
+        if (mySeat && !mySeat.hasFolded) {
+          if (gameState?.currentTurnPlayerId === myPlayerId) {
+            console.log('🃏 Folding immediately');
+            onAction('fold');
+          } else {
+            console.log('🃏 Queueing fold for next turn');
+            setQueuedAction('fold');
+          }
+        }
       }
 
-      // Stand up (backend will return chips to bankroll)
+      // Stand up (backend will handle afterHand vs immediate)
       if (onStandUp) {
-        onStandUp();
+        onStandUp({ afterHand, immediate });
       }
     };
 
@@ -194,7 +202,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
       window.removeEventListener('poker:openPropBetMenu', handlePropBetMenu);
       window.removeEventListener('poker:standUp', handleStandUp);
     };
-  }, [onStandUp, onAction, gameState, myPlayerId]);
+  }, [onStandUp, onAction, gameState, myPlayerId, setQueuedAction]);
 
   const theme = getThemeForVariant(gameState.variant);
 
