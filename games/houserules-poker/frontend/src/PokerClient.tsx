@@ -171,6 +171,19 @@ const PokerClient: React.FC<PokerClientProps> = ({
             const isDealer = gameState.dealerSeatIndex === idx;
             const hasFolded = seat && seat.hasFolded;
 
+            // Debug hole cards
+            if (seat && seat.holeCards && seat.holeCards.length > 0) {
+              console.log('[Hole Cards Debug]', {
+                seatIndex: idx,
+                seatPlayerId: seat.playerId,
+                myPlayerId,
+                isMe,
+                holeCards: seat.holeCards,
+                phase: gameState.phase,
+                shouldShowFaceUp: isMe || gameState.phase === 'Showdown'
+              });
+            }
+
             const sbIndex = ((gameState.dealerSeatIndex || 0) + 1) % totalSeats;
             const bbIndex = ((gameState.dealerSeatIndex || 0) + 2) % totalSeats;
             const isSmallBlind = idx === sbIndex;
