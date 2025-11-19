@@ -19,6 +19,7 @@ export default defineConfig({
       formats: ['es'],
       fileName: 'index',
     },
+    cssCodeSplit: false, // Inline all CSS into JS bundle for library
     rollupOptions: {
       external: ['react', 'react-dom', 'socket.io-client'],
       output: {
