@@ -1,0 +1,22 @@
+{
+  "name": "casino",
+  "colors": {
+    "bg": "#0b1220",
+    "felt": "#115c3a",
+    "accent": "#ffd54a",
+    "text": "#e9eef7",
+    "danger": "#ff5a5a",
+    "success": "#54d58b"
+  },
+  "images": {
+    "felt": "/assets/table/felt_casino.webp",
+    "rim": "/assets/table/rim_casino.webp",
+    "vignette": "",
+    "noise": "/assets/overlays/noise.png",
+    "cardBack": "/assets/cards/PLAYING_CARD_BACKS.svg"
+  },
+  "elevation": {
+    "outer": "0 12px 28px rgba(0,0,0,.35)",
+    "inner": "inset 0 1px 0 rgba(255,255,255,.06)"
+  }
+}

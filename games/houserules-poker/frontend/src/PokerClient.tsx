@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import type { GameState, Seat } from '@antetown/game-sdk';
-import type { Card, PokerPhase, PokerAction, ActiveSideGame } from './types';
-import clsx from 'clsx';
+import type { Card as CardType, PokerPhase, PokerAction, ActiveSideGame } from './types';
 import { PropBetProposalModal } from './components/PropBetProposalModal';
+import { PropBetSelectionMenu } from './components/PropBetSelectionMenu';
 import { PropBetNotification } from './components/PropBetNotification';
-import { ActivePropBets } from './components/ActivePropBets';
+import { ThemeProvider } from './themes/ThemeProvider';
+import { TableStage } from './ui/table/TableStage';
+import { HudOverlay } from './ui/hud/HudOverlay';
+import { SeatBadge } from './ui/hud/SeatBadge';
+import { PotBadge } from './ui/hud/PotBadge';
+import { ActionBar } from './ui/hud/ActionBar';
+import { TimerRing } from './ui/hud/TimerRing';
+import { Card } from './ui/cards/Card';
 
 interface PokerSeat extends Seat {
-  holeCards?: Card[];
+  holeCards?: CardType[];
   lastAction?: PokerAction;
   sidePot?: {
     balance: number;
@@ -18,13 +25,16 @@ interface PokerSeat extends Seat {
 interface HouseRulesGameState extends GameState {
   phase: PokerPhase;
   seats: PokerSeat[];
-  communityCards?: Card[];
+  communityCards?: CardType[];
   smallBlind?: number;
   bigBlind?: number;
   minBuyIn?: number;
   maxBuyIn?: number;
   dealerSeatIndex?: number;
   activeSideGames?: ActiveSideGame[];
+  variant?: string;
+  turnEndsAtMs?: number;
+  currentTurnPlayerId?: string;
 }
 
 export interface PokerClientProps {
@@ -38,64 +48,40 @@ export interface PokerClientProps {
   onRespondToSideGame?: (sideGameId: string, response: 'in' | 'out') => void;
 }
 
-const CardComponent: React.FC<{ card: Card; faceDown?: boolean }> = ({ card, faceDown }) => {
-  const suitSymbols = {
-    'hearts': '♥',
-    'diamonds': '♦',
-    'clubs': '♣',
-    'spades': '♠'
-  };
-
-  // Use inline styles for guaranteed color display
-  const suitColors: Record<string, React.CSSProperties> = {
-    'hearts': { color: '#ef4444' },     // red-500
-    'diamonds': { color: '#ef4444' },   // red-500
-    'clubs': { color: '#111827' },      // gray-900
-    'spades': { color: '#111827' }      // gray-900
-  };
-
-  if (faceDown) {
-    return (
-      <div
-        className="w-12 h-16 border-2 border-gray-300 rounded shadow-lg bg-cover bg-center"
-        style={{ backgroundImage: 'url(/assets/cards/card_back.svg)' }}
-      />
-    );
+// Map poker variant to theme
+function getThemeForVariant(variant?: string): string {
+  switch (variant) {
+    case 'squid-game': return 'squid';
+    case 'roguelike': return 'roguelike';
+    case 'texas-holdem':
+    default: return 'casino';
   }
-
-  return (
-    <div className="w-12 h-16 bg-white border-2 border-gray-400 rounded shadow-lg flex flex-col justify-between p-1.5 text-xs">
-      <div className="font-bold leading-none" style={suitColors[card.suit]}>
-        {card.rank}{suitSymbols[card.suit]}
-      </div>
-      <div className="text-2xl text-center my-auto" style={suitColors[card.suit]}>
-        {suitSymbols[card.suit]}
-      </div>
-      <div className="font-bold text-right leading-none rotate-180" style={suitColors[card.suit]}>
-        {card.rank}{suitSymbols[card.suit]}
-      </div>
-    </div>
-  );
-};
+}
 
 const PokerClient: React.FC<PokerClientProps> = ({
   gameState,
   myPlayerId,
   onAction,
-  onSitDown,
   onStandUp,
   isSeated,
   onProposeSideGame,
   onRespondToSideGame
 }) => {
-  const [betAmount, setBetAmount] = useState<number>(gameState?.bigBlind || 100);
-  const [showBuyInModal, setShowBuyInModal] = useState(false);
-  const [buyInAmount, setBuyInAmount] = useState(gameState?.minBuyIn || 2000);
-  const [selectedSeatIndex, setSelectedSeatIndex] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [queuedAction, setQueuedAction] = useState<'fold' | 'check' | 'check_fold' | null>(null);
+  const [showPropBetSelectionMenu, setShowPropBetSelectionMenu] = useState(false);
   const [showPropBetModal, setShowPropBetModal] = useState(false);
+  const [selectedPropBet, setSelectedPropBet] = useState<string | null>(null);
 
-  // Update turn timer countdown
+  if (!gameState) {
+    return (
+      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-3xl">
+        <div className="text-white text-xl">Loading game...</div>
+      </div>
+    );
+  }
+
+  // Turn timer countdown
   useEffect(() => {
     if (!gameState?.turnEndsAtMs) {
       setTimeRemaining(0);
@@ -112,431 +98,247 @@ const PokerClient: React.FC<PokerClientProps> = ({
     return () => clearInterval(interval);
   }, [gameState?.turnEndsAtMs]);
 
-  if (!gameState) {
-    return (
-      <div className="relative w-full h-[600px] bg-green-800 rounded-3xl shadow-2xl p-8 flex items-center justify-center">
-        <div className="text-white text-xl">Loading game...</div>
-      </div>
-    );
-  }
+  // Auto-execute queued action
+  useEffect(() => {
+    if (!gameState || !queuedAction) return;
 
-  const mySeat = gameState.seats.find(s => s?.playerId === myPlayerId);
-  const isMyTurn = gameState.currentTurnPlayerId === myPlayerId;
+    const mySeat = gameState.seats?.find((s: any) => s && s.playerId === myPlayerId);
+    const isMyTurn = gameState.currentTurnPlayerId === myPlayerId;
 
-  // Debug logging for turn detection
-  if (gameState.phase !== 'Lobby' && mySeat) {
-    console.log(`🎰 [PokerClient] Phase: ${gameState.phase}, My ID: ${myPlayerId?.slice(0, 8)}, Current turn ID: ${gameState.currentTurnPlayerId?.slice(0, 8)}, Is my turn: ${isMyTurn}`);
-  }
+    if (isMyTurn && mySeat && !mySeat.hasFolded) {
+      const callAmount = (gameState.currentBet || 0) - (mySeat.currentBet || 0);
+      const canCheck = callAmount === 0;
 
-  // Show sit-down interface if player is not seated
-  if (!isSeated && onSitDown) {
-    const getPlayerPosition = (seatIndex: number) => {
-      const angle = (seatIndex / gameState.seats.length) * 2 * Math.PI - Math.PI / 2;
-      const radiusX = 40;
-      const radiusY = 30;
-      const x = 50 + radiusX * Math.cos(angle);
-      const y = 50 + radiusY * Math.sin(angle);
-      return { x, y };
-    };
+      if (queuedAction === 'fold') {
+        onAction('fold');
+        setQueuedAction(null);
+      } else if (queuedAction === 'check') {
+        if (canCheck) {
+          onAction('check');
+          setQueuedAction(null);
+        } else {
+          setQueuedAction(null); // Cancel if can't check
+        }
+      } else if (queuedAction === 'check_fold') {
+        if (canCheck) {
+          onAction('check');
+        } else {
+          onAction('fold');
+        }
+        setQueuedAction(null);
+      }
+    }
+  }, [gameState?.currentTurnPlayerId, queuedAction, myPlayerId, gameState, onAction]);
 
-    return (
-      <div className="relative w-full h-[600px] bg-green-800 rounded-3xl shadow-2xl p-8">
-        {/* Center table info */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-          <div className="bg-gray-900 bg-opacity-75 text-white px-8 py-4 rounded-lg">
-            <h2 className="text-2xl font-bold mb-2">♠️ House Rules Poker</h2>
-            <p className="text-sm text-gray-400">Select a seat to join</p>
-            <p className="text-xs text-gray-500 mt-2">
-              Buy-in: {gameState.minBuyIn || 0} - {gameState.maxBuyIn || 0} TC • Blinds: {gameState.smallBlind || 0} / {gameState.bigBlind || 0} TC
-            </p>
-          </div>
-        </div>
-
-        {/* Seats positioned around the table */}
-        {gameState.seats.map((seat, idx) => {
-          const pos = getPlayerPosition(idx);
-          const isAvailable = seat === null;
-
-          return (
-            <button
-              key={idx}
-              disabled={!isAvailable}
-              onClick={() => {
-                setSelectedSeatIndex(idx);
-                setShowBuyInModal(true);
-              }}
-              className={clsx(
-                'absolute transform -translate-x-1/2 -translate-y-1/2',
-                'min-w-[120px] px-4 py-3 rounded-lg font-semibold transition-all',
-                isAvailable
-                  ? 'bg-green-600 hover:bg-green-700 hover:scale-110 text-white cursor-pointer shadow-lg'
-                  : 'bg-gray-700 text-gray-400 cursor-not-allowed opacity-60'
-              )}
-              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-            >
-              <div className="text-sm">Seat {idx + 1}</div>
-              {seat && <div className="text-xs mt-1 truncate">{seat.name}</div>}
-              {isAvailable && <div className="text-xs mt-1 text-green-200">Click to sit</div>}
-            </button>
-          );
-        })}
-
-        {/* Buy-in Modal */}
-        {showBuyInModal && selectedSeatIndex !== null && (
-          <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-            <div className="bg-gray-900 rounded-lg p-6 w-96 border-2 border-gray-700">
-              <h3 className="text-xl font-bold mb-4 text-white">Choose Buy-in Amount</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">
-                    Buy-in Amount ({gameState.minBuyIn || 0} - {gameState.maxBuyIn || 0} TC)
-                  </label>
-                  <input
-                    type="number"
-                    min={gameState.minBuyIn || 0}
-                    max={gameState.maxBuyIn || 0}
-                    step={gameState.bigBlind || 10}
-                    value={buyInAmount}
-                    onChange={(e) => setBuyInAmount(parseInt(e.target.value) || (gameState.minBuyIn || 0))}
-                    className={`w-full bg-gray-800 border rounded px-3 py-2 text-white ${
-                      buyInAmount < (gameState.minBuyIn || 0) || buyInAmount > (gameState.maxBuyIn || 0)
-                        ? 'border-red-500'
-                        : 'border-gray-600'
-                    }`}
-                  />
-                  {buyInAmount < (gameState.minBuyIn || 0) && (
-                    <p className="text-red-400 text-sm mt-1">
-                      ⚠️ Minimum buy-in is {gameState.minBuyIn || 0} TC
-                    </p>
-                  )}
-                  {buyInAmount > (gameState.maxBuyIn || 0) && (
-                    <p className="text-red-400 text-sm mt-1">
-                      ⚠️ Maximum buy-in is {gameState.maxBuyIn || 0} TC
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => {
-                      setShowBuyInModal(false);
-                      setSelectedSeatIndex(null);
-                    }}
-                    className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (selectedSeatIndex !== null) {
-                        onSitDown(selectedSeatIndex, buyInAmount);
-                        setShowBuyInModal(false);
-                        setSelectedSeatIndex(null);
-                      }
-                    }}
-                    disabled={buyInAmount < (gameState.minBuyIn || 0) || buyInAmount > (gameState.maxBuyIn || 0)}
-                    className={`font-bold px-4 py-2 rounded-lg transition-colors ${
-                      buyInAmount < (gameState.minBuyIn || 0) || buyInAmount > (gameState.maxBuyIn || 0)
-                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        : 'bg-green-600 hover:bg-green-700 text-white'
-                    }`}
-                  >
-                    Sit Down with {buyInAmount} TC
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const getPlayerPosition = (seatIndex: number) => {
-    const totalSeats = gameState.seats.length;
-    const angle = (seatIndex / totalSeats) * 2 * Math.PI - Math.PI / 2;
-
-    // Safe margins - prevent overlap at edges
-    const SAFE_MARGIN = 8; // percentage from edge
-
-    // Responsive radius - scale based on seat count
-    const baseRadiusX = Math.min(42, 48 - totalSeats);
-    const baseRadiusY = Math.min(32, 38 - totalSeats);
-
-    // Warp angle slightly away from right edge to open space
-    const rightBias = Math.cos(angle); // 1 at 3 o'clock, -1 at 9 o'clock
-    const warpedAngle = angle + rightBias * 0.06; // ~3.5 degrees push away from right
-
-    let x = 50 + baseRadiusX * Math.cos(warpedAngle);
-    let y = 50 + baseRadiusY * Math.sin(warpedAngle);
-
-    // Clamp to safe margins
-    x = Math.max(SAFE_MARGIN, Math.min(100 - SAFE_MARGIN, x));
-    y = Math.max(SAFE_MARGIN, Math.min(100 - SAFE_MARGIN, y));
-
-    // Determine quadrant for panel placement
-    const onLeft = x < 50;
-    const onTop = y < 50;
-
-    return { x, y, onLeft, onTop };
-  };
+  const theme = getThemeForVariant(gameState.variant);
 
   return (
-    <div className="w-full space-y-4">
-      {/* Poker Table */}
-      <div
-        className="relative w-full h-[600px] rounded-3xl shadow-2xl p-8 bg-cover bg-center"
-        style={{ backgroundImage: 'url(/assets/table/felt_casino.webp)' }}
-      >
-        {/* Table center */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-          <div className="bg-gray-900 bg-opacity-95 text-white px-6 py-3 rounded-xl mb-4 shadow-2xl border border-white border-opacity-10 backdrop-blur-sm">
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Pot</p>
-            <p className="text-3xl font-bold text-yellow-400 tabular-nums">
-              ${(gameState.pot / 100).toFixed(2)}
-            </p>
+    <ThemeProvider defaultTheme={theme}>
+      <div className="w-full space-y-4">
+        <TableStage>
+          {/* Pot Badge */}
+          <div style={{ position: 'absolute', top: '70%', left: '50%', transform: 'translateX(-50%)' }}>
+            <PotBadge amount={gameState.pot} />
           </div>
 
           {/* Community Cards */}
           {gameState.communityCards && gameState.communityCards.length > 0 && (
-            <div className="flex gap-2 justify-center">
-              {gameState.communityCards.map((card, idx) => (
-                <CardComponent key={idx} card={card} />
-              ))}
+            <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translateX(-50%)' }}>
+              <div className="flex justify-center gap-3">
+                {gameState.communityCards.map((card: CardType, i: number) => (
+                  <Card
+                    key={i}
+                    rank={card.rank}
+                    suit={card.suit}
+                    size="large"
+                  />
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Phase */}
-          <p className="text-white text-lg font-semibold mt-4 capitalize">
-            {gameState.phase.replace(/([A-Z])/g, ' $1').trim()}
-          </p>
-        </div>
+          {/* Seats */}
+          {gameState.seats.map((seat: any, idx: number) => {
+            const totalSeats = gameState.seats.length;
+            const angle = (idx / totalSeats) * 2 * Math.PI - Math.PI / 2;
+            const radiusX = 42;
+            const radiusY = 32;
+            const x = 50 + radiusX * Math.cos(angle);
+            const y = 50 + radiusY * Math.sin(angle);
 
-        {/* Players */}
-        {gameState.seats.map((seat, idx) => {
-          if (!seat) return null;
+            const isMe = seat && seat.playerId === myPlayerId;
+            const isCurrentTurn = seat && gameState.currentTurnPlayerId === seat.playerId;
+            const isDealer = gameState.dealerSeatIndex === idx;
+            const hasFolded = seat && seat.hasFolded;
 
-          const pos = getPlayerPosition(idx);
-          const isMe = seat.playerId === myPlayerId;
-          const isCurrentTurn = gameState.currentTurnPlayerId === seat.playerId;
-          const isDealer = gameState.dealerSeatIndex === idx;
+            const sbIndex = ((gameState.dealerSeatIndex || 0) + 1) % totalSeats;
+            const bbIndex = ((gameState.dealerSeatIndex || 0) + 2) % totalSeats;
+            const isSmallBlind = idx === sbIndex;
+            const isBigBlind = idx === bbIndex;
 
-          // Side-aware panel positioning
-          const panelStyle: React.CSSProperties = {
-            left: `${pos.x}%`,
-            top: `${pos.y}%`,
-            transform: pos.onLeft
-              ? (pos.onTop ? 'translate(0, 0)' : 'translate(0, -100%)')
-              : (pos.onTop ? 'translate(-100%, 0)' : 'translate(-100%, -100%)'),
-            maxWidth: 'min(220px, calc(100vw - 48px))'
-          };
+            const position = y < 50 ? 'top' : 'bottom';
 
-          return (
-            <div
-              key={idx}
-              className={clsx(
-                'absolute',
-                isCurrentTurn && 'ring-4 ring-yellow-400',
-                'rounded-lg transition-all duration-150'
-              )}
-              style={panelStyle}
-            >
-              <div className={clsx(
-                'bg-gray-900 bg-opacity-95 text-white rounded-lg p-2.5 w-full',
-                'shadow-lg border border-white border-opacity-5',
-                seat.hasFolded && 'opacity-50',
-                isMe && 'ring-2 ring-blue-500'
-              )}>
-                {/* Row 1: Name and Action Badge */}
-                <div className="flex items-center justify-between mb-1.5 gap-1">
-                  <p className="font-semibold text-sm truncate flex-1">{seat.name}</p>
-                  <div className="flex items-center gap-1">
-                    {isDealer && <span className="text-yellow-400 text-xs font-bold">D</span>}
-                    {seat.lastAction && (
-                      <span className={clsx(
-                        'text-[10px] font-medium px-1.5 py-0.5 rounded uppercase',
-                        seat.lastAction === 'fold' && 'bg-gray-600 text-gray-300',
-                        (seat.lastAction === 'check' || seat.lastAction === 'call') && 'bg-blue-600 text-blue-100',
-                        (seat.lastAction === 'raise' || seat.lastAction === 'bet' || seat.lastAction === 'all-in') && 'bg-amber-600 text-amber-100'
-                      )}>
-                        {seat.lastAction}
-                      </span>
-                    )}
-                  </div>
-                </div>
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: 'absolute',
+                  left: `${x}%`,
+                  top: `${y}%`,
+                  transform: 'translate(-50%, -50%)'
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  {/* Hole cards */}
+                  {seat && seat.holeCards && seat.holeCards.length > 0 && !hasFolded && position === 'top' && (
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {seat.holeCards.map((card: CardType, cardIdx: number) => (
+                        <Card
+                          key={cardIdx}
+                          rank={card.rank}
+                          suit={card.suit}
+                          faceDown={!isMe && gameState.phase !== 'Showdown'}
+                          size="small"
+                        />
+                      ))}
+                    </div>
+                  )}
 
-                {/* Row 2: Stack and Bet */}
-                <div className="flex justify-between text-xs">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-green-400 font-semibold tabular-nums">
-                      {Math.floor(seat.tableStack / 100)} TC
-                    </span>
-                    {seat.sidePot && seat.sidePot.balance > 0 && (
-                      <span className="text-purple-400 font-semibold tabular-nums text-[10px]" title="Side pot balance">
-                        Side: {Math.floor(seat.sidePot.balance / 100)} TC
-                      </span>
-                    )}
-                  </div>
-                  {seat.currentBet > 0 && (
-                    <span className="text-yellow-400 font-semibold tabular-nums">
-                      Bet: {Math.floor(seat.currentBet / 100)} TC
-                    </span>
+                  {seat ? (
+                    <SeatBadge
+                      name={seat.name}
+                      stack={seat.tableStack ?? seat.chips ?? seat.bankroll ?? 0}
+                      dealer={isDealer}
+                      smallBlind={isSmallBlind}
+                      bigBlind={isBigBlind}
+                      active={isCurrentTurn}
+                      folded={hasFolded}
+                      position={position}
+                    />
+                  ) : (
+                    <div className="px-4 py-2 text-gray-500 bg-slate-900/30 border border-dashed border-slate-700 rounded-lg text-sm">
+                      Empty
+                    </div>
+                  )}
+
+                  {seat && seat.holeCards && seat.holeCards.length > 0 && !hasFolded && position === 'bottom' && (
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {seat.holeCards.map((card: CardType, cardIdx: number) => (
+                        <Card
+                          key={cardIdx}
+                          rank={card.rank}
+                          suit={card.suit}
+                          faceDown={!isMe && gameState.phase !== 'Showdown'}
+                          size="small"
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
+              </div>
+            );
+          })}
+        </TableStage>
 
-                {/* Hole cards */}
-                {seat.holeCards && seat.holeCards.length > 0 && (
-                  <div className="flex gap-1 mt-2 justify-center">
-                    {seat.holeCards.map((card, cardIdx) => (
-                      <CardComponent
-                        key={cardIdx}
-                        card={card}
-                        faceDown={!isMe}
-                      />
-                    ))}
-                  </div>
+        {/* HUD Overlay */}
+        <HudOverlay>
+          {(() => {
+            const mySeat = gameState.seats.find((s: any) => s && s.playerId === myPlayerId);
+            const hasFolded = mySeat?.hasFolded || false;
+            const isMyTurn = gameState.currentTurnPlayerId === myPlayerId;
+
+            return isSeated && gameState.phase !== 'Lobby' && !hasFolded && (
+              <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <ActionBar
+                  onFold={() => onAction('fold')}
+                  onCall={() => onAction('call')}
+                  onCheck={() => onAction('check')}
+                  onRaise={(amount) => onAction('raise', amount)}
+                  callAmount={(gameState.currentBet || 0) - (mySeat?.currentBet || 0)}
+                  minRaise={(gameState.currentBet || 0) + (gameState.bigBlind || 0)}
+                  maxRaise={mySeat?.tableStack || 0}
+                  currentBet={gameState.currentBet || 0}
+                  pot={gameState.pot}
+                  disabled={!isMyTurn}
+                  queuedAction={queuedAction}
+                  onQueueAction={setQueuedAction}
+                />
+                {timeRemaining > 0 && isMyTurn && (
+                  <TimerRing timeRemaining={timeRemaining} totalTime={30000} />
                 )}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })()}
 
-      {/* Action Controls - Below Table */}
-      {mySeat && isMyTurn && (
-        <div className="w-full">
-          <div className="bg-gray-900 rounded-lg p-4 shadow-xl max-w-4xl mx-auto">
-            {/* Turn Timer Progress Bar */}
-            {gameState.turnEndsAtMs && (
-              <div className="mb-4">
-                <div className="flex justify-between text-xs text-gray-400 mb-1">
-                  <span>Your Turn</span>
-                  <span>{Math.ceil(timeRemaining / 1000)}s</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div
-                    className={clsx(
-                      'h-2 rounded-full transition-all duration-100',
-                      timeRemaining > 10000 ? 'bg-green-500' : timeRemaining > 5000 ? 'bg-yellow-500' : 'bg-red-500'
-                    )}
-                    style={{ width: `${Math.max(0, (timeRemaining / 30000) * 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
-            <div className="flex flex-wrap gap-3 items-center justify-center">
-              <button
-                onClick={() => onAction('fold')}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-lg transition-colors shadow-lg"
-              >
-                Fold
-              </button>
-
-              {gameState.currentBet === mySeat.currentBet ? (
+          {isSeated && (
+            <div style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', gap: '12px' }}>
+              {onStandUp && (
                 <button
-                  onClick={() => onAction('check')}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-lg transition-colors shadow-lg"
+                  onClick={onStandUp}
+                  className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700/80 text-white rounded-lg text-sm backdrop-blur border border-slate-600 hover:border-slate-400 transition-all"
                 >
-                  Check
-                </button>
-              ) : (
-                <button
-                  onClick={() => onAction('call')}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-lg transition-colors shadow-lg"
-                >
-                  Call ${((gameState.currentBet - mySeat.currentBet) / 100).toFixed(2)}
+                  Leave Table
                 </button>
               )}
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={betAmount / 100}
-                  onChange={(e) => setBetAmount(Math.floor(parseFloat(e.target.value) * 100))}
-                  step={gameState.bigBlind ? gameState.bigBlind / 100 : 1}
-                  min={(gameState.currentBet + (gameState.bigBlind || 100)) / 100}
-                  max={mySeat.tableStack / 100}
-                  className="w-28 px-3 py-3 rounded text-gray-900 font-bold"
-                />
+              {onProposeSideGame && (
                 <button
-                  onClick={() => onAction('raise', betAmount)}
-                  disabled={betAmount <= gameState.currentBet}
-                  className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-lg transition-colors shadow-lg"
+                  onClick={() => setShowPropBetSelectionMenu(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white rounded-lg text-sm font-bold backdrop-blur border border-yellow-600 hover:border-yellow-400 transition-all shadow-lg flex items-center gap-2"
                 >
-                  {gameState.currentBet > 0 ? 'Raise' : 'Bet'}
+                  <span>🎴</span>
+                  Prop Betz
                 </button>
-              </div>
-
-              <button
-                onClick={() => onAction('all-in')}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-6 py-3 rounded-lg transition-colors shadow-lg"
-              >
-                All In
-              </button>
+              )}
             </div>
+          )}
+        </HudOverlay>
+      </div>
 
-            {/* Secondary Actions: Stand Up and Prop Bets */}
-            {isSeated && (
-              <div className="mt-4 flex gap-3 justify-center">
-                {onStandUp && (
-                  <button
-                    onClick={onStandUp}
-                    className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-6 py-3 rounded-lg transition-colors shadow-lg"
-                  >
-                    Stand Up
-                  </button>
-                )}
-                {onProposeSideGame && (
-                  <button
-                    onClick={() => setShowPropBetModal(true)}
-                    className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold px-6 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2"
-                  >
-                    <span>🎴</span>
-                    <span>Prop Betz</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Prop Bet Components */}
-      {onProposeSideGame && (
-        <PropBetProposalModal
-          isOpen={showPropBetModal}
-          onClose={() => setShowPropBetModal(false)}
-          onPropose={(type, config) => {
-            onProposeSideGame(type, config);
-            setShowPropBetModal(false);
-          }}
-          myPlayerId={myPlayerId}
-          sidePotBalance={mySeat?.sidePot?.balance || 0}
-          bigBlind={gameState.bigBlind || 100}
-        />
-      )}
-
-      {gameState.activeSideGames?.map(sideGame => {
-        const proposerSeat = gameState.seats.find(s => s?.playerId === sideGame.proposedBy);
-        return (
-          <PropBetNotification
-            key={sideGame.id}
-            sideGame={sideGame}
-            proposerName={proposerSeat?.name || 'Unknown'}
-            myPlayerId={myPlayerId}
-            onRespond={(id, response) => onRespondToSideGame?.(id, response)}
+      {/* Prop Bet Modals */}
+      {gameState && onProposeSideGame && (
+        <>
+          <PropBetSelectionMenu
+            isOpen={showPropBetSelectionMenu}
+            onClose={() => setShowPropBetSelectionMenu(false)}
+            onSelectPropBet={(propBetType: string) => {
+              setSelectedPropBet(propBetType);
+              setShowPropBetModal(true);
+            }}
           />
-        );
-      })}
 
-      {gameState.activeSideGames && gameState.activeSideGames.length > 0 && (
-        <ActivePropBets
-          sideGames={gameState.activeSideGames}
-          communityCards={gameState.communityCards || []}
-          getPlayerName={(playerId) => gameState.seats.find(s => s?.playerId === playerId)?.name || 'Unknown'}
-          phase={gameState.phase}
-        />
+          {selectedPropBet === 'flipz' && (
+            <PropBetProposalModal
+              isOpen={showPropBetModal}
+              onClose={() => {
+                setShowPropBetModal(false);
+                setSelectedPropBet(null);
+              }}
+              onPropose={(type: string, config: any) => {
+                onProposeSideGame(type, config);
+                setShowPropBetModal(false);
+                setSelectedPropBet(null);
+              }}
+              myPlayerId={myPlayerId}
+              sidePotBalance={(() => {
+                const mySeat = gameState.seats.find((s: any) => s && s.playerId === myPlayerId);
+                return mySeat?.sidePot?.balance || 0;
+              })()}
+              bigBlind={gameState.bigBlind || 100}
+            />
+          )}
+        </>
       )}
-    </div>
+
+      {/* Prop bet notifications */}
+      {gameState.activeSideGames && onRespondToSideGame && gameState.activeSideGames.map((sg: ActiveSideGame) => (
+        <PropBetNotification
+          key={sg.id}
+          sideGame={sg}
+          myPlayerId={myPlayerId}
+          onRespond={onRespondToSideGame}
+        />
+      ))}
+    </ThemeProvider>
   );
 };
 

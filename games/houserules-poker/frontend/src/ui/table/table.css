@@ -1,0 +1,34 @@
+.table-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(80% 80% at 50% 50%, rgba(0,0,0,.18), rgba(0,0,0,.45)),
+    var(--table-felt, #115c3a);
+}
+
+.table-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--img-felt) center/cover no-repeat;
+  opacity: .85;
+}
+
+.table-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--img-vignette) center/100% 100% no-repeat;
+  opacity: .9;
+  pointer-events: none;
+}
+
+.table-stage__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}

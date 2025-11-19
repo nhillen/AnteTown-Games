@@ -1,0 +1,25 @@
+:root {
+  /* Colors (injected by ThemeProvider) */
+  --color-bg: #0b1220;
+  --color-felt: #115c3a;
+  --color-accent: #ffd54a;
+  --color-text: #e9eef7;
+  --color-danger: #ff5a5a;
+  --color-success: #54d58b;
+
+  /* Images (injected by ThemeProvider) */
+  --img-felt: url(/assets/table/felt_casino.webp);
+  --img-rim: url(/assets/table/rim_leather.webp);
+  --img-vignette: url(/assets/overlays/vignette_dark.png);
+  --img-noise: url(/assets/overlays/noise.png);
+  --img-cardBack: url(/assets/cards/back_navy_gold.png);
+
+  /* Elevation */
+  --elev-outer: 0 12px 28px rgba(0, 0, 0, 0.35);
+  --elev-inner: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Table Background */
+.table-stage {
+  --table-felt: var(--color-felt);
+}

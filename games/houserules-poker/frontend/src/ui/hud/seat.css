@@ -1,0 +1,46 @@
+.seat {
+  color: var(--color-text);
+  backdrop-filter: blur(6px);
+  background: rgba(15, 20, 35, .55);
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 12px;
+  padding: 8px 10px;
+  min-width: 120px;
+  transition: all 0.12s ease;
+}
+
+.seat--active {
+  outline: 2px solid rgba(255, 213, 74, .25);
+  background: rgba(255, 213, 74, .08);
+}
+
+.seat__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.pip {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #1b1b1b;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.seat__name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.seat__stack {
+  font-variant-numeric: tabular-nums;
+  opacity: .9;
+  font-size: 13px;
+  color: var(--color-success);
+}

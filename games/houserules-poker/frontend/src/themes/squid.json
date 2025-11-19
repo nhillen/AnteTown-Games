@@ -1,0 +1,22 @@
+{
+  "name": "squid",
+  "colors": {
+    "bg": "#1a0a0f",
+    "felt": "#2b1520",
+    "accent": "#ff1493",
+    "text": "#ffeef7",
+    "danger": "#ff006e",
+    "success": "#8fff00"
+  },
+  "images": {
+    "felt": "/assets/table/felt_casino.webp",
+    "rim": "/assets/table/rim_casino.webp",
+    "vignette": "",
+    "noise": "/assets/overlays/noise.png",
+    "cardBack": "/assets/cards/PLAYING_CARD_BACKS.svg"
+  },
+  "elevation": {
+    "outer": "0 12px 32px rgba(255,20,147,.25)",
+    "inner": "inset 0 1px 0 rgba(255,20,147,.08)"
+  }
+}
