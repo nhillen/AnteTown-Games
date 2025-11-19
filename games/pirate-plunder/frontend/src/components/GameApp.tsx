@@ -106,12 +106,18 @@ interface GameAppProps {
   platformMode?: boolean  // When true, hide platform-provided UI (Profile, Store, Login, etc.)
   tableId?: string        // Table ID to join (for multi-table platform mode)
   BuyInModalComponent?: React.ComponentType<BuyInModalProps>  // Shared BuyInModal from platform
+  socket?: any            // Platform socket (when provided, overrides local AuthProvider socket)
+  user?: any              // Platform user (when provided, overrides local AuthProvider user)
 }
 
-export default function GameApp({ platformMode = false, tableId, BuyInModalComponent }: GameAppProps = {}) {
+export default function GameApp({ platformMode = false, tableId, BuyInModalComponent, socket: platformSocket, user: platformUser }: GameAppProps = {}) {
   // Use platform's BuyInModal if provided, otherwise use local version
   const BuyInModalToUse = BuyInModalComponent || BuyInModal
-  const { user, loading, refreshUser, socket } = useAuth()
+  const { user: localUser, loading, refreshUser, socket: localSocket } = useAuth()
+
+  // Use platform socket/user if provided, otherwise use local AuthProvider
+  const socket = platformSocket || localSocket
+  const user = platformUser || localUser
   const [connected, setConnected] = useState(false)
   const [me, setMe] = useState<Player | null>(null)
   const [_lobby, setLobby] = useState<LobbyState>({ players: [] })

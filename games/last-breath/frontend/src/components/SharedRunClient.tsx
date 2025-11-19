@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
 
 // TopNav component (inline for now - could be imported from platform)
 const TopNav = ({ onBack }: { onBack: () => void }) => (
@@ -66,15 +66,17 @@ interface RunState {
 }
 
 interface SharedRunClientProps {
-  socketUrl?: string;
+  socket?: Socket | null;  // Platform socket from AuthProvider
+  socketUrl?: string;       // Fallback for standalone mode
   playerName?: string;
 }
 
 export const SharedRunClient: React.FC<SharedRunClientProps> = ({
+  socket: platformSocket = null,  // Accept platform socket
   socketUrl = 'http://localhost:3001',
   playerName = 'Player'
 }) => {
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const socket = platformSocket;  // Use platform socket directly
   const [runState, setRunState] = useState<RunState | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<string>('');
   const [message, setMessage] = useState<string>('');
@@ -86,57 +88,59 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
 
   // Connect to socket
   useEffect(() => {
-    const newSocket = io(`${socketUrl}/last-breath`);
-    setSocket(newSocket);
-    setMyPlayerId(newSocket.id || '');
+    if (!socket) return;
+
+    setMyPlayerId(socket.id || '');
 
     // Auto-join run on connect
-    newSocket.on('connect', () => {
-      setMyPlayerId(newSocket.id || '');
-      newSocket.emit('join_run', { playerName, bid });
-    });
+    const handleConnect = () => {
+      setMyPlayerId(socket.id || '');
+      socket.emit('join_run', { playerName, bid });
+    };
 
-    newSocket.on('run_joined', (data: { runId: string; state: RunState; config: any; autoStartAt?: number }) => {
+    socket.on('connect', handleConnect);
+
+    const handleRunJoined = (data: { runId: string; state: RunState; config: any; autoStartAt?: number }) => {
       setRunState(data.state);
       if (data.autoStartAt) {
         setAutoStartAt(data.autoStartAt);
       }
       setMessage('Joined run! Auto-starting soon...');
-    });
+    };
 
-    newSocket.on('player_joined_run', (data: { playerName: string; playerCount: number; autoStartAt?: number }) => {
+    const handlePlayerJoinedRun = (data: { playerName: string; playerCount: number; autoStartAt?: number }) => {
       setMessage(`${data.playerName} joined! (${data.playerCount} players)`);
       if (data.autoStartAt) {
         setAutoStartAt(data.autoStartAt);
       }
-    });
+    };
 
-    newSocket.on('descent_started', (data: { state: RunState }) => {
+    const handleDescentStarted = (data: { state: RunState }) => {
       setRunState(data.state);
       setMessage('The descent begins...');
-    });
+    };
 
-    newSocket.on('state_update', (data: { state: RunState }) => {
+    const handleStateUpdate = (data: { state: RunState }) => {
       setRunState(data.state);
-    });
+    };
 
-    newSocket.on('player_exfiltrated', (data: { playerId: string; depth: number; payout: number; state: RunState }) => {
+    const handlePlayerExfiltrated = (data: { playerId: string; depth: number; payout: number; state: RunState }) => {
       setRunState(data.state);
       const player = data.state.players.find(p => p.playerId === data.playerId);
       if (player) {
         setMessage(`${player.playerName} exfiltrated at depth ${data.depth} with ${data.payout} TC!`);
       }
-    });
+    };
 
-    newSocket.on('player_busted', (data: { playerId: string; reason: string; depth: number; state: RunState }) => {
+    const handlePlayerBusted = (data: { playerId: string; reason: string; depth: number; state: RunState }) => {
       setRunState(data.state);
       const player = data.state.players.find(p => p.playerId === data.playerId);
       if (player) {
         setMessage(`${player.playerName} BUSTED at depth ${data.depth} (${data.reason})!`);
       }
-    });
+    };
 
-    newSocket.on('run_advanced', (data: { depth: number; events: GameEvent[]; state: RunState }) => {
+    const handleRunAdvanced = (data: { depth: number; events: GameEvent[]; state: RunState }) => {
       // Door animation cycle: open -> show corridor -> close (750ms total)
       setDoorOpen(true);
 
@@ -164,21 +168,41 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
         setDoorOpen(false);
         setRunState(data.state);
       }, 500);
-    });
+    };
 
-    newSocket.on('run_completed', (data: { depth: number; finalState: RunState }) => {
+    const handleRunCompleted = (data: { depth: number; finalState: RunState }) => {
       setRunState(data.finalState);
       setMessage(`Run completed at depth ${data.depth}!`);
-    });
+    };
 
-    newSocket.on('error', (data: { message: string }) => {
+    const handleError = (data: { message: string }) => {
       setMessage(`Error: ${data.message}`);
-    });
+    };
+
+    socket.on('run_joined', handleRunJoined);
+    socket.on('player_joined_run', handlePlayerJoinedRun);
+    socket.on('descent_started', handleDescentStarted);
+    socket.on('state_update', handleStateUpdate);
+    socket.on('player_exfiltrated', handlePlayerExfiltrated);
+    socket.on('player_busted', handlePlayerBusted);
+    socket.on('run_advanced', handleRunAdvanced);
+    socket.on('run_completed', handleRunCompleted);
+    socket.on('error', handleError);
 
     return () => {
-      newSocket.close();
+      // Clean up listeners (DON'T close socket - platform owns it!)
+      socket.off('connect', handleConnect);
+      socket.off('run_joined', handleRunJoined);
+      socket.off('player_joined_run', handlePlayerJoinedRun);
+      socket.off('descent_started', handleDescentStarted);
+      socket.off('state_update', handleStateUpdate);
+      socket.off('player_exfiltrated', handlePlayerExfiltrated);
+      socket.off('player_busted', handlePlayerBusted);
+      socket.off('run_advanced', handleRunAdvanced);
+      socket.off('run_completed', handleRunCompleted);
+      socket.off('error', handleError);
     };
-  }, [socketUrl, playerName, bid]);
+  }, [socket, playerName, bid]);
 
   // Countdown timer for auto-start
   useEffect(() => {
