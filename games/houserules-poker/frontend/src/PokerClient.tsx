@@ -472,6 +472,17 @@ const PokerClient: React.FC<PokerClientProps> = ({
               >
                 All In
               </button>
+
+              {/* Prop Bet Button */}
+              {onProposeSideGame && mySeat?.sidePot && mySeat.sidePot.balance > 0 && (
+                <button
+                  onClick={() => setShowPropBetModal(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-lg transition-colors shadow-lg"
+                  title={`Side pot: ${Math.floor(mySeat.sidePot.balance / 100)} TC`}
+                >
+                  🎲 Prop Bet
+                </button>
+              )}
             </div>
 
           </div>
