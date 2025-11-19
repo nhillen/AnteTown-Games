@@ -87,24 +87,36 @@ export function ActionBar({
         <div className="action-bar__primary" style={{ justifyContent: 'center', gap: '12px' }}>
           <button
             onClick={() => onQueueAction(queuedAction === 'fold' ? null : 'fold')}
-            className={`action-btn action-btn--fold ${queuedAction === 'fold' ? 'action-btn--queued' : ''}`}
-            style={{ minWidth: '120px' }}
+            className={`action-btn action-btn--fold`}
+            style={{
+              minWidth: '120px',
+              outline: queuedAction === 'fold' ? '3px solid var(--color-danger, #ff5a5a)' : 'none',
+              outlineOffset: '2px'
+            }}
           >
-            {queuedAction === 'fold' ? '✓ Fold Queued' : 'Fold'}
+            Fold
           </button>
           <button
             onClick={() => onQueueAction(queuedAction === 'check_fold' ? null : 'check_fold')}
-            className={`action-btn action-btn--check ${queuedAction === 'check_fold' ? 'action-btn--queued' : ''}`}
-            style={{ minWidth: '120px' }}
+            className={`action-btn action-btn--check`}
+            style={{
+              minWidth: '120px',
+              outline: queuedAction === 'check_fold' ? '3px solid var(--color-accent, #ffd54a)' : 'none',
+              outlineOffset: '2px'
+            }}
           >
-            {queuedAction === 'check_fold' ? '✓ Check/Fold Queued' : 'Check/Fold'}
+            Check/Fold
           </button>
           <button
             onClick={() => onQueueAction(queuedAction === 'check' ? null : 'check')}
-            className={`action-btn action-btn--check ${queuedAction === 'check' ? 'action-btn--queued' : ''}`}
-            style={{ minWidth: '120px' }}
+            className={`action-btn action-btn--check`}
+            style={{
+              minWidth: '120px',
+              outline: queuedAction === 'check' ? '3px solid var(--color-accent, #ffd54a)' : 'none',
+              outlineOffset: '2px'
+            }}
           >
-            {queuedAction === 'check' ? '✓ Check Queued' : 'Check'}
+            Check
           </button>
         </div>
         <div className="action-bar__secondary" style={{ justifyContent: 'center', marginTop: '8px' }}>

@@ -247,9 +247,20 @@ const PokerClient: React.FC<PokerClientProps> = ({
             const hasFolded = mySeat?.hasFolded || false;
             const isMyTurn = gameState.currentTurnPlayerId === myPlayerId;
 
+            // Debug logging
+            console.log('[ActionBar Debug]', {
+              myPlayerId,
+              currentTurnPlayerId: gameState.currentTurnPlayerId,
+              isMyTurn,
+              disabled: !isMyTurn,
+              phase: gameState.phase,
+              hasFolded
+            });
+
             return isSeated && gameState.phase !== 'Lobby' && !hasFolded && (
               <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <ActionBar
+                  key={`action-bar-${isMyTurn ? 'my-turn' : 'not-my-turn'}`}
                   onFold={() => onAction('fold')}
                   onCall={() => onAction('call')}
                   onCheck={() => onAction('check')}
