@@ -35,21 +35,6 @@ export function ActionBar({
   const canCheck = callAmount === 0
   const [raiseAmount, setRaiseAmount] = useState(minRaise)
 
-  console.log('[ActionBar] Render:', {
-    disabled,
-    canCheck,
-    callAmount,
-    minRaise,
-    maxRaise,
-    pot,
-    queuedAction,
-    hasOnFold: !!onFold,
-    hasOnCall: !!onCall,
-    hasOnCheck: !!onCheck,
-    hasOnRaise: !!onRaise,
-    hasOnQueueAction: !!onQueueAction
-  })
-
   // Update raise amount when minRaise changes
   useEffect(() => {
     setRaiseAmount(minRaise)
@@ -101,10 +86,7 @@ export function ActionBar({
       <div className="action-bar">
         <div className="action-bar__primary" style={{ justifyContent: 'center', gap: '12px' }}>
           <button
-            onClick={() => {
-              console.log('[ActionBar] Queue Fold clicked', queuedAction);
-              onQueueAction?.(queuedAction === 'fold' ? null : 'fold');
-            }}
+            onClick={() => onQueueAction?.(queuedAction === 'fold' ? null : 'fold')}
             className={`action-btn action-btn--fold`}
             style={{
               minWidth: '120px',
@@ -115,10 +97,7 @@ export function ActionBar({
             Fold
           </button>
           <button
-            onClick={() => {
-              console.log('[ActionBar] Queue Check/Fold clicked', queuedAction);
-              onQueueAction?.(queuedAction === 'check_fold' ? null : 'check_fold');
-            }}
+            onClick={() => onQueueAction?.(queuedAction === 'check_fold' ? null : 'check_fold')}
             className={`action-btn action-btn--check`}
             style={{
               minWidth: '120px',
@@ -129,10 +108,7 @@ export function ActionBar({
             Check/Fold
           </button>
           <button
-            onClick={() => {
-              console.log('[ActionBar] Queue Check clicked', queuedAction);
-              onQueueAction?.(queuedAction === 'check' ? null : 'check');
-            }}
+            onClick={() => onQueueAction?.(queuedAction === 'check' ? null : 'check')}
             className={`action-btn action-btn--check`}
             style={{
               minWidth: '120px',
@@ -226,10 +202,7 @@ export function ActionBar({
       {/* Bottom row: Fold / Call / Raise */}
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
         <button
-          onClick={() => {
-            console.log('[ActionBar] Fold clicked');
-            onFold?.();
-          }}
+          onClick={onFold}
           disabled={disabled}
           className="action-btn action-btn--fold"
           style={{ flex: 1 }}
@@ -240,10 +213,7 @@ export function ActionBar({
 
         {canCheck ? (
           <button
-            onClick={() => {
-              console.log('[ActionBar] Check clicked');
-              onCheck?.();
-            }}
+            onClick={onCheck}
             disabled={disabled}
             className="action-btn action-btn--check"
             style={{ flex: 1 }}
@@ -253,10 +223,7 @@ export function ActionBar({
           </button>
         ) : (
           <button
-            onClick={() => {
-              console.log('[ActionBar] Call clicked', callAmount);
-              onCall?.();
-            }}
+            onClick={onCall}
             disabled={disabled}
             className="action-btn action-btn--call"
             style={{ flex: 1 }}
@@ -267,10 +234,7 @@ export function ActionBar({
         )}
 
         <button
-          onClick={() => {
-            console.log('[ActionBar] Raise clicked', raiseAmount);
-            onRaise?.(raiseAmount);
-          }}
+          onClick={() => onRaise?.(raiseAmount)}
           disabled={disabled || !minRaise || raiseAmount < minRaise}
           className="action-btn action-btn--raise"
           style={{ flex: 1 }}

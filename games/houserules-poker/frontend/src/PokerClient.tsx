@@ -72,6 +72,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
   const [showPropBetSelectionMenu, setShowPropBetSelectionMenu] = useState(false);
   const [showPropBetModal, setShowPropBetModal] = useState(false);
   const [selectedPropBet, setSelectedPropBet] = useState<string | null>(null);
+  const [lastLoggedPhase, setLastLoggedPhase] = useState<string>('');
 
   if (!gameState) {
     return (
@@ -80,6 +81,26 @@ const PokerClient: React.FC<PokerClientProps> = ({
       </div>
     );
   }
+
+  // Diagnostic log (once per phase change)
+  useEffect(() => {
+    if (gameState && gameState.phase !== lastLoggedPhase) {
+      setLastLoggedPhase(gameState.phase);
+      const mySeat = gameState.seats.find((s: any) => s && s.playerId === myPlayerId);
+      console.log('🎴 Poker Diagnostic:', {
+        phase: gameState.phase,
+        myPlayerId,
+        mySeat: mySeat ? {
+          seatIndex: gameState.seats.indexOf(mySeat),
+          playerId: mySeat.playerId,
+          hasHoleCards: !!mySeat.holeCards,
+          holeCards: mySeat.holeCards
+        } : 'NOT SEATED',
+        currentTurnPlayerId: gameState.currentTurnPlayerId,
+        isMyTurn: gameState.currentTurnPlayerId === myPlayerId
+      });
+    }
+  }, [gameState?.phase, myPlayerId, lastLoggedPhase]);
 
   // Turn timer countdown
   useEffect(() => {
@@ -171,19 +192,6 @@ const PokerClient: React.FC<PokerClientProps> = ({
             const isDealer = gameState.dealerSeatIndex === idx;
             const hasFolded = seat && seat.hasFolded;
 
-            // Debug hole cards
-            if (seat && seat.holeCards && seat.holeCards.length > 0) {
-              console.log('[Hole Cards Debug]', {
-                seatIndex: idx,
-                seatPlayerId: seat.playerId,
-                myPlayerId,
-                isMe,
-                holeCards: seat.holeCards,
-                phase: gameState.phase,
-                shouldShowFaceUp: isMe || gameState.phase === 'Showdown'
-              });
-            }
-
             const sbIndex = ((gameState.dealerSeatIndex || 0) + 1) % totalSeats;
             const bbIndex = ((gameState.dealerSeatIndex || 0) + 2) % totalSeats;
             const isSmallBlind = idx === sbIndex;
@@ -259,16 +267,6 @@ const PokerClient: React.FC<PokerClientProps> = ({
             const mySeat = gameState.seats.find((s: any) => s && s.playerId === myPlayerId);
             const hasFolded = mySeat?.hasFolded || false;
             const isMyTurn = gameState.currentTurnPlayerId === myPlayerId;
-
-            // Debug logging
-            console.log('[ActionBar Debug]', {
-              myPlayerId,
-              currentTurnPlayerId: gameState.currentTurnPlayerId,
-              isMyTurn,
-              disabled: !isMyTurn,
-              phase: gameState.phase,
-              hasFolded
-            });
 
             return isSeated && gameState.phase !== 'Lobby' && !hasFolded && (
               <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '12px' }}>
