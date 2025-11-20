@@ -187,11 +187,17 @@ const PokerClient: React.FC<PokerClientProps> = ({
             setQueuedAction('fold');
           }
         }
-      }
-
-      // Stand up (backend will handle afterHand vs immediate)
-      if (onStandUp) {
-        onStandUp({ afterHand, immediate });
+        // Stand up immediately
+        if (onStandUp) {
+          onStandUp({ immediate: true });
+        }
+      } else if (afterHand) {
+        // After hand: Just queue the stand up, don't fold
+        // Wrapper will watch for hand end and then call stand_up
+        console.log('🃏 Queueing stand up for after hand (no fold)');
+        if (onStandUp) {
+          onStandUp({ afterHand: true });
+        }
       }
     };
 
