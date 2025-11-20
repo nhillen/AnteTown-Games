@@ -1348,6 +1348,30 @@ export class HouseRules extends GameBase {
       case 'fold':
         seat.hasFolded = true;
         seat.lastAction = 'fold';
+
+        // Check if only one player remains (all others folded)
+        const remainingPlayers = this.gameState.seats.filter(s => s && !s.hasFolded);
+        if (remainingPlayers.length === 1) {
+          console.log('🎰 Only one player remains - ending hand immediately');
+          // Award pot to remaining player
+          const winner = remainingPlayers[0];
+          winner.tableStack += this.gameState.pot;
+          console.log(`🎰 ${winner.name} wins ${this.gameState.pot} ${this.currency} (all others folded)`);
+
+          // End hand immediately
+          this.gameState.phase = 'Showdown';
+          this.gameState.pot = 0;
+          seat.hasActed = true;
+
+          // Start new hand after a delay
+          setTimeout(() => {
+            this.startNewHand();
+            this.broadcastGameState();
+          }, 3000);
+
+          this.broadcastGameState();
+          return; // Don't continue to next player
+        }
         break;
 
       case 'check':
