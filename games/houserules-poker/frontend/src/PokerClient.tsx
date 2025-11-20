@@ -44,6 +44,7 @@ export interface PokerClientProps {
   onSitDown?: (seatIndex: number, buyInAmount: number) => void;
   onStandUp?: (options?: { afterHand?: boolean; immediate?: boolean }) => void;
   isSeated?: boolean;
+  buyInAmount?: number; // Default buy-in amount for re-sitting
   onProposeSideGame?: (type: string, config: any) => void;
   onRespondToSideGame?: (sideGameId: string, response: 'in' | 'out') => void;
 }
@@ -62,8 +63,10 @@ const PokerClient: React.FC<PokerClientProps> = ({
   gameState,
   myPlayerId,
   onAction,
+  onSitDown,
   onStandUp,
   isSeated,
+  buyInAmount,
   onProposeSideGame,
   onRespondToSideGame
 }) => {
@@ -296,9 +299,19 @@ const PokerClient: React.FC<PokerClientProps> = ({
                       position={position}
                     />
                   ) : (
-                    <div className="px-4 py-2 text-gray-500 bg-slate-900/30 border border-dashed border-slate-700 rounded-lg text-sm">
-                      Empty
-                    </div>
+                    // Empty seat - clickable if player is watching (not seated)
+                    !isSeated && onSitDown && buyInAmount ? (
+                      <button
+                        onClick={() => onSitDown(idx, buyInAmount)}
+                        className="px-4 py-2 text-green-400 bg-slate-900/50 border border-green-600/50 hover:border-green-500 hover:bg-green-900/20 rounded-lg text-sm font-medium transition-all cursor-pointer"
+                      >
+                        Sit Down
+                      </button>
+                    ) : (
+                      <div className="px-4 py-2 text-gray-500 bg-slate-900/30 border border-dashed border-slate-700 rounded-lg text-sm">
+                        Empty
+                      </div>
+                    )
                   )}
 
                   {seat && seat.holeCards && seat.holeCards.length > 0 && !hasFolded && position === 'bottom' && (
