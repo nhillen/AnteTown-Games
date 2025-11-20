@@ -1351,6 +1351,9 @@ export class HouseRules extends GameBase {
 
         // Check if only one player remains (all others folded)
         const remainingPlayers = this.gameState.seats.filter(s => s && !s.hasFolded);
+        console.log(`🎰 After fold: ${remainingPlayers.length} remaining players`);
+        console.log(`🎰 Remaining players:`, remainingPlayers.map(s => `${s.name} (folded: ${s.hasFolded})`));
+
         if (remainingPlayers.length === 1) {
           console.log('🎰 Only one player remains - ending hand immediately');
           // Award pot to remaining player
