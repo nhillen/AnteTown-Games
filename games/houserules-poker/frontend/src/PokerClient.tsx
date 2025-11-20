@@ -162,10 +162,11 @@ const PokerClient: React.FC<PokerClientProps> = ({
     window.dispatchEvent(new CustomEvent('poker:stateUpdate', {
       detail: {
         isSeated: isSeatedNow,
-        isStanding: !isSeatedNow && isSeated // Was seated but now not
+        isStanding: !isSeatedNow && isSeated, // Was seated but now not
+        phase: gameState?.phase || 'Lobby'
       }
     }));
-  }, [gameState?.seats, myPlayerId, isSeated]);
+  }, [gameState?.seats, gameState?.phase, myPlayerId, isSeated]);
 
   // Listen for platform overlay events
   useEffect(() => {
@@ -302,14 +303,18 @@ const PokerClient: React.FC<PokerClientProps> = ({
                     // Empty seat - clickable if player is watching (not seated)
                     !isSeated && onSitDown && buyInAmount ? (
                       <button
-                        onClick={() => onSitDown(idx, buyInAmount)}
+                        onClick={() => {
+                          console.log('[Poker] 💺 Clicking Sit Down:', { seatIndex: idx, buyInAmount, isSeated, hasOnSitDown: !!onSitDown })
+                          onSitDown(idx, buyInAmount)
+                        }}
                         className="px-4 py-2 text-green-400 bg-slate-900/50 border border-green-600/50 hover:border-green-500 hover:bg-green-900/20 rounded-lg text-sm font-medium transition-all cursor-pointer"
                       >
                         Sit Down
                       </button>
                     ) : (
                       <div className="px-4 py-2 text-gray-500 bg-slate-900/30 border border-dashed border-slate-700 rounded-lg text-sm">
-                        Empty
+                        {/* Debug: show why Sit Down isn't showing */}
+                        {!isSeated ? 'Empty' : 'Seated'}
                       </div>
                     )
                   )}
