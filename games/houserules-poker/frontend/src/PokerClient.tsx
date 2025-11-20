@@ -4,7 +4,6 @@ import type { Card as CardType, PokerPhase, PokerAction, ActiveSideGame } from '
 import { PropBetProposalModal } from './components/PropBetProposalModal';
 import { PropBetSelectionMenu } from './components/PropBetSelectionMenu';
 import { PropBetNotification } from './components/PropBetNotification';
-import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { ThemeProvider } from './themes/ThemeProvider';
 import { TableStage } from './ui/table/TableStage';
 import { HudOverlay } from './ui/hud/HudOverlay';
@@ -279,6 +278,39 @@ const PokerClient: React.FC<PokerClientProps> = ({
             <PotBadge amount={gameState.pot} />
           </div>
 
+          {/* Chip animation to winner */}
+          {gameState.lastWinner && (() => {
+            const winnerSeatIndex = gameState.seats.findIndex((s: any) => s && s.playerId === gameState.lastWinner?.playerId);
+            if (winnerSeatIndex === -1) return null;
+
+            const totalSeats = gameState.seats.length;
+            const angle = (winnerSeatIndex / totalSeats) * 2 * Math.PI - Math.PI / 2;
+            const radiusX = 42;
+            const radiusY = 32;
+            const winnerX = 50 + radiusX * Math.cos(angle);
+            const winnerY = 50 + radiusY * Math.sin(angle);
+
+            return Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="chip-to-winner"
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '70%',
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ffd54a',
+                  border: '2px solid #d4a024',
+                  animationDelay: `${i * 0.1}s`,
+                  '--winner-x': `${winnerX}%`,
+                  '--winner-y': `${winnerY}%`,
+                } as any}
+              />
+            ));
+          })()}
+
           {/* Community Cards */}
           {gameState.communityCards && gameState.communityCards.length > 0 && (
             <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translateX(-50%)' }}>
@@ -315,6 +347,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
             const isBigBlind = idx === bbIndex;
 
             const position = y < 50 ? 'top' : 'bottom';
+            const isWinner = gameState.lastWinner && seat && seat.playerId === gameState.lastWinner.playerId;
 
             return (
               <div
@@ -327,6 +360,19 @@ const PokerClient: React.FC<PokerClientProps> = ({
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  {/* Winner info above seat (for bottom positions) */}
+                  {isWinner && position === 'bottom' && gameState.lastWinner && (
+                    <div className="bg-gradient-to-r from-yellow-900 to-yellow-800 border-2 border-yellow-500 rounded-lg px-3 py-1 animate-fade-in">
+                      <div className="text-yellow-300 font-bold text-sm">Winner! 🏆</div>
+                      <div className="text-yellow-100 text-xs">{Math.floor(gameState.lastWinner.amount / 100)} TC</div>
+                      {gameState.lastWinningHand && (
+                        <div className="text-yellow-200 text-xs italic">
+                          {gameState.lastWinningHand.description || 'Hand'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Hole cards */}
                   {seat && seat.holeCards && seat.holeCards.length > 0 && !hasFolded && position === 'top' && (
                     <div style={{ display: 'flex', gap: '4px' }}>
@@ -383,6 +429,19 @@ const PokerClient: React.FC<PokerClientProps> = ({
                           size="small"
                         />
                       ))}
+                    </div>
+                  )}
+
+                  {/* Winner info below seat (for top positions) */}
+                  {isWinner && position === 'top' && gameState.lastWinner && (
+                    <div className="bg-gradient-to-r from-yellow-900 to-yellow-800 border-2 border-yellow-500 rounded-lg px-3 py-1 animate-fade-in">
+                      <div className="text-yellow-300 font-bold text-sm">Winner! 🏆</div>
+                      <div className="text-yellow-100 text-xs">{Math.floor(gameState.lastWinner.amount / 100)} TC</div>
+                      {gameState.lastWinningHand && (
+                        <div className="text-yellow-200 text-xs italic">
+                          {gameState.lastWinningHand.description || 'Hand'}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -479,19 +538,6 @@ const PokerClient: React.FC<PokerClientProps> = ({
           />
         );
       })}
-
-      {/* Winner announcement */}
-      {gameState.lastWinner && (
-        <WinnerAnnouncement
-          winner={gameState.lastWinner}
-          winningHand={gameState.lastWinningHand}
-          holeCards={(() => {
-            const winnerSeat = gameState.seats.find((s: any) => s && s.playerId === gameState.lastWinner?.playerId);
-            return winnerSeat?.holeCards;
-          })()}
-          isVisible={true}
-        />
-      )}
     </ThemeProvider>
   );
 };

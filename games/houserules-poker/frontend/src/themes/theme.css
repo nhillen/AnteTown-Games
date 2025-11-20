@@ -39,3 +39,25 @@
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }
+
+/* Chip animation from pot to winner */
+@keyframes chipToWinner {
+  0% {
+    left: 50%;
+    top: 70%;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    left: var(--winner-x);
+    top: var(--winner-y);
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+}
+
+.chip-to-winner {
+  animation: chipToWinner 0.8s ease-in-out forwards;
+  pointer-events: none;
+  z-index: 100;
+}
