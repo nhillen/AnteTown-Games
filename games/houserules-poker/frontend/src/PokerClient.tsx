@@ -159,14 +159,57 @@ const PokerClient: React.FC<PokerClientProps> = ({
     const mySeat = gameState?.seats?.find((s: any) => s && s.playerId === myPlayerId);
     const isSeatedNow = !!mySeat && !mySeat.hasFolded;
 
+    // Filter active side games for this player
+    const myActiveSideGames = gameState?.activeSideGames?.filter((sg: any) =>
+      sg.status === 'active' && sg.participants.some((p: any) => p.playerId === myPlayerId)
+    ) || [];
+
     window.dispatchEvent(new CustomEvent('poker:stateUpdate', {
       detail: {
         isSeated: isSeatedNow,
         isStanding: !isSeatedNow && isSeated, // Was seated but now not
-        phase: gameState?.phase || 'Lobby'
+        phase: gameState?.phase || 'Lobby',
+        activeSideGames: myActiveSideGames
       }
     }));
-  }, [gameState?.seats, gameState?.phase, myPlayerId, isSeated]);
+  }, [gameState?.seats, gameState?.phase, gameState?.activeSideGames, myPlayerId, isSeated]);
+
+  // Track side game resolutions for toast notifications
+  useEffect(() => {
+    // Track resolved side games (ones that were active but are now gone or completed)
+    const previousSideGames = (window as any).__prevActiveSideGames || [];
+    const currentSideGames = gameState?.activeSideGames || [];
+
+    // Check for resolved side games (present in previous but not current, or status changed to 'completed')
+    previousSideGames.forEach((prevSG: any) => {
+      if (!prevSG.participants.some((p: any) => p.playerId === myPlayerId)) return;
+
+      const currentSG = currentSideGames.find((sg: any) => sg.id === prevSG.id);
+
+      // Side game resolved if it's gone or status changed from 'active'
+      if (prevSG.status === 'active' && (!currentSG || currentSG.status !== 'active')) {
+        console.log('🎴 Side game resolved:', prevSG);
+
+        // Find my participation result
+        const myParticipation = prevSG.participants.find((p: any) => p.playerId === myPlayerId);
+        const payout = myParticipation?.payout || 0;
+
+        // Emit toast event
+        window.dispatchEvent(new CustomEvent('poker:propBetResolved', {
+          detail: {
+            displayName: prevSG.displayName || 'Prop Bet',
+            payout: payout,
+            wasWinner: payout > 0
+          }
+        }));
+      }
+    });
+
+    // Store current side games for next comparison
+    (window as any).__prevActiveSideGames = currentSideGames.filter((sg: any) =>
+      sg.participants.some((p: any) => p.playerId === myPlayerId)
+    );
+  }, [gameState?.activeSideGames, myPlayerId]);
 
   // Listen for platform overlay events
   useEffect(() => {
@@ -301,26 +344,21 @@ const PokerClient: React.FC<PokerClientProps> = ({
                     />
                   ) : (
                     // Empty seat - clickable if player is watching (not seated)
-                    (() => {
-                      const canSit = !isSeated && onSitDown && buyInAmount;
-                      console.log(`[Poker] 🪑 Seat ${idx}:`, { isSeated, hasOnSitDown: !!onSitDown, buyInAmount, canSit });
-
-                      return canSit ? (
-                        <button
-                          onClick={() => {
-                            console.log('[Poker] 💺 Clicking Sit Down:', { seatIndex: idx, buyInAmount, isSeated, hasOnSitDown: !!onSitDown })
-                            onSitDown(idx, buyInAmount)
-                          }}
-                          className="px-4 py-2 text-green-400 bg-slate-900/50 border border-green-600/50 hover:border-green-500 hover:bg-green-900/20 rounded-lg text-sm font-medium transition-all cursor-pointer"
-                        >
-                          Sit Down
-                        </button>
-                      ) : (
-                        <div className="px-4 py-2 text-gray-500 bg-slate-900/30 border border-dashed border-slate-700 rounded-lg text-sm">
-                          {!isSeated ? `Empty (buyIn:${buyInAmount})` : 'Seated'}
-                        </div>
-                      );
-                    })()
+                    !isSeated && onSitDown && buyInAmount ? (
+                      <button
+                        onClick={() => {
+                          console.log('[Poker] 💺 Sitting down at seat', idx)
+                          onSitDown(idx, buyInAmount)
+                        }}
+                        className="px-4 py-2 text-green-400 bg-slate-900/50 border border-green-600/50 hover:border-green-500 hover:bg-green-900/20 rounded-lg text-sm font-medium transition-all cursor-pointer"
+                      >
+                        Sit Down
+                      </button>
+                    ) : (
+                      <div className="px-4 py-2 text-gray-500 bg-slate-900/30 border border-dashed border-slate-700 rounded-lg text-sm">
+                        Empty
+                      </div>
+                    )
                   )}
 
                   {seat && seat.holeCards && seat.holeCards.length > 0 && !hasFolded && position === 'bottom' && (
