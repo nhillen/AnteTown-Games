@@ -95,6 +95,7 @@ export interface SideGameParticipant {
   buyInAmount?: number;      // For upfront buy-in games
   opted: 'in' | 'out';
   skippedHands?: number;     // Count of hands skipped due to insufficient funds
+  payout?: number;           // Net payout after resolution (positive = won, negative = lost)
 }
 
 /**

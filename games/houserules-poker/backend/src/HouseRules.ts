@@ -1106,6 +1106,16 @@ export class HouseRules extends GameBase {
 
           console.log(`🎴 ${fromSeat.name} pays ${transferAmount} ${this.currency} to ${toSeat.name} (${payout.reason})`);
 
+          // Update participant payouts for frontend tracking
+          const loserParticipant = sideGame.participants.find(p => p.playerId === payout.fromPlayerId);
+          const winnerParticipant = sideGame.participants.find(p => p.playerId === payout.toPlayerId);
+          if (loserParticipant) {
+            loserParticipant.payout = (loserParticipant.payout || 0) - transferAmount;
+          }
+          if (winnerParticipant) {
+            winnerParticipant.payout = (winnerParticipant.payout || 0) + transferAmount;
+          }
+
           // Remove commitment
           fromSeat.sidePot.commitments = fromSeat.sidePot.commitments?.filter(
             (c: SidePotCommitment) => !(c.type === 'side-game' && c.metadata?.sideGameId === sideGame.id)
