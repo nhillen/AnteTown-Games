@@ -44,7 +44,7 @@ export const PropBetProposalModal: React.FC<PropBetProposalModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4 border-2 border-yellow-600" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-2xl font-bold text-yellow-500 mb-4 flex items-center gap-2">
           🎴 Propose Flipz Prop Bet
