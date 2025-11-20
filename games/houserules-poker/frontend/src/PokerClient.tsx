@@ -45,6 +45,14 @@ interface HouseRulesGameState extends GameState {
     description?: string;
     usedCards?: CardType[];
   };
+  showdownHands?: Array<{
+    playerId: string;
+    hand: {
+      rank: number;
+      description: string;
+      cards?: CardType[];
+    };
+  }>;
 }
 
 export interface PokerClientProps {
@@ -348,6 +356,7 @@ const PokerClient: React.FC<PokerClientProps> = ({
 
             const position = y < 50 ? 'top' : 'bottom';
             const isWinner = gameState.lastWinner && seat && seat.playerId === gameState.lastWinner.playerId;
+            const showdownHand = gameState.showdownHands?.find(h => seat && h.playerId === seat.playerId);
 
             return (
               <div
@@ -360,16 +369,20 @@ const PokerClient: React.FC<PokerClientProps> = ({
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  {/* Winner info above seat (for bottom positions) */}
-                  {isWinner && position === 'bottom' && gameState.lastWinner && (
-                    <div className="bg-gradient-to-r from-yellow-900 to-yellow-800 border-2 border-yellow-500 rounded-lg px-3 py-1 animate-fade-in">
-                      <div className="text-yellow-300 font-bold text-sm">Winner! 🏆</div>
-                      <div className="text-yellow-100 text-xs">{Math.floor(gameState.lastWinner.amount / 100)} TC</div>
-                      {gameState.lastWinningHand && (
-                        <div className="text-yellow-200 text-xs italic">
-                          {gameState.lastWinningHand.description || 'Hand'}
-                        </div>
+                  {/* Showdown hand info above seat (for bottom positions) */}
+                  {showdownHand && position === 'bottom' && (
+                    <div className={`rounded-lg px-3 py-1 animate-fade-in ${
+                      isWinner
+                        ? 'bg-gradient-to-r from-yellow-900 to-yellow-800 border-2 border-yellow-500'
+                        : 'bg-gray-800 border-2 border-gray-600'
+                    }`}>
+                      {isWinner && <div className="text-yellow-300 font-bold text-sm">Winner! 🏆</div>}
+                      {isWinner && gameState.lastWinner && (
+                        <div className="text-yellow-100 text-xs">{Math.floor(gameState.lastWinner.amount / 100)} TC</div>
                       )}
+                      <div className={`text-xs italic ${isWinner ? 'text-yellow-200' : 'text-gray-300'}`}>
+                        {showdownHand.hand.description}
+                      </div>
                     </div>
                   )}
 
@@ -432,16 +445,20 @@ const PokerClient: React.FC<PokerClientProps> = ({
                     </div>
                   )}
 
-                  {/* Winner info below seat (for top positions) */}
-                  {isWinner && position === 'top' && gameState.lastWinner && (
-                    <div className="bg-gradient-to-r from-yellow-900 to-yellow-800 border-2 border-yellow-500 rounded-lg px-3 py-1 animate-fade-in">
-                      <div className="text-yellow-300 font-bold text-sm">Winner! 🏆</div>
-                      <div className="text-yellow-100 text-xs">{Math.floor(gameState.lastWinner.amount / 100)} TC</div>
-                      {gameState.lastWinningHand && (
-                        <div className="text-yellow-200 text-xs italic">
-                          {gameState.lastWinningHand.description || 'Hand'}
-                        </div>
+                  {/* Showdown hand info below seat (for top positions) */}
+                  {showdownHand && position === 'top' && (
+                    <div className={`rounded-lg px-3 py-1 animate-fade-in ${
+                      isWinner
+                        ? 'bg-gradient-to-r from-yellow-900 to-yellow-800 border-2 border-yellow-500'
+                        : 'bg-gray-800 border-2 border-gray-600'
+                    }`}>
+                      {isWinner && <div className="text-yellow-300 font-bold text-sm">Winner! 🏆</div>}
+                      {isWinner && gameState.lastWinner && (
+                        <div className="text-yellow-100 text-xs">{Math.floor(gameState.lastWinner.amount / 100)} TC</div>
                       )}
+                      <div className={`text-xs italic ${isWinner ? 'text-yellow-200' : 'text-gray-300'}`}>
+                        {showdownHand.hand.description}
+                      </div>
                     </div>
                   )}
                 </div>

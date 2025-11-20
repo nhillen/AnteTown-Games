@@ -150,7 +150,8 @@ export class HouseRules extends GameBase {
       propBets: [],  // Active prop bets
       activeSideGames: [],  // Active side games
       lastWinner: undefined,  // Last hand winner (for announcement)
-      lastWinningHand: undefined  // Last winning hand (for display)
+      lastWinningHand: undefined,  // Last winning hand (for display)
+      showdownHands: []  // All hands shown at showdown
     };
   }
 
@@ -1271,6 +1272,7 @@ export class HouseRules extends GameBase {
     this.gameState.deck = shuffleDeck(createDeck());
     this.gameState.lastWinner = undefined;
     this.gameState.lastWinningHand = undefined;
+    this.gameState.showdownHands = [];
     this.gameState.handCount = (this.gameState.handCount || 0) + 1;
 
     // Move dealer button
@@ -1592,6 +1594,16 @@ export class HouseRules extends GameBase {
       winnerSeat.tableStack += this.gameState.pot;
 
       console.log(`🎰 ${winnerSeat.name} wins ${this.gameState.pot} ${this.currency} with ${handRankToString(winner.hand.rank)}`);
+
+      // Store all showdown hands for display
+      this.gameState.showdownHands = evaluations.map(e => ({
+        playerId: e.seat.playerId,
+        hand: {
+          rank: e.hand.rank,
+          description: handRankToString(e.hand.rank),
+          cards: e.hand.cards
+        }
+      }));
     }
 
     // Call rules engine pot win hook
@@ -1633,7 +1645,11 @@ export class HouseRules extends GameBase {
       name: winnerSeat.name,
       amount: this.gameState.pot
     };
-    this.gameState.lastWinningHand = winningHand;
+    this.gameState.lastWinningHand = winningHand ? {
+      rank: winningHand.rank,
+      description: handRankToString(winningHand.rank),
+      cards: winningHand.cards
+    } : undefined;
 
     this.gameState.phase = 'PreHand';
     this.gameState.pot = 0;
