@@ -4,6 +4,7 @@ import type { Card as CardType, PokerPhase, PokerAction, ActiveSideGame } from '
 import { PropBetProposalModal } from './components/PropBetProposalModal';
 import { PropBetSelectionMenu } from './components/PropBetSelectionMenu';
 import { PropBetNotification } from './components/PropBetNotification';
+import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { ThemeProvider } from './themes/ThemeProvider';
 import { TableStage } from './ui/table/TableStage';
 import { HudOverlay } from './ui/hud/HudOverlay';
@@ -35,6 +36,16 @@ interface HouseRulesGameState extends GameState {
   variant?: string;
   turnEndsAtMs?: number;
   currentTurnPlayerId?: string;
+  lastWinner?: {
+    playerId: string;
+    name: string;
+    amount: number;
+  };
+  lastWinningHand?: {
+    rank: number;
+    description?: string;
+    usedCards?: CardType[];
+  };
 }
 
 export interface PokerClientProps {
@@ -468,6 +479,19 @@ const PokerClient: React.FC<PokerClientProps> = ({
           />
         );
       })}
+
+      {/* Winner announcement */}
+      {gameState.lastWinner && (
+        <WinnerAnnouncement
+          winner={gameState.lastWinner}
+          winningHand={gameState.lastWinningHand}
+          holeCards={(() => {
+            const winnerSeat = gameState.seats.find((s: any) => s && s.playerId === gameState.lastWinner?.playerId);
+            return winnerSeat?.holeCards;
+          })()}
+          isVisible={true}
+        />
+      )}
     </ThemeProvider>
   );
 };

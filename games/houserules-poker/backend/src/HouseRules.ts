@@ -148,7 +148,9 @@ export class HouseRules extends GameBase {
       minBuyIn: this.minBuyIn,
       maxBuyIn: this.maxBuyIn,
       propBets: [],  // Active prop bets
-      activeSideGames: []  // Active side games
+      activeSideGames: [],  // Active side games
+      lastWinner: undefined,  // Last hand winner (for announcement)
+      lastWinningHand: undefined  // Last winning hand (for display)
     };
   }
 
@@ -1267,6 +1269,8 @@ export class HouseRules extends GameBase {
     this.gameState.currentBet = this.bigBlindAmount;
     this.gameState.communityCards = [];
     this.gameState.deck = shuffleDeck(createDeck());
+    this.gameState.lastWinner = undefined;
+    this.gameState.lastWinningHand = undefined;
     this.gameState.handCount = (this.gameState.handCount || 0) + 1;
 
     // Move dealer button
@@ -1368,8 +1372,17 @@ export class HouseRules extends GameBase {
           console.log('🎰 Only one player remains - ending hand immediately');
           // Award pot to remaining player
           const winner = remainingPlayers[0];
-          winner.tableStack += this.gameState.pot;
-          console.log(`🎰 ${winner.name} wins ${this.gameState.pot} ${this.currency} (all others folded)`);
+          const wonAmount = this.gameState.pot;
+          winner.tableStack += wonAmount;
+          console.log(`🎰 ${winner.name} wins ${wonAmount} ${this.currency} (all others folded)`);
+
+          // Store winner info for frontend announcement (no hand shown for fold)
+          this.gameState.lastWinner = {
+            playerId: winner.playerId,
+            name: winner.name,
+            amount: wonAmount
+          };
+          this.gameState.lastWinningHand = undefined;  // No hand to show (won by fold)
 
           // End hand immediately
           this.gameState.phase = 'Showdown';
@@ -1613,6 +1626,14 @@ export class HouseRules extends GameBase {
 
     // Resolve active side games (7-2 game, etc.)
     this.resolveSideGames(winnerSeat, winningHand);
+
+    // Store winner info for frontend announcement
+    this.gameState.lastWinner = {
+      playerId: winnerSeat.playerId,
+      name: winnerSeat.name,
+      amount: this.gameState.pot
+    };
+    this.gameState.lastWinningHand = winningHand;
 
     this.gameState.phase = 'PreHand';
     this.gameState.pot = 0;
