@@ -1368,7 +1368,7 @@ export class HouseRules extends GameBase {
 
           // Start new hand after a delay
           setTimeout(() => {
-            this.startNewHand();
+            this.startHand();
             this.broadcastGameState();
           }, 3000);
 
