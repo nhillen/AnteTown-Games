@@ -301,22 +301,26 @@ const PokerClient: React.FC<PokerClientProps> = ({
                     />
                   ) : (
                     // Empty seat - clickable if player is watching (not seated)
-                    !isSeated && onSitDown && buyInAmount ? (
-                      <button
-                        onClick={() => {
-                          console.log('[Poker] 💺 Clicking Sit Down:', { seatIndex: idx, buyInAmount, isSeated, hasOnSitDown: !!onSitDown })
-                          onSitDown(idx, buyInAmount)
-                        }}
-                        className="px-4 py-2 text-green-400 bg-slate-900/50 border border-green-600/50 hover:border-green-500 hover:bg-green-900/20 rounded-lg text-sm font-medium transition-all cursor-pointer"
-                      >
-                        Sit Down
-                      </button>
-                    ) : (
-                      <div className="px-4 py-2 text-gray-500 bg-slate-900/30 border border-dashed border-slate-700 rounded-lg text-sm">
-                        {/* Debug: show why Sit Down isn't showing */}
-                        {!isSeated ? 'Empty' : 'Seated'}
-                      </div>
-                    )
+                    (() => {
+                      const canSit = !isSeated && onSitDown && buyInAmount;
+                      console.log(`[Poker] 🪑 Seat ${idx}:`, { isSeated, hasOnSitDown: !!onSitDown, buyInAmount, canSit });
+
+                      return canSit ? (
+                        <button
+                          onClick={() => {
+                            console.log('[Poker] 💺 Clicking Sit Down:', { seatIndex: idx, buyInAmount, isSeated, hasOnSitDown: !!onSitDown })
+                            onSitDown(idx, buyInAmount)
+                          }}
+                          className="px-4 py-2 text-green-400 bg-slate-900/50 border border-green-600/50 hover:border-green-500 hover:bg-green-900/20 rounded-lg text-sm font-medium transition-all cursor-pointer"
+                        >
+                          Sit Down
+                        </button>
+                      ) : (
+                        <div className="px-4 py-2 text-gray-500 bg-slate-900/30 border border-dashed border-slate-700 rounded-lg text-sm">
+                          {!isSeated ? `Empty (buyIn:${buyInAmount})` : 'Seated'}
+                        </div>
+                      );
+                    })()
                   )}
 
                   {seat && seat.holeCards && seat.holeCards.length > 0 && !hasFolded && position === 'bottom' && (
