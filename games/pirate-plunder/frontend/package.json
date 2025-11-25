@@ -13,8 +13,6 @@
     "test:run": "vitest run"
   },
   "dependencies": {
-    "@antetown/game-houserules": "^0.4.1",
-    "@antetown/game-warfaire": "^0.2.39",
     "clsx": "^2.1.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
