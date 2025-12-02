@@ -68,6 +68,8 @@ export interface HandCompletionInfo {
   handNumber: number;
   winnerId: string;
   potAmount: number;
+  wasAllIn: boolean;
+  eliminatedPlayerIds: string[];
   seats: Array<{
     playerId: string;
     chipStack: number;
@@ -156,18 +158,29 @@ export class HouseRules extends GameBase {
   private notifyHandComplete(winnerId: string, potAmount: number): void {
     if (!this.onHandComplete || !this.gameState) return;
 
-    const seats = this.gameState.seats
-      .filter((s): s is NonNullable<typeof s> => s !== null)
-      .map(s => ({
-        playerId: s.playerId,
-        chipStack: s.tableStack,
-        isEliminated: s.tableStack <= 0,
-      }));
+    const activeSeatData = this.gameState.seats
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+
+    const seats = activeSeatData.map(s => ({
+      playerId: s.playerId,
+      chipStack: s.tableStack,
+      isEliminated: s.tableStack <= 0,
+    }));
+
+    // Check if any player was all-in this hand
+    const wasAllIn = activeSeatData.some(s => s.isAllIn);
+
+    // Find eliminated players (zero chips after this hand)
+    const eliminatedPlayerIds = activeSeatData
+      .filter(s => s.tableStack <= 0)
+      .map(s => s.playerId);
 
     this.onHandComplete({
       handNumber: this.gameState.handCount,
       winnerId,
       potAmount,
+      wasAllIn,
+      eliminatedPlayerIds,
       seats,
     });
   }

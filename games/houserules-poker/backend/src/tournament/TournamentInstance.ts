@@ -893,6 +893,42 @@ export class TournamentInstance {
       state: this.getState(),
       currentBlinds: this.getCurrentBlinds(),
     });
+
+    // Roguelike socket event handlers
+    if (this.roguelikeSession) {
+      // Handle relic selection during draft
+      socket.on('select_relic', (payload: { relicId: string }) => {
+        const result = this.selectRelic(player.id, payload.relicId);
+        socket.emit('select_relic_result', result);
+
+        if (result.success) {
+          console.log(`🎴 ${player.name} selected relic: ${payload.relicId}`);
+        }
+      });
+
+      // Handle manual relic activation
+      socket.on('activate_relic', (payload: { relicId: string }) => {
+        const result = this.activateRelic(player.id, payload.relicId);
+        socket.emit('activate_relic_result', result);
+
+        if (result.success) {
+          console.log(`🎴 ${player.name} activated relic: ${payload.relicId}`);
+          // Broadcast to all players
+          if (this.io) {
+            this.io.to(`tournament-${this.config.tournamentId}`).emit('relic_activated', {
+              playerId: player.id,
+              playerName: player.name,
+              relicId: payload.relicId,
+              effectDescription: result.effectDescription,
+            });
+          }
+        }
+      });
+
+      // Send current relic state
+      const relics = this.getPlayerRelics(player.id, player.id);
+      socket.emit('player_relics', { relics });
+    }
   }
 
   // ============================================================================
