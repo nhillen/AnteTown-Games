@@ -1,0 +1,292 @@
+{
+  "relics": [
+    {
+      "id": "lucky-pair",
+      "name": "Lucky Pair",
+      "rarity": "common",
+      "activationType": "passive",
+      "triggerPhase": "pot_win",
+      "description": "First pocket pair each orbit yields +5% chip bonus on win.",
+      "flavorText": "Fortuna favet paribus.",
+      "effect": {
+        "type": "bonus_payout",
+        "params": {
+          "percentage": 5,
+          "requiresHandRank": "pair"
+        },
+        "description": "+5% pot bonus when winning with a pocket pair (once per orbit)"
+      },
+      "usesPerOrbit": 1
+    },
+    {
+      "id": "peekaboo",
+      "name": "Peekaboo",
+      "rarity": "common",
+      "activationType": "triggered",
+      "triggerPhase": "showdown",
+      "description": "Once per orbit, peek one random mucked card after showdown.",
+      "flavorText": "Oculus in tenebris.",
+      "effect": {
+        "type": "peek_info",
+        "params": {
+          "infoType": "mucked_cards",
+          "cardCount": 1
+        },
+        "description": "Reveal one random mucked card"
+      },
+      "usesPerOrbit": 1
+    },
+    {
+      "id": "chip-magnet",
+      "name": "Chip Magnet",
+      "rarity": "common",
+      "activationType": "passive",
+      "triggerPhase": "pot_win",
+      "description": "Gain +2% chips on any pot over 500.",
+      "flavorText": "Pecunia ad pecuniam.",
+      "effect": {
+        "type": "bonus_payout",
+        "params": {
+          "percentage": 2,
+          "minPotSize": 500
+        },
+        "description": "+2% bonus on pots over 500"
+      }
+    },
+    {
+      "id": "gamblers-soul",
+      "name": "The Gambler's Soul",
+      "rarity": "common",
+      "activationType": "conditional",
+      "triggerPhase": "pot_win",
+      "description": "After losing a hand, your next win yields +10% pot bonus.",
+      "flavorText": "Post tenebras, lux.",
+      "effect": {
+        "type": "bonus_payout",
+        "params": {
+          "percentage": 10
+        },
+        "description": "+10% pot bonus after a loss"
+      },
+      "condition": {
+        "type": "streak",
+        "value": { "type": "loss", "count": 1 }
+      }
+    },
+    {
+      "id": "mirror-tell",
+      "name": "Mirror Tell",
+      "rarity": "common",
+      "activationType": "passive",
+      "triggerPhase": "any_action",
+      "description": "Reveals rarity color of any opponent relic upon trigger.",
+      "flavorText": "Speculum veritatis.",
+      "effect": {
+        "type": "reveal_opponent",
+        "params": {
+          "infoType": "relic"
+        },
+        "description": "See rarity of opponent relics when they activate"
+      }
+    },
+    {
+      "id": "mulligan",
+      "name": "Mulligan",
+      "rarity": "rare",
+      "activationType": "triggered",
+      "triggerPhase": "post_deal",
+      "description": "Once per orbit, redraw both hole cards before flop.",
+      "flavorText": "Iterum fortuna.",
+      "effect": {
+        "type": "redraw_cards",
+        "params": {
+          "cardSource": "hole",
+          "cardCount": 2
+        },
+        "description": "Discard and redraw both hole cards"
+      },
+      "usesPerOrbit": 1
+    },
+    {
+      "id": "weighted-flop",
+      "name": "Weighted Flop",
+      "rarity": "rare",
+      "activationType": "triggered",
+      "triggerPhase": "post_flop",
+      "description": "Once per round, re-roll one flop card.",
+      "flavorText": "Alea mutanda est.",
+      "effect": {
+        "type": "reroll_community",
+        "params": {
+          "cardCount": 1
+        },
+        "description": "Replace one flop card with a new one from the deck"
+      },
+      "usesPerMatch": 3
+    },
+    {
+      "id": "debt-marker",
+      "name": "Debt Marker",
+      "rarity": "rare",
+      "activationType": "passive",
+      "triggerPhase": "pre_deal",
+      "description": "Immediately gain +10% stack; lose 15% next orbit.",
+      "flavorText": "Faustus pactum.",
+      "effect": {
+        "type": "modify_stack",
+        "params": {
+          "percentage": 10,
+          "customHandler": "debtMarkerEffect"
+        },
+        "description": "+10% stack now, -15% stack next orbit"
+      },
+      "usesPerMatch": 1
+    },
+    {
+      "id": "echo-tell",
+      "name": "Echo Tell",
+      "rarity": "rare",
+      "activationType": "passive",
+      "triggerPhase": "any_action",
+      "description": "When another player reveals a relic, view their hole cards that hand.",
+      "flavorText": "Resonantia secretorum.",
+      "effect": {
+        "type": "peek_info",
+        "params": {
+          "infoType": "hole_cards"
+        },
+        "description": "See hole cards when opponent reveals a relic"
+      }
+    },
+    {
+      "id": "the-dealer",
+      "name": "The Dealer",
+      "rarity": "epic",
+      "activationType": "triggered",
+      "triggerPhase": "post_flop",
+      "description": "Once per match, re-deal the entire flop.",
+      "flavorText": "Ego sum lex.",
+      "effect": {
+        "type": "reroll_community",
+        "params": {
+          "cardCount": 3
+        },
+        "description": "Discard the flop and deal three new community cards"
+      },
+      "usesPerMatch": 1
+    },
+    {
+      "id": "chaos-burn",
+      "name": "Chaos Burn",
+      "rarity": "epic",
+      "activationType": "triggered",
+      "triggerPhase": "post_flop",
+      "description": "Replace turn & river with three random community cards; pot doubles automatically.",
+      "flavorText": "In chaos, victoria.",
+      "effect": {
+        "type": "custom",
+        "params": {
+          "customHandler": "chaosBurnEffect"
+        },
+        "description": "Skip turn/river, deal 3 new cards, double the pot"
+      },
+      "usesPerMatch": 1
+    },
+    {
+      "id": "all-in-engine",
+      "name": "All-In Engine",
+      "rarity": "epic",
+      "activationType": "conditional",
+      "triggerPhase": "pot_win",
+      "description": "When you win an all-in, permanently gain +10% stack. Single activation.",
+      "flavorText": "Omnia aut nihil.",
+      "effect": {
+        "type": "modify_stack",
+        "params": {
+          "percentage": 10
+        },
+        "description": "+10% permanent stack bonus on all-in win"
+      },
+      "condition": {
+        "type": "custom",
+        "value": "won_all_in"
+      },
+      "usesPerMatch": 1
+    },
+    {
+      "id": "second-sight",
+      "name": "Second Sight",
+      "rarity": "common",
+      "activationType": "triggered",
+      "triggerPhase": "pre_flop",
+      "description": "Once per orbit, peek at the top card of the deck.",
+      "flavorText": "Praescientia minor.",
+      "effect": {
+        "type": "peek_info",
+        "params": {
+          "infoType": "next_community",
+          "cardCount": 1
+        },
+        "description": "See the next card to be dealt"
+      },
+      "usesPerOrbit": 1
+    },
+    {
+      "id": "bounty-hunter",
+      "name": "Bounty Hunter",
+      "rarity": "rare",
+      "activationType": "passive",
+      "triggerPhase": "pot_win",
+      "description": "When you eliminate a player, gain 20% of their final stack as bonus.",
+      "flavorText": "Caput pretium.",
+      "effect": {
+        "type": "bonus_payout",
+        "params": {
+          "percentage": 20,
+          "customHandler": "bountyHunterEffect"
+        },
+        "description": "+20% of eliminated player's stack"
+      }
+    },
+    {
+      "id": "insurance-policy",
+      "name": "Insurance Policy",
+      "rarity": "rare",
+      "activationType": "conditional",
+      "triggerPhase": "pot_lose",
+      "description": "When you lose an all-in, recover 25% of your lost chips.",
+      "flavorText": "Salus in discrimine.",
+      "effect": {
+        "type": "protection",
+        "params": {
+          "percentage": 25
+        },
+        "description": "Recover 25% of chips lost in all-in"
+      },
+      "condition": {
+        "type": "custom",
+        "value": "lost_all_in"
+      }
+    },
+    {
+      "id": "hot-streak",
+      "name": "Hot Streak",
+      "rarity": "common",
+      "activationType": "conditional",
+      "triggerPhase": "pot_win",
+      "description": "After winning 3 hands in a row, gain +15% on your next pot.",
+      "flavorText": "Ignis crescit.",
+      "effect": {
+        "type": "bonus_payout",
+        "params": {
+          "percentage": 15
+        },
+        "description": "+15% pot bonus after 3-win streak"
+      },
+      "condition": {
+        "type": "streak",
+        "value": { "type": "win", "count": 3 }
+      }
+    }
+  ]
+}
