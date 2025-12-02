@@ -1,0 +1,195 @@
+/**
+ * Relic System Animations
+ */
+
+/* Slide in animation for notifications */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out forwards;
+}
+
+/* Slide out animation for notifications */
+@keyframes slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-slide-out {
+  animation: slide-out 0.3s ease-in forwards;
+}
+
+/* Rogue Break announcement animation */
+@keyframes rogue-break-announce {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  20% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  30% {
+    transform: scale(1);
+  }
+  70% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.animate-rogue-break-announce {
+  animation: rogue-break-announce 2.5s ease-out forwards;
+}
+
+/* Particle animation for rogue break */
+@keyframes particle {
+  0% {
+    transform: translateY(100vh) scale(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100vh) scale(1);
+    opacity: 0;
+  }
+}
+
+.animate-particle {
+  animation: particle 2s ease-out forwards;
+}
+
+/* Relic card hover glow */
+.relic-card-glow {
+  transition: box-shadow 0.2s ease-out;
+}
+
+.relic-card-glow:hover {
+  box-shadow: 0 0 20px currentColor;
+}
+
+/* Draft selection pulse */
+@keyframes selection-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(250, 204, 21, 0);
+  }
+}
+
+.animate-selection-pulse {
+  animation: selection-pulse 1.5s infinite;
+}
+
+/* Relic activation flash */
+@keyframes relic-activate {
+  0% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(2);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+.animate-relic-activate {
+  animation: relic-activate 0.3s ease-out;
+}
+
+/* Cooldown overlay */
+.relic-cooldown {
+  position: relative;
+}
+
+.relic-cooldown::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: inherit;
+}
+
+/* Rarity-specific glows */
+.relic-common {
+  --relic-glow-color: rgba(156, 163, 175, 0.3);
+}
+
+.relic-rare {
+  --relic-glow-color: rgba(59, 130, 246, 0.5);
+}
+
+.relic-epic {
+  --relic-glow-color: rgba(168, 85, 247, 0.5);
+}
+
+.relic-glow {
+  box-shadow: 0 0 15px var(--relic-glow-color);
+}
+
+/* Draft timer urgency */
+@keyframes timer-urgent {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.timer-urgent {
+  animation: timer-urgent 0.5s ease-in-out infinite;
+}
+
+/* Fade in for showdown elements */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* Orbit indicator pulse */
+@keyframes orbit-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.orbit-pulse {
+  animation: orbit-pulse 2s ease-in-out infinite;
+}
