@@ -10,6 +10,8 @@ import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { HouseRules } from '../HouseRules.js';
 import { BlindSchedule } from './BlindSchedule.js';
 import { PayoutStructure } from './PayoutStructure.js';
+import { RoguelikeSession } from '../relics/RoguelikeSession.js';
+import { DEFAULT_ROGUELIKE_CONFIG } from '../relics/types.js';
 import type {
   TournamentConfig,
   TournamentState,
@@ -37,6 +39,10 @@ export class TournamentInstance {
   private levelTimer: NodeJS.Timeout | null = null;
   private eventListeners: TournamentEventCallback[] = [];
 
+  // Roguelike session (optional - only when roguelikeConfig is set)
+  private roguelikeSession: RoguelikeSession | null = null;
+  private pendingRogueBreak: boolean = false;
+
   constructor(config: TournamentConfig) {
     this.config = config;
     this.blindSchedule = new BlindSchedule(config.blindSchedule);
@@ -46,6 +52,13 @@ export class TournamentInstance {
       config.buyIn * config.maxEntrants // Max prize pool
     );
     this.state = this.initializeState();
+
+    // Initialize roguelike session if configured
+    if (config.roguelikeConfig) {
+      const fullConfig = { ...DEFAULT_ROGUELIKE_CONFIG, ...config.roguelikeConfig };
+      this.roguelikeSession = new RoguelikeSession(fullConfig);
+      this.setupRoguelikeListeners();
+    }
   }
 
   // ============================================================================
@@ -73,6 +86,77 @@ export class TournamentInstance {
    */
   setSocketServer(io: SocketIOServer): void {
     this.io = io;
+    if (this.roguelikeSession) {
+      this.roguelikeSession.setSocketServer(io);
+    }
+  }
+
+  /**
+   * Set up listeners for roguelike session events
+   */
+  private setupRoguelikeListeners(): void {
+    if (!this.roguelikeSession) return;
+
+    this.roguelikeSession.addEventListener((event) => {
+      switch (event.type) {
+        case 'rogue_break_triggered':
+          this.pendingRogueBreak = true;
+          this.emitEvent({
+            type: 'rogue_break_triggered',
+            tournamentId: this.config.tournamentId,
+            timestamp: event.timestamp,
+            data: event.data,
+          });
+          break;
+
+        case 'rogue_break_started':
+          this.state.status = 'paused';
+          this.emitEvent({
+            type: 'rogue_break_started',
+            tournamentId: this.config.tournamentId,
+            timestamp: event.timestamp,
+            data: event.data,
+          });
+          break;
+
+        case 'rogue_break_ended':
+          this.state.status = 'running';
+          this.pendingRogueBreak = false;
+          this.syncRoguelikeState();
+          this.emitEvent({
+            type: 'rogue_break_ended',
+            tournamentId: this.config.tournamentId,
+            timestamp: event.timestamp,
+            data: event.data,
+          });
+          break;
+
+        case 'relic_effect_triggered':
+          this.emitEvent({
+            type: 'relic_activated',
+            tournamentId: this.config.tournamentId,
+            timestamp: event.timestamp,
+            data: event.data,
+          });
+          break;
+      }
+    });
+  }
+
+  /**
+   * Sync roguelike state to tournament state
+   */
+  private syncRoguelikeState(): void {
+    if (!this.roguelikeSession) return;
+
+    const rogueState = this.roguelikeSession.getState();
+    this.state.roguelikeState = {
+      currentOrbit: rogueState.currentOrbit,
+      handsInCurrentOrbit: rogueState.handsInCurrentOrbit,
+      rogueBreaksCompleted: rogueState.rogueBreaksCompleted,
+      isInRogueBreak: rogueState.isInRogueBreak,
+      playerRelics: Object.fromEntries(rogueState.playerRelics),
+    };
   }
 
   /**
@@ -236,6 +320,13 @@ export class TournamentInstance {
       this.startLevelTimer();
     }
 
+    // Start roguelike session if configured
+    if (this.roguelikeSession) {
+      const playerIds = this.state.entrants.map(e => e.playerId);
+      this.roguelikeSession.startSession(playerIds);
+      this.syncRoguelikeState();
+    }
+
     this.emitEvent({
       type: 'tournament_started',
       tournamentId: this.config.tournamentId,
@@ -245,10 +336,11 @@ export class TournamentInstance {
         prizePool: this.state.prizePool,
         startingLevel: this.state.currentLevel,
         blinds: this.blindSchedule.getBlinds(0),
+        isRoguelike: !!this.roguelikeSession,
       },
     });
 
-    console.log(`🏆 Tournament started! Prize pool: ${this.state.prizePool}, Starting blinds: ${this.blindSchedule.getBlinds(0).smallBlind}/${this.blindSchedule.getBlinds(0).bigBlind}`);
+    console.log(`🏆 Tournament started! Prize pool: ${this.state.prizePool}, Starting blinds: ${this.blindSchedule.getBlinds(0).smallBlind}/${this.blindSchedule.getBlinds(0).bigBlind}${this.roguelikeSession ? ' (Roguelike mode)' : ''}`);
   }
 
   /**
@@ -321,6 +413,23 @@ export class TournamentInstance {
     // Check for eliminations
     this.checkEliminations();
 
+    // Notify roguelike session
+    if (this.roguelikeSession) {
+      this.roguelikeSession.onHandComplete({
+        winnerId: info.winnerId,
+        potSize: info.potAmount,
+        wasAllIn: info.wasAllIn,
+        eliminatedPlayerIds: info.eliminatedPlayerIds,
+      });
+      this.syncRoguelikeState();
+
+      // Check if a rogue break was triggered
+      if (this.pendingRogueBreak && this.state.status === 'running') {
+        this.startRogueBreak();
+        return; // Don't continue hand flow until break is done
+      }
+    }
+
     // Check for level advancement (hand-based)
     if (this.config.blindSchedule.progression === 'hands') {
       this.checkLevelAdvancement();
@@ -340,6 +449,7 @@ export class TournamentInstance {
         potAmount: info.potAmount,
         level: this.state.currentLevel,
         handsThisLevel: this.state.handsThisLevel,
+        isRoguelike: !!this.roguelikeSession,
       },
     });
   }
@@ -534,6 +644,96 @@ export class TournamentInstance {
   }
 
   // ============================================================================
+  // Roguelike Rogue Break Management
+  // ============================================================================
+
+  /**
+   * Start a rogue break (draft phase)
+   */
+  private startRogueBreak(): void {
+    if (!this.roguelikeSession) return;
+
+    const activePlayerIds = this.state.entrants
+      .filter(e => !e.isEliminated)
+      .map(e => e.playerId);
+
+    this.roguelikeSession.startRogueBreak(activePlayerIds);
+    console.log(`🎴 Rogue Break started with ${activePlayerIds.length} players`);
+  }
+
+  /**
+   * Handle a player's relic selection during draft
+   */
+  selectRelic(playerId: string, relicId: string): { success: boolean; error?: string } {
+    if (!this.roguelikeSession) {
+      return { success: false, error: 'Not a roguelike tournament' };
+    }
+
+    if (!this.roguelikeSession.isInRogueBreak()) {
+      return { success: false, error: 'No active rogue break' };
+    }
+
+    const result = this.roguelikeSession.selectRelic(playerId, relicId);
+
+    if (result.success) {
+      this.syncRoguelikeState();
+    }
+
+    return result;
+  }
+
+  /**
+   * Manually activate a relic (for triggered relics)
+   */
+  activateRelic(playerId: string, relicId: string): { success: boolean; error?: string; effectDescription?: string } {
+    if (!this.roguelikeSession) {
+      return { success: false, error: 'Not a roguelike tournament' };
+    }
+
+    // Get current game context
+    const entrant = this.state.entrants.find(e => e.playerId === playerId);
+    if (!entrant) {
+      return { success: false, error: 'Player not found' };
+    }
+
+    const context = {
+      playerId,
+      playerStack: entrant.chipStack,
+      potSize: 0, // Would need to get from game state
+      currentOrbit: this.state.roguelikeState?.currentOrbit || 1,
+      currentHand: this.state.totalHandsPlayed,
+      phase: 'manual', // Allow manual activation
+      isAllIn: false,
+      wonLastHand: false,
+      lostLastHand: false,
+    };
+
+    const result = this.roguelikeSession.activateRelic(playerId, relicId, context);
+
+    if (result.success) {
+      this.syncRoguelikeState();
+      return { success: true, effectDescription: result.message };
+    }
+
+    return { success: false, error: result.message };
+  }
+
+  /**
+   * Get a player's relics (for UI display)
+   */
+  getPlayerRelics(playerId: string, viewerId: string): any[] {
+    if (!this.roguelikeSession) return [];
+    return this.roguelikeSession.getPlayerRelics(playerId, viewerId);
+  }
+
+  /**
+   * Check if tournament is in a rogue break
+   */
+  isInRogueBreak(): boolean {
+    return this.roguelikeSession?.isInRogueBreak() || false;
+  }
+
+  // ============================================================================
   // Tournament Completion
   // ============================================================================
 
@@ -561,6 +761,11 @@ export class TournamentInstance {
     if (this.levelTimer) {
       clearTimeout(this.levelTimer);
       this.levelTimer = null;
+    }
+
+    // End roguelike session
+    if (this.roguelikeSession) {
+      this.roguelikeSession.endSession();
     }
 
     // Record winner

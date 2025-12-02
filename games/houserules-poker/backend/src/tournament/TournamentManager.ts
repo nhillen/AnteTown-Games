@@ -330,7 +330,7 @@ export class TournamentManager {
   }
 
   /**
-   * Create a roguelike SNG tournament with level modifiers
+   * Create a roguelike SNG tournament with level modifiers (table-wide rules changes)
    */
   createRoguelikeSNG(options: {
     displayName: string;
@@ -360,6 +360,69 @@ export class TournamentManager {
       blindSchedule: BlindSchedule.createStandardSNG(startingStack, 'hands'),
       payouts: PayoutStructure.forEntrantCount(maxEntrants),
       levelModifiers,
+    };
+
+    return this.createTournament(config);
+  }
+
+  /**
+   * Create a full roguelike "House Rules" SNG with relic system
+   * This includes both level modifiers and per-player relic drafting
+   */
+  createHouseRulesSNG(options: {
+    displayName: string;
+    buyIn: number;
+    maxEntrants: 6 | 9 | 10;
+    mode?: 'pvp' | 'pve';
+    modifierSet?: 'roguelike' | 'chaos' | 'highstakes';
+    rogueBreakTrigger?: 'hands' | 'orbits' | 'blind_level';
+    rogueBreakInterval?: number;
+    relicVisibility?: 'hidden' | 'visible' | 'rarity_hint';
+  }): TournamentInstance {
+    const {
+      displayName,
+      buyIn,
+      maxEntrants,
+      mode = 'pvp',
+      modifierSet = 'roguelike',
+      rogueBreakTrigger = 'hands',
+      rogueBreakInterval = 12,
+      relicVisibility = 'hidden',
+    } = options;
+
+    // Import modifier set
+    const { getModifierSet } = require('./LevelModifiers.js');
+    const levelModifiers = getModifierSet(modifierSet);
+
+    const tournamentId = `houserules-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const startingStack = buyIn * 100;
+
+    const config: TournamentConfig = {
+      tournamentId,
+      displayName,
+      type: 'sng',
+      mode,
+      variant: 'holdem',
+      buyIn,
+      startingStack,
+      maxEntrants,
+      blindSchedule: BlindSchedule.createStandardSNG(startingStack, 'hands'),
+      payouts: PayoutStructure.forEntrantCount(maxEntrants),
+      levelModifiers,
+      // Roguelike relic system configuration
+      roguelikeConfig: {
+        rogueBreakTrigger,
+        rogueBreakInterval,
+        relicVisibility,
+        revealOnUse: true,
+        finalOrbitReveal: true,
+        draftChoices: 2,
+        draftTimeSeconds: 30,
+        startingRelics: 1,
+        startingRelicRarity: 'common',
+        maxRogueBreaks: 3,
+        maxOrbits: 4,
+      },
     };
 
     return this.createTournament(config);

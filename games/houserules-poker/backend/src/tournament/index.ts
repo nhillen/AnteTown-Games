@@ -55,6 +55,13 @@ export type {
   LevelModifierActivatedEvent,
   TournamentFinishedEvent,
 
+  // Roguelike event types
+  RogueBreakTriggeredEvent,
+  RogueBreakStartedEvent,
+  RogueBreakEndedEvent,
+  RelicDraftedEvent,
+  RelicActivatedEvent,
+
   // Callback types
   HandCompletionInfo,
 } from './TournamentConfig.js';

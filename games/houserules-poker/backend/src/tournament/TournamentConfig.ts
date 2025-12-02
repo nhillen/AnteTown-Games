@@ -5,6 +5,7 @@
  */
 
 import type { RuleModifiers, GameVariant } from '../rules/RulesEngine.js';
+import type { RoguelikeConfig, RoguelikeState, PlayerRelic, RelicDefinition } from '../relics/types.js';
 
 // ============================================================================
 // Tournament Classification
@@ -134,8 +135,11 @@ export interface TournamentConfig {
   // Rule modifiers (base rules for the tournament)
   rules?: RuleModifiers;
 
-  // Roguelike level modifiers
+  // Roguelike level modifiers (table-wide rules changes)
   levelModifiers?: LevelModifierConfig[];
+
+  // Roguelike relic system (per-player powers)
+  roguelikeConfig?: Partial<RoguelikeConfig>;
 
   // MTT-specific (for future)
   playersPerTable?: number;   // Players per table (default: 9)
@@ -224,6 +228,15 @@ export interface TournamentState {
   // Timing
   startedAt?: number;
   finishedAt?: number;
+
+  // Roguelike state (when roguelikeConfig is set)
+  roguelikeState?: {
+    currentOrbit: number;
+    handsInCurrentOrbit: number;
+    rogueBreaksCompleted: number;
+    isInRogueBreak: boolean;
+    playerRelics: Record<string, PlayerRelic[]>;  // playerId -> relics
+  };
 }
 
 // ============================================================================
@@ -250,7 +263,15 @@ export type TournamentEventType =
   | 'break_started'           // MTT: break begins
   | 'break_ended'             // MTT: break ends
   | 'tournament_finished'
-  | 'tournament_cancelled';
+  | 'tournament_cancelled'
+  // Roguelike events
+  | 'rogue_break_triggered'   // Break is about to start
+  | 'rogue_break_started'     // Draft phase started
+  | 'rogue_break_ended'       // Draft complete, resuming play
+  | 'relic_drafted'           // Player drafted a relic
+  | 'relic_activated'         // Player activated a relic
+  | 'relic_revealed'          // A hidden relic was revealed
+  | 'orbit_started';          // New orbit (dealer rotation) began
 
 /**
  * Base tournament event
@@ -327,9 +348,81 @@ export interface HandCompletionInfo {
   handNumber: number;
   winnerId: string;
   potAmount: number;
+  wasAllIn: boolean;
+  winnerHandRank?: string;
   seats: Array<{
     playerId: string;
     chipStack: number;
     isEliminated: boolean;
   }>;
+  eliminatedPlayerIds: string[];
+}
+
+// ============================================================================
+// Roguelike Event Types
+// ============================================================================
+
+/**
+ * Event: Rogue break triggered
+ */
+export interface RogueBreakTriggeredEvent extends TournamentEvent {
+  type: 'rogue_break_triggered';
+  data: {
+    breakNumber: number;
+    trigger: string;  // 'hands' | 'orbits' | 'blind_level' | 'time' | 'manual'
+  };
+}
+
+/**
+ * Event: Rogue break started (draft phase)
+ */
+export interface RogueBreakStartedEvent extends TournamentEvent {
+  type: 'rogue_break_started';
+  data: {
+    breakNumber: number;
+    draftTimeSeconds: number;
+    deadline: number;
+  };
+}
+
+/**
+ * Event: Rogue break ended
+ */
+export interface RogueBreakEndedEvent extends TournamentEvent {
+  type: 'rogue_break_ended';
+  data: {
+    breakNumber: number;
+    draftResults: Array<{
+      playerId: string;
+      relicId: string | null;
+      relicName?: string;
+    }>;
+  };
+}
+
+/**
+ * Event: Relic drafted by player
+ */
+export interface RelicDraftedEvent extends TournamentEvent {
+  type: 'relic_drafted';
+  data: {
+    playerId: string;
+    relicId: string;
+    relicName: string;
+    rarity: string;
+  };
+}
+
+/**
+ * Event: Relic activated
+ */
+export interface RelicActivatedEvent extends TournamentEvent {
+  type: 'relic_activated';
+  data: {
+    playerId: string;
+    relicId: string;
+    relicName: string;
+    effectDescription: string;
+    wasRevealed: boolean;
+  };
 }
