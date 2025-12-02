@@ -1,13 +1,19 @@
 import { GameVariant, RuleModifiers } from '../rules/index.js';
 
 /**
+ * Game format - how the game is structured
+ */
+export type GameFormat = 'cash' | 'tournament';
+
+/**
  * Configuration for a poker table
  */
 export interface PokerTableConfig {
   tableId: string;           // unique identifier
   displayName: string;       // "High Stakes Hold'em"
   variant: GameVariant;      // 'holdem' | 'squidz-game' | 'omaha' | etc
-  mode?: 'PVP' | 'PVE';      // game mode (default: PVP)
+  format?: GameFormat;       // game format (default: 'cash')
+  mode?: 'PVP' | 'PVE';      // player mode (default: PVP)
   rules: RuleModifiers;      // variant-specific modifications
 
   // Table parameters
@@ -38,6 +44,7 @@ export interface PokerTableInfo {
   tableId: string;
   displayName: string;
   variant: GameVariant;
+  format?: GameFormat;
   mode?: 'PVP' | 'PVE';
   minBuyIn: number;
   maxBuyIn: number;

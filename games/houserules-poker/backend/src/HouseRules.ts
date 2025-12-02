@@ -61,6 +61,25 @@ const AI_PERSONALITIES: Record<AIPersonality, AIPersonalityProfile> = {
   }
 };
 
+/**
+ * Hand completion callback info
+ */
+export interface HandCompletionInfo {
+  handNumber: number;
+  winnerId: string;
+  potAmount: number;
+  seats: Array<{
+    playerId: string;
+    chipStack: number;
+    isEliminated: boolean;
+  }>;
+}
+
+/**
+ * Hand completion callback type
+ */
+export type OnHandCompleteCallback = (info: HandCompletionInfo) => void;
+
 export class HouseRules extends GameBase {
   gameType = 'houserules-poker';
   declare gameState: HouseRulesGameState | null;
@@ -70,10 +89,13 @@ export class HouseRules extends GameBase {
   private ruleModifiers: any; // Store rule modifiers from table config
   private smallBlindAmount = 50;  // Default small blind in currency units
   private bigBlindAmount = 100;   // Default big blind in currency units
+  private anteAmount = 0;         // Ante amount (for tournaments)
   private minBuyIn = 2000;  // Default minimum buy-in in currency units
   private maxBuyIn = 10000; // Default maximum buy-in in currency units
   private turnTimer: NodeJS.Timeout | null = null;
   private turnTimeoutMs = 15000; // 15 seconds per turn
+  private gameFormat: 'cash' | 'tournament' = 'cash';
+  private onHandComplete: OnHandCompleteCallback | null = null;
 
   constructor(tableConfig: any) {
     super(tableConfig);
@@ -94,9 +116,60 @@ export class HouseRules extends GameBase {
     this.maxBuyIn = tableConfig.maxBuyIn || this.maxBuyIn;
     this.smallBlindAmount = tableConfig.smallBlind || this.smallBlindAmount;
     this.bigBlindAmount = tableConfig.bigBlind || this.bigBlindAmount;
+    this.anteAmount = tableConfig.ante || 0;
 
-    console.log(`🎰 Initialized ${this.variant} poker table`);
+    // Tournament support
+    this.gameFormat = tableConfig.format || 'cash';
+    if (tableConfig.onHandComplete) {
+      this.onHandComplete = tableConfig.onHandComplete;
+    }
+
+    console.log(`🎰 Initialized ${this.variant} poker table (format: ${this.gameFormat})`);
     this.initializeGameState('Lobby');
+  }
+
+  /**
+   * Update blinds dynamically (used by tournament system)
+   */
+  public updateBlinds(smallBlind: number, bigBlind: number, ante?: number): void {
+    this.smallBlindAmount = smallBlind;
+    this.bigBlindAmount = bigBlind;
+    if (ante !== undefined) {
+      this.anteAmount = ante;
+    }
+
+    // Update game state if initialized
+    if (this.gameState) {
+      this.gameState.smallBlind = smallBlind;
+      this.gameState.bigBlind = bigBlind;
+      if (ante !== undefined) {
+        this.gameState.ante = ante;
+      }
+    }
+
+    console.log(`🎰 Blinds updated: ${smallBlind}/${bigBlind}${ante ? ` + ${ante} ante` : ''}`);
+  }
+
+  /**
+   * Notify listeners when a hand completes
+   */
+  private notifyHandComplete(winnerId: string, potAmount: number): void {
+    if (!this.onHandComplete || !this.gameState) return;
+
+    const seats = this.gameState.seats
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+      .map(s => ({
+        playerId: s.playerId,
+        chipStack: s.tableStack,
+        isEliminated: s.tableStack <= 0,
+      }));
+
+    this.onHandComplete({
+      handNumber: this.gameState.handCount,
+      winnerId,
+      potAmount,
+      seats,
+    });
   }
 
   /**
@@ -1386,6 +1459,9 @@ export class HouseRules extends GameBase {
           };
           this.gameState.lastWinningHand = undefined;  // No hand to show (won by fold)
 
+          // Notify tournament system of hand completion
+          this.notifyHandComplete(winner.playerId, wonAmount);
+
           // End hand immediately
           this.gameState.phase = 'Showdown';
           this.gameState.pot = 0;
@@ -1640,16 +1716,20 @@ export class HouseRules extends GameBase {
     this.resolveSideGames(winnerSeat, winningHand);
 
     // Store winner info for frontend announcement
+    const potAmount = this.gameState.pot;
     this.gameState.lastWinner = {
       playerId: winnerSeat.playerId,
       name: winnerSeat.name,
-      amount: this.gameState.pot
+      amount: potAmount
     };
     this.gameState.lastWinningHand = winningHand ? {
       rank: winningHand.rank,
       description: handRankToString(winningHand.rank),
       cards: winningHand.cards
     } : undefined;
+
+    // Notify tournament system of hand completion
+    this.notifyHandComplete(winnerSeat.playerId, potAmount);
 
     this.gameState.phase = 'PreHand';
     this.gameState.pot = 0;
