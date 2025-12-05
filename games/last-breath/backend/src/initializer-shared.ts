@@ -85,11 +85,10 @@ export const lastBreathInitializer: GameInitializer = {
 
 /**
  * Set up Socket.IO handlers for shared run gameplay
+ * Uses default namespace like other platform games
  */
 function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tableId: string): void {
-  const namespace = io.of('/last-breath');
-
-  namespace.on('connection', (socket) => {
+  io.on('connection', (socket) => {
     console.log(`[Last Breath] Player connected: ${socket.id}`);
 
     // Player joins/creates a run
@@ -110,7 +109,7 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
         });
 
         // Broadcast to all players in run
-        namespace.to(run.runId).emit('player_joined_run', {
+        io.to(run.runId).emit('player_joined_run', {
           playerId: socket.id,
           playerName: data.playerName,
           playerCount: run.players.size,
@@ -128,7 +127,7 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
         manager.startDescent();
         const run = manager.getCurrentRun();
         if (run) {
-          namespace.to(run.runId).emit('descent_started', {
+          io.to(run.runId).emit('descent_started', {
             state: serializeRunState(run)
           });
         }
@@ -145,7 +144,7 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
         const run = manager.getCurrentRun();
         if (run) {
           // Broadcast updated state to all players (including spectators!)
-          namespace.to(run.runId).emit('state_update', {
+          io.to(run.runId).emit('state_update', {
             state: serializeRunState(run)
           });
         }
@@ -159,7 +158,7 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
     manager.on('player_exfiltrated', (data) => {
       const run = manager.getCurrentRun();
       if (run) {
-        namespace.to(run.runId).emit('player_exfiltrated', {
+        io.to(run.runId).emit('player_exfiltrated', {
           playerId: data.playerId,
           depth: data.depth,
           payout: data.payout,
@@ -171,7 +170,7 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
     manager.on('player_busted', (data) => {
       const run = manager.getCurrentRun();
       if (run) {
-        namespace.to(run.runId).emit('player_busted', {
+        io.to(run.runId).emit('player_busted', {
           playerId: data.playerId,
           reason: data.reason,
           depth: data.depth,
@@ -181,7 +180,7 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
     });
 
     manager.on('run_advanced', (result) => {
-      namespace.to(result.newState.runId).emit('run_advanced', {
+      io.to(result.newState.runId).emit('run_advanced', {
         depth: result.newState.depth,
         events: result.events,
         hazardOccurred: result.hazardOccurred,
@@ -191,7 +190,7 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
     });
 
     manager.on('run_completed', (data) => {
-      namespace.to(data.runId).emit('run_completed', {
+      io.to(data.runId).emit('run_completed', {
         depth: data.depth,
         finalState: serializeRunState(manager.getCurrentRun()!)
       });
