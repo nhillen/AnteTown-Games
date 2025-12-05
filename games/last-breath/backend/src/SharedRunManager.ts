@@ -3,12 +3,12 @@
  *
  * Manages shared runs where multiple players experience the same descent together.
  *
- * NEW MECHANICS:
- * - Auto-start: Timer begins when first player joins (10 seconds)
- * - Auto-advance: Run progresses automatically every 3 seconds
- * - Exfiltrate only: Players choose WHEN to cash out (no advance button)
- * - Variable bets: Each player sets their own bid amount
- * - Payout: Bid × DataMultiplier
+ * MECHANICS:
+ * - Connected watchers drive the loop (not staked players)
+ * - Loop runs continuously when watchers are connected
+ * - Players set "pending stakes" that auto-join the next dive
+ * - No waiting for stakes - loop keeps rolling
+ * - Players can set stakes at any time (during dive, after exfil, etc.)
  */
 
 import { EventEmitter } from 'events';
@@ -17,9 +17,14 @@ import type { LastBreathConfig, GameEvent } from './types/index.js';
 import type { SharedRunState, PlayerRunState, SharedAdvanceResult, PlayerDecision } from './types/SharedRun.js';
 
 const SERVER_SECRET = process.env.LAST_BREATH_SECRET || 'last-breath-secret-key';
-const AUTO_START_DELAY = 10000;  // 10 seconds after first player joins
+const AUTO_START_DELAY = 10000;  // 10 seconds lobby countdown
 const AUTO_ADVANCE_INTERVAL = 3000;  // 3 seconds between rooms
 const NEXT_RUN_DELAY = 5000;  // 5 seconds between runs
+
+interface PendingStake {
+  playerName: string;
+  bid: number;
+}
 
 export class SharedRunManager extends EventEmitter {
   private config: LastBreathConfig;
@@ -30,6 +35,12 @@ export class SharedRunManager extends EventEmitter {
   private autoAdvanceTimer: NodeJS.Timeout | null = null;
   private nextRunTimer: NodeJS.Timeout | null = null;
   private nextRunAt: number | null = null;
+
+  // Track connected watchers (all sockets watching this table)
+  private connectedWatchers: Set<string> = new Set();
+
+  // Track pending stakes (players who want to join next dive)
+  private pendingStakes: Map<string, PendingStake> = new Map();
 
   constructor(tableId: string, config: LastBreathConfig) {
     super();
@@ -42,6 +53,20 @@ export class SharedRunManager extends EventEmitter {
    */
   public getNextRunAt(): number | null {
     return this.nextRunAt;
+  }
+
+  /**
+   * Get pending stakes (for state sync)
+   */
+  public getPendingStakes(): Map<string, PendingStake> {
+    return new Map(this.pendingStakes);
+  }
+
+  /**
+   * Get connected watcher count
+   */
+  public getWatcherCount(): number {
+    return this.connectedWatchers.size;
   }
 
   /**
@@ -61,40 +86,92 @@ export class SharedRunManager extends EventEmitter {
       this.nextRunTimer = null;
     }
     this.nextRunAt = null;
+    this.connectedWatchers.clear();
+    this.pendingStakes.clear();
     this.removeAllListeners();
   }
 
   /**
-   * Start a new shared run (or join existing one in lobby)
+   * Player connects to the table (becomes a watcher)
+   * This starts the game loop if it's the first watcher
    */
-  public joinOrCreateRun(playerId: string, playerName: string, bid: number): SharedRunState {
-    // If there's an active run in lobby phase, join it
-    if (this.currentRun && this.currentRun.phase === 'lobby') {
-      return this.joinRun(playerId, playerName, bid);
-    }
+  public playerConnect(playerId: string, playerName: string): void {
+    const wasEmpty = this.connectedWatchers.size === 0;
+    this.connectedWatchers.add(playerId);
 
-    // Otherwise, create a new run
-    return this.createRun(playerId, playerName, bid);
+    console.log(`[Last Breath] Player connected: ${playerId} (${playerName}), total watchers: ${this.connectedWatchers.size}`);
+
+    // If first watcher and no run exists, start the loop
+    if (wasEmpty) {
+      this.ensureLoopRunning();
+    }
   }
 
   /**
-   * Create a new shared run
+   * Player disconnects from the table
    */
-  private createRun(playerId: string, playerName: string, bid: number): SharedRunState {
+  public playerDisconnect(playerId: string): void {
+    this.connectedWatchers.delete(playerId);
+    this.pendingStakes.delete(playerId);
+
+    console.log(`[Last Breath] Player disconnected: ${playerId}, remaining watchers: ${this.connectedWatchers.size}`);
+
+    // Optionally pause loop if no watchers? For now, keep it running
+    // The run will complete naturally and just wait for new watchers
+  }
+
+  /**
+   * Player sets their stake for the next dive
+   * Can be called at any time - during dive, after exfil, etc.
+   */
+  public setStake(playerId: string, playerName: string, bid: number): void {
+    this.pendingStakes.set(playerId, { playerName, bid });
+    console.log(`[Last Breath] Stake set: ${playerId} (${playerName}) = ${bid} TC`);
+
+    this.emit('stake_set', {
+      playerId,
+      playerName,
+      bid,
+      pendingCount: this.pendingStakes.size
+    });
+
+    // If we're in lobby phase, add them immediately
+    if (this.currentRun && this.currentRun.phase === 'lobby') {
+      this.addPendingPlayerToLobby(playerId);
+    }
+  }
+
+  /**
+   * Player clears their stake (opt out of next dive)
+   */
+  public clearStake(playerId: string): void {
+    this.pendingStakes.delete(playerId);
+    console.log(`[Last Breath] Stake cleared: ${playerId}`);
+
+    this.emit('stake_cleared', {
+      playerId,
+      pendingCount: this.pendingStakes.size
+    });
+  }
+
+  /**
+   * Ensure the game loop is running
+   */
+  private ensureLoopRunning(): void {
+    // If no run and no scheduled run, create a lobby
+    if (!this.currentRun && !this.nextRunAt) {
+      this.createLobbyAndStart();
+    }
+  }
+
+  /**
+   * Create a lobby and start the countdown immediately
+   */
+  private createLobbyAndStart(): void {
     const timestamp = Date.now();
     const nonce = this.runCounter++;
     const seed = generateSeed(SERVER_SECRET, this.tableId, timestamp, nonce);
     const runId = `${this.tableId}-${timestamp}`;
-
-    const playerState: PlayerRunState = {
-      playerId,
-      playerName,
-      bid,
-      active: true,
-      exfiltrated: false,
-      joinedAtDepth: 0
-    };
-
     const autoStartAt = timestamp + AUTO_START_DELAY;
 
     this.currentRun = {
@@ -111,51 +188,80 @@ export class SharedRunManager extends EventEmitter {
       phase: 'lobby',
       currentEvents: [],
       eventHistory: [],
-      players: new Map([[playerId, playerState]]),
+      players: new Map(),
       createdAt: timestamp,
       autoStartAt
     };
 
-    // Start auto-start timer
+    console.log(`[Last Breath] Created lobby with countdown: ${runId}, starts at ${autoStartAt}`);
+
+    // Add all pending stakes to the lobby
+    this.addAllPendingToLobby();
+
+    // Start countdown timer
     this.scheduleAutoStart();
 
-    this.emit('run_created', { runId, seed, autoStartAt });
-    return this.currentRun;
+    this.emit('lobby_created', {
+      runId,
+      state: this.currentRun,
+      autoStartAt
+    });
   }
 
   /**
-   * Join an existing run in lobby
+   * Add a single pending player to the current lobby
    */
-  private joinRun(playerId: string, playerName: string, bid: number): SharedRunState {
-    if (!this.currentRun) {
-      throw new Error('No active run to join');
-    }
+  private addPendingPlayerToLobby(playerId: string): void {
+    if (!this.currentRun || this.currentRun.phase !== 'lobby') return;
+    if (this.currentRun.players.has(playerId)) return; // Already in run
+
+    const pending = this.pendingStakes.get(playerId);
+    if (!pending) return;
 
     const playerState: PlayerRunState = {
       playerId,
-      playerName,
-      bid,
+      playerName: pending.playerName,
+      bid: pending.bid,
       active: true,
       exfiltrated: false,
-      joinedAtDepth: this.currentRun.depth
+      joinedAtDepth: 0
     };
 
-    // Check if this is first player joining an empty lobby
-    const isFirstPlayer = this.currentRun.players.size === 0;
-
     this.currentRun.players.set(playerId, playerState);
+    // Keep the pending stake - they'll auto-join future dives too
 
-    // Start auto-start timer if first player joins empty lobby
-    if (isFirstPlayer && this.currentRun.phase === 'lobby') {
-      const autoStartAt = Date.now() + AUTO_START_DELAY;
-      this.currentRun.autoStartAt = autoStartAt;
-      this.scheduleAutoStart();
-      console.log(`[Last Breath] First player joined, auto-start at ${autoStartAt}`);
+    console.log(`[Last Breath] Added pending player to lobby: ${playerId}`);
+
+    this.emit('player_joined', {
+      runId: this.currentRun.runId,
+      playerId,
+      playerName: pending.playerName,
+      playerCount: this.currentRun.players.size
+    });
+  }
+
+  /**
+   * Add all players with pending stakes to the current lobby
+   */
+  private addAllPendingToLobby(): void {
+    if (!this.currentRun || this.currentRun.phase !== 'lobby') return;
+
+    for (const [playerId, pending] of this.pendingStakes) {
+      if (this.currentRun.players.has(playerId)) continue;
+
+      const playerState: PlayerRunState = {
+        playerId,
+        playerName: pending.playerName,
+        bid: pending.bid,
+        active: true,
+        exfiltrated: false,
+        joinedAtDepth: 0
+      };
+
+      this.currentRun.players.set(playerId, playerState);
     }
 
-    this.emit('player_joined', { runId: this.currentRun.runId, playerId });
-
-    return this.currentRun;
+    console.log(`[Last Breath] Added ${this.currentRun.players.size} pending players to lobby`);
   }
 
   /**
@@ -163,6 +269,12 @@ export class SharedRunManager extends EventEmitter {
    */
   private scheduleAutoStart(): void {
     if (!this.currentRun || this.currentRun.phase !== 'lobby') return;
+
+    // Clear existing timer
+    if (this.autoStartTimer) {
+      clearTimeout(this.autoStartTimer);
+      this.autoStartTimer = null;
+    }
 
     const delay = (this.currentRun.autoStartAt || 0) - Date.now();
     if (delay <= 0) {
@@ -246,8 +358,7 @@ export class SharedRunManager extends EventEmitter {
       payout: player.payout
     });
 
-    // Run continues even if all players exfiltrated - they can spectate for FOMO!
-    // The run will end naturally when O2/Suit runs out or hazard occurs
+    // Note: Their pending stake is still set, so they'll auto-join the next dive
   }
 
   /**
@@ -354,8 +465,6 @@ export class SharedRunManager extends EventEmitter {
     }
 
     // Check if run should end naturally (hazard, O2, or suit failure)
-    // Run continues even if all players exfiltrated - they spectate for FOMO!
-    const hasActivePlayers = Array.from(run.players.values()).some(p => p.active);
     const naturalEnding = hazardOccurred || run.O2 <= 0 || run.Suit <= 0;
 
     if (naturalEnding) {
@@ -407,7 +516,7 @@ export class SharedRunManager extends EventEmitter {
       nextRunAt: this.nextRunAt
     });
 
-    // Clear current run and start lobby for next run
+    // Clear current run and start new lobby
     if (this.nextRunTimer) {
       clearTimeout(this.nextRunTimer);
     }
@@ -415,62 +524,21 @@ export class SharedRunManager extends EventEmitter {
       this.currentRun = null;
       this.nextRunAt = null;
       this.nextRunTimer = null;
-      // Create an empty lobby that players can join
-      this.createEmptyLobby();
+      // Start new lobby with countdown (only if we have watchers)
+      if (this.connectedWatchers.size > 0) {
+        this.createLobbyAndStart();
+      }
     }, NEXT_RUN_DELAY);
   }
 
   /**
-   * Create an empty lobby waiting for players (called internally after run completes)
-   */
-  private createEmptyLobby(): void {
-    this.createLobbyInternal(true);
-  }
-
-  /**
    * Create initial lobby when first player joins table (public method)
+   * Called by server when no run exists
    */
   public createInitialLobby(): void {
     if (this.currentRun) return; // Don't overwrite existing run
-    this.createLobbyInternal(false);
-  }
-
-  /**
-   * Internal lobby creation
-   */
-  private createLobbyInternal(emitEvent: boolean): void {
-    const timestamp = Date.now();
-    const nonce = this.runCounter++;
-    const seed = generateSeed(SERVER_SECRET, this.tableId, timestamp, nonce);
-    const runId = `${this.tableId}-${timestamp}`;
-
-    this.currentRun = {
-      runId,
-      tableId: this.tableId,
-      seed,
-      depth: 0,
-      O2: this.config.start.O2,
-      Suit: this.config.start.Suit,
-      Corruption: 0,
-      DataMultiplier: this.config.start.M0,
-      rngCount: 0,
-      active: true,
-      phase: 'lobby',
-      currentEvents: [],
-      eventHistory: [],
-      players: new Map(),
-      createdAt: timestamp
-    };
-
-    console.log(`[Last Breath] Created empty lobby: ${runId}`);
-
-    // Only emit if this is from auto-restart (not initial join)
-    if (emitEvent) {
-      this.emit('lobby_created', {
-        runId,
-        state: this.currentRun
-      });
-    }
+    if (this.nextRunAt) return; // Don't interrupt next-run timer
+    this.createLobbyAndStart();
   }
 
   /**
@@ -540,5 +608,17 @@ export class SharedRunManager extends EventEmitter {
    */
   public getConfig(): LastBreathConfig {
     return { ...this.config };
+  }
+
+  /**
+   * Legacy method - now just sets stake and returns current run
+   * @deprecated Use setStake instead
+   */
+  public joinOrCreateRun(playerId: string, playerName: string, bid: number): SharedRunState {
+    this.setStake(playerId, playerName, bid);
+    if (!this.currentRun) {
+      this.createInitialLobby();
+    }
+    return this.currentRun!;
   }
 }

@@ -5,7 +5,12 @@
  * - Left: Stats panel (always visible)
  * - Center: Main view with airlock (always visible)
  * - Right: Players/Events (always visible)
- * - Bottom: Bet selection (when not in run)
+ *
+ * NEW MECHANICS:
+ * - Game loop runs continuously when players are connected
+ * - Players set "stakes" that auto-join them in the next dive
+ * - Can set stake at any time (during dive, after exfil, etc.)
+ * - No waiting for stakes - loop keeps rolling
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -51,6 +56,12 @@ interface Player {
   exfiltrateDepth?: number;
   payout?: number;
   joinedAtDepth: number;
+}
+
+interface PendingStake {
+  playerId: string;
+  playerName: string;
+  bid: number;
 }
 
 interface GameEvent {
@@ -104,6 +115,9 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const [nextRunAt, setNextRunAt] = useState<number | null>(null);
   const [nextRunCountdown, setNextRunCountdown] = useState<number>(0);
   const [nextAdvanceCountdown, setNextAdvanceCountdown] = useState<number>(0);
+  const [pendingStakes, setPendingStakes] = useState<PendingStake[]>([]);
+  const [myStakeSet, setMyStakeSet] = useState<boolean>(false);
+  const [myStakeAmount, setMyStakeAmount] = useState<number>(0);
 
   const getMyPlayer = useCallback((): Player | undefined => {
     return runState?.players.find(p => p.playerId === myPlayerId || p.playerId === socket?.id);
@@ -113,29 +127,54 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const amInRun = !!myPlayer;
   const amActive = myPlayer?.active === true;
 
-  const joinRun = useCallback(() => {
+  // Check if I have a pending stake
+  const myPendingStake = pendingStakes.find(s => s.playerId === myPlayerId || s.playerId === socket?.id);
+  const hasPendingStake = myStakeSet || !!myPendingStake;
+
+  // Set stake for next dive
+  const setStake = useCallback(() => {
     if (!socket || !tableJoined) return;
-    console.log('[Last Breath] Joining run with bid:', bid);
-    socket.emit('join_run', { playerName, bid });
-    setLastResult(null);
+    console.log('[Last Breath] Setting stake:', bid);
+    socket.emit('set_stake', { playerName, bid });
   }, [socket, tableJoined, playerName, bid]);
+
+  // Clear stake (opt out)
+  const clearStake = useCallback(() => {
+    if (!socket || !tableJoined) return;
+    console.log('[Last Breath] Clearing stake');
+    socket.emit('clear_stake');
+    setMyStakeSet(false);
+    setMyStakeAmount(0);
+  }, [socket, tableJoined]);
 
   useEffect(() => {
     if (!socket) return;
     setMyPlayerId(socket.id || '');
 
-    const handleTableJoined = (data: { tableId: string; currentRun: RunState | null; nextRunAt: number | null }) => {
-      console.log('[Last Breath] Table joined:', data.tableId, 'currentRun:', data.currentRun?.phase, 'nextRunAt:', data.nextRunAt);
+    const handleTableJoined = (data: {
+      tableId: string;
+      currentRun: RunState | null;
+      nextRunAt: number | null;
+      pendingStakes?: PendingStake[];
+      watcherCount?: number;
+    }) => {
+      console.log('[Last Breath] Table joined:', data.tableId, 'currentRun:', data.currentRun?.phase, 'nextRunAt:', data.nextRunAt, 'pendingStakes:', data.pendingStakes?.length);
       setTableJoined(true);
       if (data.currentRun) {
         setRunState(data.currentRun);
-        if (data.currentRun.runId) {
-          socket.emit('join_run_room', { runId: data.currentRun.runId });
-        }
       } else {
         setRunState(null);
       }
       setNextRunAt(data.nextRunAt);
+      if (data.pendingStakes) {
+        setPendingStakes(data.pendingStakes);
+        // Check if I have a pending stake
+        const myStake = data.pendingStakes.find(s => s.playerId === socket.id);
+        if (myStake) {
+          setMyStakeSet(true);
+          setMyStakeAmount(myStake.bid);
+        }
+      }
     };
 
     socket.on('table_joined', handleTableJoined);
@@ -151,10 +190,48 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
 
     socket.on('connect', handleConnect);
 
-    const handleRunJoined = (data: { runId: string; state: RunState }) => {
+    // Stake confirmed
+    const handleStakeConfirmed = (data: { playerId: string; bid: number; pendingStakes: PendingStake[] }) => {
+      if (data.playerId === socket.id) {
+        setMyStakeSet(true);
+        setMyStakeAmount(data.bid);
+        setMessage(`Stake set: ${data.bid} TC for next dive`);
+      }
+      setPendingStakes(data.pendingStakes);
+    };
+
+    // Stake set by someone (broadcast)
+    const handleStakeSet = (data: { playerId: string; playerName: string; bid: number; pendingStakes: PendingStake[] }) => {
+      setPendingStakes(data.pendingStakes);
+      if (data.playerId !== socket.id) {
+        setMessage(`${data.playerName} set stake: ${data.bid} TC`);
+      }
+    };
+
+    // Stake cleared
+    const handleStakeCleared = (data: { playerId: string; pendingStakes: PendingStake[] }) => {
+      setPendingStakes(data.pendingStakes);
+      if (data.playerId === socket.id) {
+        setMyStakeSet(false);
+        setMyStakeAmount(0);
+      }
+    };
+
+    const handleStakeClearedConfirm = (data: { playerId: string }) => {
+      if (data.playerId === socket.id) {
+        setMyStakeSet(false);
+        setMyStakeAmount(0);
+        setMessage('Stake cleared');
+      }
+    };
+
+    const handleRunJoined = (data: { runId: string; state: RunState; pendingStakes?: PendingStake[] }) => {
       setRunState(data.state);
       setNextRunAt(null);
       setMessage('');
+      if (data.pendingStakes) {
+        setPendingStakes(data.pendingStakes);
+      }
     };
 
     const handlePlayerJoinedRun = (data: { playerName: string; playerCount: number; autoStartAt?: number }) => {
@@ -167,6 +244,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     const handleDescentStarted = (data: { state: RunState }) => {
       setRunState(data.state);
       setMessage('Descent begins!');
+      setLastResult(null); // Clear last result when new dive starts
     };
 
     const handleStateUpdate = (data: { state: RunState }) => setRunState(data.state);
@@ -222,13 +300,18 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
       setRunState(null);
     };
 
-    const handleLobbyCreated = (data: { runId: string; state: RunState }) => {
+    const handleLobbyCreated = (data: { runId: string; state: RunState; autoStartAt?: number }) => {
       setRunState(data.state);
       setNextRunAt(null);
+      setLastResult(null); // Clear result for new lobby
     };
 
     const handleError = (data: { message: string }) => setMessage(`Error: ${data.message}`);
 
+    socket.on('stake_confirmed', handleStakeConfirmed);
+    socket.on('stake_set', handleStakeSet);
+    socket.on('stake_cleared', handleStakeCleared);
+    socket.on('stake_cleared_confirm', handleStakeClearedConfirm);
     socket.on('run_joined', handleRunJoined);
     socket.on('player_joined_run', handlePlayerJoinedRun);
     socket.on('descent_started', handleDescentStarted);
@@ -244,6 +327,10 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     return () => {
       socket.off('connect', handleConnect);
       socket.off('table_joined', handleTableJoined);
+      socket.off('stake_confirmed', handleStakeConfirmed);
+      socket.off('stake_set', handleStakeSet);
+      socket.off('stake_cleared', handleStakeCleared);
+      socket.off('stake_cleared_confirm', handleStakeClearedConfirm);
       socket.off('run_joined', handleRunJoined);
       socket.off('player_joined_run', handlePlayerJoinedRun);
       socket.off('descent_started', handleDescentStarted);
@@ -295,21 +382,19 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const isDescending = runState?.phase === 'descending';
   const isCompleted = runState?.phase === 'completed';
   const isWaiting = !runState && nextRunAt !== null;
-  const hasPlayers = (runState?.players.length || 0) > 0;
-
-  // Can join: lobby exists and I'm not in it, OR waiting for next run
-  const canJoin = (isLobby && !amInRun) || isWaiting;
 
   // Status text for header
   const getStatusText = () => {
     if (!tableJoined) return 'CONNECTING...';
     if (isWaiting) return `NEXT DIVE IN ${nextRunCountdown}`;
-    if (isLobby && hasPlayers) return `DIVE LAUNCHING IN ${countdown}`;
-    if (isLobby) return 'DIVE READY';
+    if (isLobby) return `DIVE LAUNCHING IN ${countdown}`;
     if (isDescending) return `DEPTH ${runState?.depth || 0}m`;
     if (isCompleted) return 'DIVE COMPLETE';
     return 'WAITING...';
   };
+
+  // Can I change my stake? (not while actively in a descending dive)
+  const canChangeStake = !amActive || !isDescending;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0f', fontFamily: 'monospace' }}>
@@ -423,9 +508,9 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
             }}>
               {getStatusText()}
             </div>
-            {isLobby && hasPlayers && (
+            {isLobby && (
               <div style={{ fontSize: '14px', color: '#88ccff', marginTop: '5px' }}>
-                {runState?.players.length} Diver{runState?.players.length !== 1 ? 's' : ''} Ready
+                {runState?.players.length || 0} Diver{(runState?.players.length || 0) !== 1 ? 's' : ''} Ready
               </div>
             )}
           </div>
@@ -492,7 +577,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                 justifyContent: 'center',
                 zIndex: 10
               }}>
-                {isLobby && hasPlayers && countdown > 0 && (
+                {isLobby && countdown > 0 && (
                   <div style={{
                     fontSize: '120px',
                     fontWeight: 'bold',
@@ -514,7 +599,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
             borderRadius: '8px'
           }}>
             {/* Active in run - show exfiltrate */}
-            {amActive && (
+            {amActive && isDescending && (
               <div style={{ textAlign: 'center' }}>
                 <button
                   onClick={handleExfiltrate}
@@ -539,18 +624,29 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
               </div>
             )}
 
-            {/* In run but spectating (exfiltrated/busted) */}
-            {amInRun && !amActive && isDescending && (
-              <div style={{ textAlign: 'center', color: '#6699cc' }}>
-                Watching dive continue...
-              </div>
-            )}
-
-            {/* Can join - show bet selection */}
-            {canJoin && (
+            {/* Stake selection - show when NOT actively descending OR when spectating */}
+            {canChangeStake && (
               <div style={{ textAlign: 'center' }}>
+                {/* Show current stake status */}
+                {hasPendingStake && (
+                  <div style={{
+                    marginBottom: '12px',
+                    padding: '8px',
+                    backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                    border: '1px solid #00ff88',
+                    borderRadius: '6px'
+                  }}>
+                    <div style={{ fontSize: '12px', color: '#00ff88' }}>
+                      ✓ STAKE SET: {myStakeAmount || myPendingStake?.bid || bid} TC
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#6699cc', marginTop: '2px' }}>
+                      You'll auto-join the next dive
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ fontSize: '12px', color: '#6699cc', marginBottom: '8px' }}>
-                  {amInRun ? 'YOUR STAKE' : 'SELECT STAKE FOR NEXT DIVE'}
+                  {hasPendingStake ? 'CHANGE STAKE' : 'SET STAKE FOR NEXT DIVE'}
                 </div>
                 <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '12px' }}>
                   {BUY_IN_OPTIONS.map((amount) => (
@@ -573,44 +669,56 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                     </button>
                   ))}
                 </div>
-                <button
-                  onClick={joinRun}
-                  style={{
-                    padding: '12px 40px',
-                    fontSize: '18px',
-                    fontFamily: 'monospace',
-                    fontWeight: 'bold',
-                    backgroundColor: '#00ff88',
-                    color: '#000',
-                    border: '3px solid #00ff88',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    boxShadow: '0 0 20px rgba(0, 255, 136, 0.4)'
-                  }}
-                >
-                  JOIN DIVE - {bid} TC
-                </button>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                  <button
+                    onClick={setStake}
+                    style={{
+                      padding: '12px 30px',
+                      fontSize: '16px',
+                      fontFamily: 'monospace',
+                      fontWeight: 'bold',
+                      backgroundColor: '#00ff88',
+                      color: '#000',
+                      border: '3px solid #00ff88',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      boxShadow: '0 0 20px rgba(0, 255, 136, 0.4)'
+                    }}
+                  >
+                    {hasPendingStake ? 'UPDATE' : 'SET'} STAKE - {bid} TC
+                  </button>
+                  {hasPendingStake && (
+                    <button
+                      onClick={clearStake}
+                      style={{
+                        padding: '12px 20px',
+                        fontSize: '14px',
+                        fontFamily: 'monospace',
+                        backgroundColor: 'transparent',
+                        color: '#ff6666',
+                        border: '2px solid #ff6666',
+                        borderRadius: '8px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      OPT OUT
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* In run and already joined lobby */}
-            {amInRun && isLobby && (
-              <div style={{ textAlign: 'center', color: '#00ff88' }}>
+            {/* In run but spectating (exfiltrated/busted) - already handled by canChangeStake */}
+            {amInRun && !amActive && isDescending && !canChangeStake && (
+              <div style={{ textAlign: 'center', color: '#6699cc' }}>
+                Watching dive continue...
+              </div>
+            )}
+
+            {/* Additional info during lobby */}
+            {isLobby && amInRun && (
+              <div style={{ textAlign: 'center', color: '#00ff88', marginTop: '10px' }}>
                 YOUR STAKE: {myPlayer?.bid} TC - Waiting for launch...
-              </div>
-            )}
-
-            {/* Spectating but not in run */}
-            {!amInRun && isDescending && (
-              <div style={{ textAlign: 'center', color: '#ff9944' }}>
-                Dive in progress - join the next one!
-              </div>
-            )}
-
-            {/* Completed */}
-            {isCompleted && (
-              <div style={{ textAlign: 'center', color: '#888' }}>
-                Next dive starting soon...
               </div>
             )}
           </div>
@@ -632,6 +740,38 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
 
         {/* RIGHT PANEL - Players & Events (always visible) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Pending Stakes */}
+          {pendingStakes.length > 0 && (
+            <div style={{
+              padding: '10px',
+              backgroundColor: '#1a2530',
+              border: '2px solid #00ff88',
+              borderRadius: '8px'
+            }}>
+              <div style={{ fontSize: '10px', color: '#00ff88', marginBottom: '6px', fontWeight: 'bold' }}>
+                NEXT DIVE ({pendingStakes.length})
+              </div>
+              {pendingStakes.slice(0, 5).map((stake) => {
+                const isMe = stake.playerId === myPlayerId || stake.playerId === socket?.id;
+                return (
+                  <div key={stake.playerId} style={{
+                    fontSize: '9px',
+                    padding: '3px 6px',
+                    marginBottom: '2px',
+                    backgroundColor: isMe ? 'rgba(0, 255, 136, 0.2)' : 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: '3px',
+                    color: '#00ff88'
+                  }}>
+                    {stake.playerName}{isMe && ' (You)'}: {stake.bid} TC
+                  </div>
+                );
+              })}
+              {pendingStakes.length > 5 && (
+                <div style={{ fontSize: '9px', color: '#6699cc' }}>+{pendingStakes.length - 5} more</div>
+              )}
+            </div>
+          )}
+
           {/* Event Log */}
           <div style={{
             padding: '10px',
@@ -666,7 +806,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
             })}
           </div>
 
-          {/* Players */}
+          {/* Current Dive Players */}
           <div style={{
             padding: '10px',
             backgroundColor: '#1a2530',
@@ -676,7 +816,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
             overflowY: 'auto'
           }}>
             <div style={{ fontSize: '10px', color: '#00ddff', marginBottom: '6px', fontWeight: 'bold' }}>
-              DIVERS ({runState?.players.length || 0})
+              CURRENT DIVERS ({runState?.players.length || 0})
             </div>
             {(!runState || runState.players.length === 0) && (
               <div style={{ fontSize: '10px', color: '#446688' }}>No divers yet...</div>
