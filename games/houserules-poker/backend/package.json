@@ -12,7 +12,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@antetown/game-sdk": "file:../../../packages/game-sdk"
+    "@antetown/game-sdk": "file:../../../packages/game-sdk",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
