@@ -5,9 +5,7 @@
   "description": "AnteTown Games Monorepo - All casino games for the AnteTown platform",
   "workspaces": [
     "packages/*",
-    "games/*",
-    "games/*/backend",
-    "games/*/frontend"
+    "games/*"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
