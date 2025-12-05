@@ -92,8 +92,15 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
 
     setMyPlayerId(socket.id || '');
 
-    // Auto-join run on connect
+    // Join run immediately if socket is already connected
+    if (socket.connected) {
+      console.log('[Last Breath] Socket already connected, joining run...');
+      socket.emit('join_run', { playerName, bid });
+    }
+
+    // Also handle future reconnections
     const handleConnect = () => {
+      console.log('[Last Breath] Socket reconnected, joining run...');
       setMyPlayerId(socket.id || '');
       socket.emit('join_run', { playerName, bid });
     };
