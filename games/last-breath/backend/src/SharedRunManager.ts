@@ -19,7 +19,7 @@ import type { SharedRunState, PlayerRunState, SharedAdvanceResult, PlayerDecisio
 const SERVER_SECRET = process.env.LAST_BREATH_SECRET || 'last-breath-secret-key';
 const AUTO_START_DELAY = 10000;  // 10 seconds lobby countdown
 const AUTO_ADVANCE_INTERVAL = 3000;  // 3 seconds between rooms
-const NEXT_RUN_DELAY = 5000;  // 5 seconds between runs
+const NEXT_RUN_DELAY = 0;  // No delay - go straight to next lobby
 
 interface PendingStake {
   playerName: string;
@@ -510,25 +510,17 @@ export class SharedRunManager extends EventEmitter {
       depth: completedDepth
     });
 
-    // Schedule next run
-    this.nextRunAt = Date.now() + NEXT_RUN_DELAY;
-    this.emit('next_run_scheduled', {
-      nextRunAt: this.nextRunAt
-    });
+    // Clear current run and immediately start new lobby (no delay)
+    this.currentRun = null;
+    this.nextRunAt = null;
 
-    // Clear current run and start new lobby
-    if (this.nextRunTimer) {
-      clearTimeout(this.nextRunTimer);
-    }
-    this.nextRunTimer = setTimeout(() => {
-      this.currentRun = null;
-      this.nextRunAt = null;
-      this.nextRunTimer = null;
-      // Start new lobby with countdown (only if we have watchers)
-      if (this.connectedWatchers.size > 0) {
+    // Start new lobby with countdown (only if we have watchers)
+    if (this.connectedWatchers.size > 0) {
+      // Small delay to let run_completed event propagate first
+      setTimeout(() => {
         this.createLobbyAndStart();
-      }
-    }, NEXT_RUN_DELAY);
+      }, 100);
+    }
   }
 
   /**

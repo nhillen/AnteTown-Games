@@ -16,35 +16,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
 
-const TopNav = ({ onBack }: { onBack: () => void }) => (
-  <div style={{
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    backdropFilter: 'blur(8px)',
-    borderBottom: '1px solid #334155',
-    padding: '12px 24px'
-  }}>
-    <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <button
-        onClick={onBack}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          color: '#9ca3af',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          fontFamily: 'monospace'
-        }}
-      >
-        ← Back to Games
-      </button>
-      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '20px' }}>Last Breath</div>
-      <div style={{ width: '100px' }} />
-    </div>
-  </div>
-);
-
 interface Player {
   playerId: string;
   playerName: string;
@@ -373,7 +344,6 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   }, [runState?.nextAdvanceAt, runState?.phase]);
 
   const handleExfiltrate = () => socket?.emit('player_decision', { decision: 'exfiltrate' });
-  const handleBack = () => { window.location.hash = ''; };
 
   const getO2Color = (o2: number) => o2 > 60 ? '#00ff00' : o2 > 30 ? '#ffff00' : '#ff0000';
   const getSuitColor = (suit: number) => suit > 0.7 ? '#00ff00' : suit > 0.4 ? '#ffff00' : '#ff0000';
@@ -393,22 +363,18 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     return 'WAITING...';
   };
 
-  // Can I change my stake? (not while actively in a descending dive)
-  const canChangeStake = !amActive || !isDescending;
+  // Determine if we're actively diving (affects UI prominence)
+  const isActivelyDiving = amActive && isDescending;
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0f', fontFamily: 'monospace' }}>
-      <TopNav onBack={handleBack} />
-
+    <div style={{ fontFamily: 'monospace', padding: '20px', backgroundColor: '#0a0a0f', minHeight: 'calc(100vh - 80px)' }}>
       {/* FIXED 3-COLUMN LAYOUT - ALWAYS THE SAME STRUCTURE */}
       <div style={{
         maxWidth: '1400px',
         margin: '0 auto',
-        padding: '20px',
         display: 'grid',
         gridTemplateColumns: '220px 1fr 220px',
-        gap: '20px',
-        minHeight: 'calc(100vh - 80px)'
+        gap: '20px'
       }}>
         {/* LEFT PANEL - Stats (always visible) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -431,27 +397,33 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           <div style={{
             padding: '12px',
             backgroundColor: '#1a2530',
-            border: '2px solid #00ddff',
+            border: `2px solid ${isDescending ? '#00ddff' : '#335577'}`,
             borderRadius: '8px',
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '10px', color: '#88ccff', marginBottom: '4px' }}>DEPTH</div>
-            <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#00ddff' }}>
+            <div style={{ fontSize: '36px', fontWeight: 'bold', color: isDescending ? '#00ddff' : '#446688' }}>
               {isDescending || isCompleted ? `${runState?.depth || 0}m` : '--'}
             </div>
           </div>
 
           {/* Vitals */}
-          <div style={{ padding: '10px', backgroundColor: '#1a2530', border: '2px solid #335577', borderRadius: '8px' }}>
+          <div style={{
+            padding: '10px',
+            backgroundColor: '#1a2530',
+            border: `2px solid ${isDescending ? '#335577' : '#223344'}`,
+            borderRadius: '8px',
+            opacity: isDescending ? 1 : 0.6
+          }}>
             <div style={{ marginBottom: '10px' }}>
               <div style={{ fontSize: '9px', color: '#88ccff' }}>OXYGEN</div>
-              <div style={{ fontSize: '22px', fontWeight: 'bold', color: runState ? getO2Color(runState.O2) : '#446688' }}>
+              <div style={{ fontSize: '22px', fontWeight: 'bold', color: runState && isDescending ? getO2Color(runState.O2) : '#446688' }}>
                 {runState ? runState.O2.toFixed(0) : '--'}
               </div>
             </div>
             <div>
               <div style={{ fontSize: '9px', color: '#88ccff' }}>SUIT</div>
-              <div style={{ fontSize: '22px', fontWeight: 'bold', color: runState ? getSuitColor(runState.Suit) : '#446688' }}>
+              <div style={{ fontSize: '22px', fontWeight: 'bold', color: runState && isDescending ? getSuitColor(runState.Suit) : '#446688' }}>
                 {runState ? `${(runState.Suit * 100).toFixed(0)}%` : '--'}
               </div>
             </div>
@@ -461,12 +433,13 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           <div style={{
             padding: '8px',
             backgroundColor: '#1a2530',
-            border: '2px solid #ff6600',
+            border: `2px solid ${isDescending ? '#ff6600' : '#442200'}`,
             borderRadius: '8px',
-            textAlign: 'center'
+            textAlign: 'center',
+            opacity: isDescending ? 1 : 0.6
           }}>
             <div style={{ fontSize: '9px', color: '#ff9944' }}>CORRUPTION</div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ff6600' }}>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: isDescending ? '#ff6600' : '#664422' }}>
               {runState ? runState.Corruption : '--'}
             </div>
           </div>
@@ -474,16 +447,16 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           {/* Data Multiplier */}
           <div style={{
             padding: '10px',
-            backgroundColor: 'rgba(255, 221, 0, 0.1)',
-            border: '2px solid #ffdd00',
+            backgroundColor: isDescending ? 'rgba(255, 221, 0, 0.1)' : 'rgba(100, 100, 50, 0.1)',
+            border: `2px solid ${isDescending ? '#ffdd00' : '#665500'}`,
             borderRadius: '8px',
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '9px', color: '#ffdd00' }}>MULTIPLIER</div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ffdd00' }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: isDescending ? '#ffdd00' : '#665500' }}>
               {runState ? `${runState.DataMultiplier.toFixed(2)}x` : '1.00x'}
             </div>
-            {amInRun && runState && (
+            {amInRun && runState && isDescending && (
               <div style={{ fontSize: '11px', color: '#ffaa00', marginTop: '2px' }}>
                 = {Math.floor((myPlayer?.bid || bid) * runState.DataMultiplier)} TC
               </div>
@@ -497,20 +470,25 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           <div style={{
             textAlign: 'center',
             padding: '15px',
-            backgroundColor: '#1a2530',
-            border: '2px solid #00ddff',
+            backgroundColor: isActivelyDiving ? '#0a2030' : '#1a2530',
+            border: `2px solid ${isActivelyDiving ? '#00ddff' : isLobby ? '#ffdd00' : '#335577'}`,
             borderRadius: '8px'
           }}>
             <div style={{
               fontSize: '28px',
               fontWeight: 'bold',
-              color: isDescending ? '#00ddff' : isCompleted ? (lastResult?.won ? '#00ff88' : '#ff4444') : '#ffdd00'
+              color: isActivelyDiving ? '#00ddff' : isCompleted ? (lastResult?.won ? '#00ff88' : '#ff4444') : '#ffdd00'
             }}>
               {getStatusText()}
             </div>
             {isLobby && (
               <div style={{ fontSize: '14px', color: '#88ccff', marginTop: '5px' }}>
                 {runState?.players.length || 0} Diver{(runState?.players.length || 0) !== 1 ? 's' : ''} Ready
+              </div>
+            )}
+            {isActivelyDiving && (
+              <div style={{ fontSize: '12px', color: '#00ff88', marginTop: '5px' }}>
+                ● LIVE - You're in this dive
               </div>
             )}
           </div>
@@ -521,7 +499,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
             width: '100%',
             aspectRatio: '16 / 9',
             backgroundColor: '#0a0a0f',
-            border: '4px solid #1a2530',
+            border: `4px solid ${isActivelyDiving ? '#00ddff' : '#1a2530'}`,
             borderRadius: '8px',
             overflow: 'hidden',
             boxShadow: `0 0 25px ${eventGlow}`
@@ -594,18 +572,21 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           {/* Action Area */}
           <div style={{
             padding: '15px',
-            backgroundColor: '#1a2530',
-            border: '2px solid #335577',
+            backgroundColor: isActivelyDiving ? '#0a2030' : '#1a2530',
+            border: `2px solid ${isActivelyDiving ? '#00ddff' : '#335577'}`,
             borderRadius: '8px'
           }}>
-            {/* Active in run - show exfiltrate */}
-            {amActive && isDescending && (
+            {/* ACTIVELY DIVING - Show exfiltrate prominently */}
+            {isActivelyDiving && (
               <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '12px', color: '#00ff88', marginBottom: '10px' }}>
+                  ● YOU ARE IN THIS DIVE
+                </div>
                 <button
                   onClick={handleExfiltrate}
                   style={{
-                    padding: '14px 40px',
-                    fontSize: '20px',
+                    padding: '16px 50px',
+                    fontSize: '22px',
                     backgroundColor: '#00ff88',
                     color: '#000',
                     border: '3px solid #ffdd00',
@@ -613,21 +594,38 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                     cursor: 'pointer',
                     fontFamily: 'monospace',
                     fontWeight: 'bold',
-                    boxShadow: '0 0 20px rgba(0, 255, 136, 0.5)'
+                    boxShadow: '0 0 30px rgba(0, 255, 136, 0.6)'
                   }}
                 >
-                  EXFILTRATE
+                  EXFILTRATE - {Math.floor((myPlayer?.bid || 0) * (runState?.DataMultiplier || 1))} TC
                 </button>
-                <div style={{ fontSize: '11px', color: '#6699cc', marginTop: '6px' }}>
-                  Next depth in {nextAdvanceCountdown}s
+                <div style={{ fontSize: '11px', color: '#6699cc', marginTop: '8px' }}>
+                  Next depth in {nextAdvanceCountdown}s • Stake: {myPlayer?.bid} TC
                 </div>
               </div>
             )}
 
-            {/* Stake selection - show when NOT actively descending OR when spectating */}
-            {canChangeStake && (
+            {/* NOT ACTIVELY DIVING - Show stake selection in muted style */}
+            {!isActivelyDiving && (
               <div style={{ textAlign: 'center' }}>
-                {/* Show current stake status */}
+                {/* Status indicator */}
+                <div style={{
+                  fontSize: '11px',
+                  color: isDescending ? '#ff9944' : '#6699cc',
+                  marginBottom: '10px',
+                  padding: '6px',
+                  backgroundColor: isDescending ? 'rgba(255, 150, 50, 0.1)' : 'transparent',
+                  borderRadius: '4px'
+                }}>
+                  {isDescending && amInRun && !amActive && '👁 SPECTATING - You exfiltrated/busted'}
+                  {isDescending && !amInRun && '👁 WATCHING - Set stake to join next dive'}
+                  {isLobby && amInRun && `✓ IN LOBBY - Stake: ${myPlayer?.bid} TC`}
+                  {isLobby && !amInRun && hasPendingStake && '✓ STAKE SET - You\'ll join this dive'}
+                  {isLobby && !amInRun && !hasPendingStake && 'Set stake to join this dive'}
+                  {!isDescending && !isLobby && !runState && 'Waiting for next dive...'}
+                </div>
+
+                {/* Current stake status */}
                 {hasPendingStake && (
                   <div style={{
                     marginBottom: '12px',
@@ -636,89 +634,79 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                     border: '1px solid #00ff88',
                     borderRadius: '6px'
                   }}>
-                    <div style={{ fontSize: '12px', color: '#00ff88' }}>
-                      ✓ STAKE SET: {myStakeAmount || myPendingStake?.bid || bid} TC
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#6699cc', marginTop: '2px' }}>
-                      You'll auto-join the next dive
+                    <div style={{ fontSize: '13px', color: '#00ff88', fontWeight: 'bold' }}>
+                      ✓ STAKE: {myStakeAmount || myPendingStake?.bid || bid} TC
                     </div>
                   </div>
                 )}
 
-                <div style={{ fontSize: '12px', color: '#6699cc', marginBottom: '8px' }}>
-                  {hasPendingStake ? 'CHANGE STAKE' : 'SET STAKE FOR NEXT DIVE'}
-                </div>
-                <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '12px' }}>
-                  {BUY_IN_OPTIONS.map((amount) => (
+                {/* Stake selection */}
+                <div style={{
+                  opacity: isDescending ? 0.7 : 1,
+                  padding: '10px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  borderRadius: '6px'
+                }}>
+                  <div style={{ fontSize: '11px', color: '#6699cc', marginBottom: '8px' }}>
+                    {isDescending ? 'STAKE FOR NEXT DIVE' : hasPendingStake ? 'CHANGE STAKE' : 'SET STAKE'}
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '10px' }}>
+                    {BUY_IN_OPTIONS.map((amount) => (
+                      <button
+                        key={amount}
+                        onClick={() => setBid(amount)}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '13px',
+                          fontFamily: 'monospace',
+                          fontWeight: 'bold',
+                          backgroundColor: bid === amount ? '#00ddff' : '#0f1419',
+                          color: bid === amount ? '#000' : '#00ddff',
+                          border: `2px solid ${bid === amount ? '#00ddff' : '#335577'}`,
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {amount}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                     <button
-                      key={amount}
-                      onClick={() => setBid(amount)}
+                      onClick={setStake}
                       style={{
-                        padding: '8px 14px',
+                        padding: '10px 24px',
                         fontSize: '14px',
                         fontFamily: 'monospace',
                         fontWeight: 'bold',
-                        backgroundColor: bid === amount ? '#00ddff' : '#0f1419',
-                        color: bid === amount ? '#000' : '#00ddff',
-                        border: `2px solid ${bid === amount ? '#00ddff' : '#335577'}`,
+                        backgroundColor: isDescending ? '#446688' : '#00ff88',
+                        color: '#000',
+                        border: `2px solid ${isDescending ? '#446688' : '#00ff88'}`,
                         borderRadius: '6px',
                         cursor: 'pointer'
                       }}
                     >
-                      {amount}
+                      {hasPendingStake ? 'UPDATE' : 'SET'} - {bid} TC
                     </button>
-                  ))}
+                    {hasPendingStake && (
+                      <button
+                        onClick={clearStake}
+                        style={{
+                          padding: '10px 16px',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          backgroundColor: 'transparent',
+                          color: '#ff6666',
+                          border: '1px solid #ff6666',
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        OPT OUT
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                  <button
-                    onClick={setStake}
-                    style={{
-                      padding: '12px 30px',
-                      fontSize: '16px',
-                      fontFamily: 'monospace',
-                      fontWeight: 'bold',
-                      backgroundColor: '#00ff88',
-                      color: '#000',
-                      border: '3px solid #00ff88',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      boxShadow: '0 0 20px rgba(0, 255, 136, 0.4)'
-                    }}
-                  >
-                    {hasPendingStake ? 'UPDATE' : 'SET'} STAKE - {bid} TC
-                  </button>
-                  {hasPendingStake && (
-                    <button
-                      onClick={clearStake}
-                      style={{
-                        padding: '12px 20px',
-                        fontSize: '14px',
-                        fontFamily: 'monospace',
-                        backgroundColor: 'transparent',
-                        color: '#ff6666',
-                        border: '2px solid #ff6666',
-                        borderRadius: '8px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      OPT OUT
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* In run but spectating (exfiltrated/busted) - already handled by canChangeStake */}
-            {amInRun && !amActive && isDescending && !canChangeStake && (
-              <div style={{ textAlign: 'center', color: '#6699cc' }}>
-                Watching dive continue...
-              </div>
-            )}
-
-            {/* Additional info during lobby */}
-            {isLobby && amInRun && (
-              <div style={{ textAlign: 'center', color: '#00ff88', marginTop: '10px' }}>
-                YOUR STAKE: {myPlayer?.bid} TC - Waiting for launch...
               </div>
             )}
           </div>
@@ -740,8 +728,8 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
 
         {/* RIGHT PANEL - Players & Events (always visible) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {/* Pending Stakes */}
-          {pendingStakes.length > 0 && (
+          {/* Pending Stakes - show when not descending */}
+          {!isDescending && pendingStakes.length > 0 && (
             <div style={{
               padding: '10px',
               backgroundColor: '#1a2530',
@@ -810,13 +798,13 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           <div style={{
             padding: '10px',
             backgroundColor: '#1a2530',
-            border: '2px solid #335577',
+            border: `2px solid ${isDescending ? '#00ddff' : '#335577'}`,
             borderRadius: '8px',
             flex: 1,
             overflowY: 'auto'
           }}>
             <div style={{ fontSize: '10px', color: '#00ddff', marginBottom: '6px', fontWeight: 'bold' }}>
-              CURRENT DIVERS ({runState?.players.length || 0})
+              {isDescending ? 'ACTIVE DIVERS' : 'DIVERS'} ({runState?.players.length || 0})
             </div>
             {(!runState || runState.players.length === 0) && (
               <div style={{ fontSize: '10px', color: '#446688' }}>No divers yet...</div>
@@ -828,8 +816,8 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                 <div key={player.playerId} style={{
                   padding: '5px',
                   marginBottom: '4px',
-                  backgroundColor: isMe ? 'rgba(0, 221, 255, 0.1)' : 'rgba(0, 0, 0, 0.3)',
-                  border: `1px solid ${statusColor}`,
+                  backgroundColor: isMe ? 'rgba(0, 221, 255, 0.15)' : 'rgba(0, 0, 0, 0.3)',
+                  border: `1px solid ${isMe && player.active ? '#00ddff' : statusColor}`,
                   borderRadius: '4px'
                 }}>
                   <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#fff' }}>
