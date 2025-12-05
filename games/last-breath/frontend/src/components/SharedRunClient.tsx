@@ -8,10 +8,10 @@
  * - Spectator mode when eliminated (watch others continue!)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
 
-// TopNav component (inline for now - could be imported from platform)
+// TopNav component
 const TopNav = ({ onBack }: { onBack: () => void }) => (
   <div className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-700 px-6 py-3">
     <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -24,8 +24,8 @@ const TopNav = ({ onBack }: { onBack: () => void }) => (
         </svg>
         <span>Back to Games</span>
       </button>
-      <div className="text-white font-bold text-xl">🤿 Last Breath</div>
-      <div className="w-24" /> {/* Spacer for centering */}
+      <div className="text-white font-bold text-xl">Last Breath</div>
+      <div className="w-24" />
     </div>
   </div>
 );
@@ -65,20 +65,27 @@ interface RunState {
   nextAdvanceAt?: number;
 }
 
+// Client-side phases
+type ClientPhase = 'funding' | 'waiting' | 'lobby' | 'descending' | 'results';
+
 interface SharedRunClientProps {
-  socket?: Socket | null;  // Platform socket from AuthProvider
-  tableId?: string;         // Table ID to join
+  socket?: Socket | null;
+  tableId?: string;
   playerName?: string;
   onLeaveTable?: () => void;
 }
 
+// Preset buy-in amounts
+const BUY_IN_OPTIONS = [50, 100, 250, 500, 1000];
+
 export const SharedRunClient: React.FC<SharedRunClientProps> = ({
-  socket: platformSocket = null,  // Accept platform socket
+  socket: platformSocket = null,
   tableId = '',
   playerName = 'Player',
   onLeaveTable
 }) => {
-  const socket = platformSocket;  // Use platform socket directly
+  const socket = platformSocket;
+  const [clientPhase, setClientPhase] = useState<ClientPhase>('funding');
   const [runState, setRunState] = useState<RunState | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<string>('');
   const [message, setMessage] = useState<string>('');
@@ -86,8 +93,19 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const [autoStartAt, setAutoStartAt] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number>(0);
   const [doorOpen, setDoorOpen] = useState<boolean>(false);
-  const [eventGlow, setEventGlow] = useState<string>('rgba(0, 221, 255, 0.3)'); // Default cyan glow
+  const [eventGlow, setEventGlow] = useState<string>('rgba(0, 221, 255, 0.3)');
   const [tableJoined, setTableJoined] = useState<boolean>(false);
+  const [lastResult, setLastResult] = useState<{ won: boolean; payout: number; depth: number } | null>(null);
+
+  // Join the run with selected bid
+  const fundExpedition = useCallback(() => {
+    if (!socket || !tableJoined) return;
+
+    console.log('[Last Breath] Funding expedition with bid:', bid);
+    socket.emit('join_run', { playerName, bid });
+    setClientPhase('waiting');
+    setMessage('Preparing dive equipment...');
+  }, [socket, tableJoined, playerName, bid]);
 
   // Connect to socket and join table
   useEffect(() => {
@@ -95,12 +113,11 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
 
     setMyPlayerId(socket.id || '');
 
-    // Handle table_joined - then emit join_run
+    // Handle table_joined - now just mark table as joined, don't auto-join run
     const handleTableJoined = (data: { tableId: string }) => {
       console.log('[Last Breath] Table joined:', data.tableId);
       setTableJoined(true);
-      // Now emit join_run to start the game
-      socket.emit('join_run', { playerName, bid });
+      // Stay in funding phase - user must choose to fund expedition
     };
 
     socket.on('table_joined', handleTableJoined);
@@ -123,15 +140,17 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     socket.on('connect', handleConnect);
 
     const handleRunJoined = (data: { runId: string; state: RunState; config: any; autoStartAt?: number }) => {
+      console.log('[Last Breath] Run joined:', data.state.phase);
       setRunState(data.state);
       if (data.autoStartAt) {
         setAutoStartAt(data.autoStartAt);
       }
-      setMessage('Joined run! Auto-starting soon...');
+      setClientPhase('lobby');
+      setMessage('Joined expedition! Waiting for launch...');
     };
 
     const handlePlayerJoinedRun = (data: { playerName: string; playerCount: number; autoStartAt?: number }) => {
-      setMessage(`${data.playerName} joined! (${data.playerCount} players)`);
+      setMessage(`${data.playerName} joined! (${data.playerCount} divers)`);
       if (data.autoStartAt) {
         setAutoStartAt(data.autoStartAt);
       }
@@ -139,6 +158,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
 
     const handleDescentStarted = (data: { state: RunState }) => {
       setRunState(data.state);
+      setClientPhase('descending');
       setMessage('The descent begins...');
     };
 
@@ -152,6 +172,11 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
       if (player) {
         setMessage(`${player.playerName} exfiltrated at depth ${data.depth} with ${data.payout} TC!`);
       }
+
+      // If it's us, store the result
+      if (data.playerId === myPlayerId || data.playerId === socket.id) {
+        setLastResult({ won: true, payout: data.payout, depth: data.depth });
+      }
     };
 
     const handlePlayerBusted = (data: { playerId: string; reason: string; depth: number; state: RunState }) => {
@@ -160,32 +185,34 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
       if (player) {
         setMessage(`${player.playerName} BUSTED at depth ${data.depth} (${data.reason})!`);
       }
+
+      // If it's us, store the result
+      if (data.playerId === myPlayerId || data.playerId === socket.id) {
+        setLastResult({ won: false, payout: 0, depth: data.depth });
+      }
     };
 
     const handleRunAdvanced = (data: { depth: number; events: GameEvent[]; state: RunState }) => {
-      // Door animation cycle: open -> show corridor -> close (750ms total)
       setDoorOpen(true);
 
-      // Set glow color based on events
       if (data.events.length > 0) {
         const event = data.events[0];
         if (event) {
           if (event.type === 'surge') {
-            setEventGlow('rgba(255, 200, 50, 0.5)'); // Warm yellow
+            setEventGlow('rgba(255, 200, 50, 0.5)');
           } else if (event.type === 'micro-leak') {
-            setEventGlow('rgba(0, 200, 255, 0.5)'); // Cool cyan
+            setEventGlow('rgba(0, 200, 255, 0.5)');
           } else if (event.type === 'structural-brace') {
-            setEventGlow('rgba(50, 255, 150, 0.4)'); // Soft green
+            setEventGlow('rgba(50, 255, 150, 0.4)');
           } else if (event.type === 'air-canister') {
-            setEventGlow('rgba(100, 200, 255, 0.4)'); // Light blue
+            setEventGlow('rgba(100, 200, 255, 0.4)');
           }
         }
         setMessage(data.events.map(e => e.description).join(', '));
       } else {
-        setEventGlow('rgba(0, 221, 255, 0.3)'); // Default cyan
+        setEventGlow('rgba(0, 221, 255, 0.3)');
       }
 
-      // Close doors after 500ms (visible corridor for 500ms)
       setTimeout(() => {
         setDoorOpen(false);
         setRunState(data.state);
@@ -193,8 +220,10 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     };
 
     const handleRunCompleted = (data: { depth: number; finalState: RunState }) => {
+      console.log('[Last Breath] Run completed at depth:', data.depth);
       setRunState(data.finalState);
-      setMessage(`Run completed at depth ${data.depth}!`);
+      setClientPhase('results');
+      setMessage(`Expedition ended at depth ${data.depth}`);
     };
 
     const handleError = (data: { message: string }) => {
@@ -212,7 +241,6 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     socket.on('error', handleError);
 
     return () => {
-      // Clean up listeners (DON'T close socket - platform owns it!)
       socket.off('connect', handleConnect);
       socket.off('table_joined', handleTableJoined);
       socket.off('run_joined', handleRunJoined);
@@ -225,7 +253,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
       socket.off('run_completed', handleRunCompleted);
       socket.off('error', handleError);
     };
-  }, [socket, tableId, playerName, bid]);
+  }, [socket, tableId, playerName, myPlayerId]);
 
   // Countdown timer for auto-start
   useEffect(() => {
@@ -245,11 +273,12 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     return () => clearInterval(interval);
   }, [autoStartAt, runState]);
 
-  const handleStartDescent = () => {
-    if (socket) {
-      socket.emit('start_descent');
+  // Transition to results when run completes
+  useEffect(() => {
+    if (runState?.phase === 'completed' && clientPhase === 'descending') {
+      setClientPhase('results');
     }
-  };
+  }, [runState?.phase, clientPhase]);
 
   const handleExfiltrate = () => {
     if (socket) {
@@ -258,9 +287,22 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     }
   };
 
+  const handleNewExpedition = () => {
+    // Reset state for new run
+    setRunState(null);
+    setLastResult(null);
+    setAutoStartAt(null);
+    setClientPhase('funding');
+    setMessage('');
+  };
+
+  const handleBack = () => {
+    window.location.hash = '';
+  };
+
   // Helper functions
   const getMyPlayer = (): Player | undefined => {
-    return runState?.players.find(p => p.playerId === myPlayerId);
+    return runState?.players.find(p => p.playerId === myPlayerId || p.playerId === socket?.id);
   };
 
   const getStatusColor = (player: Player): string => {
@@ -270,9 +312,9 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   };
 
   const getStatusIcon = (player: Player): string => {
-    if (player.active) return '🟢';
-    if (player.exfiltrated) return '💰';
-    return '💀';
+    if (player.active) return '';
+    if (player.exfiltrated) return '';
+    return '';
   };
 
   const getO2Color = (o2: number): string => {
@@ -290,17 +332,167 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const myPlayer = getMyPlayer();
   const amSpectator = myPlayer && !myPlayer.active;
 
-  const handleBack = () => {
-    window.location.hash = '';
-  };
-
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0f' }}>
       <TopNav onBack={handleBack} />
 
-      {!runState && (
+      {/* Funding Phase - Choose buy-in */}
+      {clientPhase === 'funding' && (
         <div style={{
           display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 'calc(100vh - 60px)',
+          padding: '20px',
+          fontFamily: 'monospace'
+        }}>
+          {/* Diver Animation Area */}
+          <div style={{
+            width: '100%',
+            maxWidth: '600px',
+            aspectRatio: '16 / 9',
+            backgroundColor: '#0f1a24',
+            border: '3px solid #00ddff',
+            borderRadius: '12px',
+            marginBottom: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+            boxShadow: '0 0 60px rgba(0, 221, 255, 0.3)'
+          }}>
+            {/* Bubbles background effect */}
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(circle at 30% 70%, rgba(0, 150, 200, 0.2) 0%, transparent 50%), radial-gradient(circle at 70% 30%, rgba(0, 100, 150, 0.15) 0%, transparent 40%)',
+            }} />
+
+            {/* Diver */}
+            <div style={{
+              fontSize: '120px',
+              animation: 'float 3s ease-in-out infinite',
+              textShadow: '0 0 40px rgba(0, 221, 255, 0.5)'
+            }}>
+              🤿
+            </div>
+
+            {/* Status Text */}
+            <div style={{
+              position: 'absolute',
+              bottom: '20px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: '14px',
+              color: '#00ddff',
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              padding: '8px 20px',
+              borderRadius: '20px',
+              border: '1px solid #00ddff'
+            }}>
+              {tableJoined ? 'DIVER READY' : 'CONNECTING TO RIG...'}
+            </div>
+          </div>
+
+          {/* Title */}
+          <div style={{
+            fontSize: '32px',
+            color: '#00ddff',
+            marginBottom: '10px',
+            textShadow: '0 0 20px rgba(0, 221, 255, 0.5)',
+            textAlign: 'center'
+          }}>
+            FUND YOUR EXPEDITION
+          </div>
+
+          <div style={{
+            fontSize: '16px',
+            color: '#6699cc',
+            marginBottom: '30px',
+            textAlign: 'center'
+          }}>
+            How deep are you willing to go?
+          </div>
+
+          {/* Buy-in Options */}
+          <div style={{
+            display: 'flex',
+            gap: '15px',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            marginBottom: '30px'
+          }}>
+            {BUY_IN_OPTIONS.map((amount) => (
+              <button
+                key={amount}
+                onClick={() => setBid(amount)}
+                style={{
+                  padding: '15px 30px',
+                  fontSize: '20px',
+                  fontFamily: 'monospace',
+                  fontWeight: 'bold',
+                  backgroundColor: bid === amount ? '#00ddff' : '#1a2530',
+                  color: bid === amount ? '#000' : '#00ddff',
+                  border: `2px solid ${bid === amount ? '#00ddff' : '#335577'}`,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  minWidth: '100px'
+                }}
+              >
+                {amount} TC
+              </button>
+            ))}
+          </div>
+
+          {/* Launch Button */}
+          <button
+            onClick={fundExpedition}
+            disabled={!tableJoined}
+            style={{
+              padding: '20px 60px',
+              fontSize: '24px',
+              fontFamily: 'monospace',
+              fontWeight: 'bold',
+              backgroundColor: tableJoined ? '#00ff88' : '#333',
+              color: tableJoined ? '#000' : '#666',
+              border: `3px solid ${tableJoined ? '#00ff88' : '#444'}`,
+              borderRadius: '12px',
+              cursor: tableJoined ? 'pointer' : 'not-allowed',
+              boxShadow: tableJoined ? '0 0 40px rgba(0, 255, 136, 0.5)' : 'none',
+              transition: 'all 0.2s'
+            }}
+          >
+            LAUNCH DIVE - {bid} TC
+          </button>
+
+          {/* Info */}
+          <div style={{
+            marginTop: '30px',
+            fontSize: '12px',
+            color: '#446688',
+            textAlign: 'center',
+            maxWidth: '400px'
+          }}>
+            Your funding determines your potential payout. Go deeper to multiply your investment - but know when to surface!
+          </div>
+
+          <style>{`
+            @keyframes float {
+              0%, 100% { transform: translateY(0px); }
+              50% { transform: translateY(-15px); }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Waiting Phase - Joining run */}
+      {clientPhase === 'waiting' && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           minHeight: 'calc(100vh - 60px)',
@@ -308,491 +500,543 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           fontSize: '24px',
           color: '#00ddff'
         }}>
-          Connecting to salvage rig...
+          <div style={{ fontSize: '80px', marginBottom: '30px', animation: 'pulse 1.5s infinite' }}>
+            🤿
+          </div>
+          Preparing dive equipment...
+          <style>{`
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.5; }
+            }
+          `}</style>
         </div>
       )}
 
-      {runState && (
+      {/* Lobby Phase - Waiting for run to start */}
+      {clientPhase === 'lobby' && runState && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 'calc(100vh - 60px)',
+          textAlign: 'center',
+          fontFamily: 'monospace',
+          padding: '20px'
+        }}>
+          <div style={{
+            fontSize: '48px',
+            color: '#00ddff',
+            marginBottom: '40px',
+            textShadow: '0 0 20px rgba(0, 221, 255, 0.5)'
+          }}>
+            SALVAGE RIG INITIALIZING
+          </div>
+          <div style={{
+            fontSize: '24px',
+            color: '#88ccff',
+            marginBottom: '20px'
+          }}>
+            {runState.players.length} Diver{runState.players.length !== 1 ? 's' : ''} Ready
+          </div>
+          <div style={{
+            fontSize: '18px',
+            color: '#ffdd00',
+            marginBottom: '30px'
+          }}>
+            Your stake: {bid} TC
+          </div>
+          {countdown > 0 && (
+            <div style={{
+              fontSize: '96px',
+              fontWeight: 'bold',
+              color: countdown <= 3 ? '#ff3344' : '#ffdd00',
+              marginTop: '20px',
+              textShadow: countdown <= 3
+                ? '0 0 40px rgba(255, 51, 68, 0.8)'
+                : '0 0 40px rgba(255, 221, 0, 0.8)'
+            }}>
+              {countdown}
+            </div>
+          )}
+          <div style={{
+            fontSize: '16px',
+            color: '#6699cc',
+            marginTop: '20px'
+          }}>
+            Descent commencing...
+          </div>
+        </div>
+      )}
+
+      {/* Descending Phase - Main gameplay */}
+      {clientPhase === 'descending' && runState && (
         <div style={{
           maxWidth: '1600px',
           margin: '0 auto',
           padding: '20px',
           fontFamily: 'monospace'
         }}>
-          {/* Lobby Phase */}
-          {runState.phase === 'lobby' && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '300px 1fr 320px',
+            gap: '30px',
+            alignItems: 'start',
+            minHeight: 'calc(100vh - 100px)'
+          }}>
+            {/* Left Column: Stats */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px'
+            }}>
+              {amSpectator && (
+                <div style={{
+                  padding: '15px',
+                  backgroundColor: myPlayer?.exfiltrated ? '#226622' : '#662222',
+                  color: '#fff',
+                  textAlign: 'center',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  border: `2px solid ${myPlayer?.exfiltrated ? '#44aa44' : '#aa4444'}`,
+                  borderRadius: '4px'
+                }}>
+                  {myPlayer?.exfiltrated
+                    ? `EXFILTRATED: +${myPlayer.payout} TC`
+                    : `BUSTED (${myPlayer?.bustReason})`}
+                </div>
+              )}
+
+              <div style={{
+                padding: '20px',
+                backgroundColor: '#1a2530',
+                border: '2px solid #00ddff',
+                borderRadius: '4px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '12px', color: '#88ccff', marginBottom: '8px' }}>DEPTH</div>
+                <div style={{
+                  fontSize: '48px',
+                  fontWeight: 'bold',
+                  color: '#00ddff',
+                  textShadow: '0 0 20px rgba(0, 221, 255, 0.6)'
+                }}>
+                  {runState.depth}
+                </div>
+              </div>
+
+              <div style={{
+                padding: '15px',
+                backgroundColor: '#1a2530',
+                border: '2px solid #00ddff',
+                borderRadius: '4px'
+              }}>
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={{ fontSize: '12px', color: '#88ccff', marginBottom: '5px' }}>OXYGEN</div>
+                  <div style={{ fontSize: '32px', fontWeight: 'bold', color: getO2Color(runState.O2) }}>
+                    {runState.O2.toFixed(0)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#88ccff', marginBottom: '5px' }}>SUIT INTEGRITY</div>
+                  <div style={{ fontSize: '32px', fontWeight: 'bold', color: getSuitColor(runState.Suit) }}>
+                    {(runState.Suit * 100).toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                padding: '15px',
+                backgroundColor: '#1a2530',
+                border: '2px solid #ff6600',
+                borderRadius: '4px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '12px', color: '#ff6600', marginBottom: '5px' }}>CORRUPTION</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ff6600' }}>
+                  {runState.Corruption}
+                </div>
+              </div>
+            </div>
+
+            {/* Center Column: Airlock Door + Data Multiplier */}
             <div style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: 'calc(100vh - 100px)',
-              textAlign: 'center'
+              gap: '30px',
+              paddingTop: '20px'
             }}>
               <div style={{
-                fontSize: '48px',
-                color: '#00ddff',
-                marginBottom: '40px',
-                textShadow: '0 0 20px rgba(0, 221, 255, 0.5)'
+                textAlign: 'center',
+                padding: '20px 40px',
+                backgroundColor: 'rgba(255, 221, 0, 0.1)',
+                border: '3px solid #ffdd00',
+                borderRadius: '8px',
+                boxShadow: '0 0 30px rgba(255, 221, 0, 0.4)'
               }}>
-                🤿 SALVAGE RIG INITIALIZING
-              </div>
-              <div style={{
-                fontSize: '24px',
-                color: '#88ccff',
-                marginBottom: '20px'
-              }}>
-                {runState.players.length} Diver{runState.players.length !== 1 ? 's' : ''} Ready
-              </div>
-              {countdown > 0 && (
+                <div style={{ fontSize: '14px', color: '#ffdd00', marginBottom: '5px', letterSpacing: '2px' }}>
+                  DATA RECOVERED
+                </div>
                 <div style={{
-                  fontSize: '96px',
+                  fontSize: '72px',
                   fontWeight: 'bold',
-                  color: countdown <= 3 ? '#ff3344' : '#ffdd00',
-                  marginTop: '40px',
-                  textShadow: countdown <= 3
-                    ? '0 0 40px rgba(255, 51, 68, 0.8)'
-                    : '0 0 40px rgba(255, 221, 0, 0.8)'
+                  color: '#ffdd00',
+                  textShadow: '0 0 30px rgba(255, 221, 0, 0.8)',
+                  lineHeight: '1'
                 }}>
-                  {countdown}
+                  {runState.DataMultiplier.toFixed(2)}x
+                </div>
+                <div style={{ fontSize: '16px', color: '#ffaa00', marginTop: '10px' }}>
+                  Your Payout: {Math.floor((myPlayer?.bid || bid) * runState.DataMultiplier)} TC
+                </div>
+              </div>
+
+              {/* Airlock Door Viewport */}
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '800px',
+                aspectRatio: '16 / 9',
+                backgroundColor: '#0a0a0f',
+                border: '4px solid #1a2530',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                boxShadow: `0 0 40px ${eventGlow}`
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'radial-gradient(circle at center, rgba(0, 100, 150, 0.3) 0%, rgba(0, 0, 0, 1) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <div style={{ fontSize: '96px', opacity: 0.3, color: '#006480' }}>
+                    🌊
+                  </div>
+                </div>
+
+                <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  width: '50%',
+                  height: '100%',
+                  backgroundColor: '#1a2530',
+                  backgroundImage: 'linear-gradient(90deg, #0f1419 0%, #1a2530 100%)',
+                  borderRight: `2px solid ${eventGlow}`,
+                  transform: doorOpen ? 'translateX(-100%)' : 'translateX(0)',
+                  transition: 'transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  padding: '20px',
+                  boxShadow: doorOpen ? 'none' : `inset -5px 0 20px ${eventGlow}`
+                }}>
+                  <div style={{ fontSize: '14px', color: '#00ddff', textAlign: 'right', opacity: 0.6 }}>
+                    AIRLOCK-L<br/>07-B
+                  </div>
+                </div>
+
+                <div style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 0,
+                  width: '50%',
+                  height: '100%',
+                  backgroundColor: '#1a2530',
+                  backgroundImage: 'linear-gradient(270deg, #0f1419 0%, #1a2530 100%)',
+                  borderLeft: `2px solid ${eventGlow}`,
+                  transform: doorOpen ? 'translateX(100%)' : 'translateX(0)',
+                  transition: 'transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  padding: '20px',
+                  boxShadow: doorOpen ? 'none' : `inset 5px 0 20px ${eventGlow}`
+                }}>
+                  <div style={{ fontSize: '14px', color: '#00ddff', textAlign: 'left', opacity: 0.6 }}>
+                    AIRLOCK-R<br/>07-B
+                  </div>
+                </div>
+
+                <div style={{
+                  position: 'absolute',
+                  bottom: '10px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  fontSize: '12px',
+                  color: doorOpen ? '#00ff88' : '#88ccff',
+                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                  padding: '5px 15px',
+                  borderRadius: '4px',
+                  border: `1px solid ${doorOpen ? '#00ff88' : '#88ccff'}`
+                }}>
+                  {doorOpen ? 'OPEN' : 'SEALED'}
+                </div>
+              </div>
+
+              {myPlayer?.active && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '10px',
+                  width: '100%'
+                }}>
+                  <button
+                    onClick={handleExfiltrate}
+                    style={{
+                      padding: '20px 60px',
+                      fontSize: '28px',
+                      backgroundColor: '#00ff88',
+                      color: '#000',
+                      border: '4px solid #ffdd00',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontFamily: 'monospace',
+                      fontWeight: 'bold',
+                      boxShadow: '0 0 30px rgba(0, 255, 136, 0.6)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    EXFILTRATE
+                  </button>
+                  <div style={{ fontSize: '14px', color: '#6699cc' }}>
+                    Auto-advance in {Math.max(0, Math.ceil(((runState.nextAdvanceAt || 0) - Date.now()) / 1000))}s
+                  </div>
                 </div>
               )}
-              <div style={{
-                fontSize: '16px',
-                color: '#6699cc',
-                marginTop: '20px'
-              }}>
-                Descent commencing...
-              </div>
-            </div>
-          )}
 
-          {/* Main Game Area - Airlock Door Layout */}
-          {runState.phase === 'descending' && (
+              {amSpectator && (
+                <div style={{
+                  fontSize: '18px',
+                  color: myPlayer?.exfiltrated ? '#00ff88' : '#ff6600',
+                  textAlign: 'center',
+                  padding: '20px'
+                }}>
+                  {myPlayer?.exfiltrated ? 'EXFILTRATED - Watch others continue!' : 'BUSTED - Spectating...'}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Event Log & Players */}
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: '300px 1fr 320px',
-              gap: '30px',
-              alignItems: 'start',
-              minHeight: 'calc(100vh - 100px)'
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px'
             }}>
-              {/* Left Column: Stats */}
               <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '20px'
+                padding: '15px',
+                backgroundColor: '#1a2530',
+                border: '2px solid #00ddff',
+                borderRadius: '4px',
+                maxHeight: '300px',
+                overflowY: 'auto'
               }}>
-                {/* Spectator Banner */}
-                {amSpectator && (
-                  <div style={{
-                    padding: '15px',
-                    backgroundColor: '#ff6600',
-                    color: '#000',
-                    textAlign: 'center',
-                    fontWeight: 'bold',
-                    fontSize: '14px',
-                    border: '2px solid #ff3344',
+                <div style={{ fontSize: '14px', color: '#00ddff', marginBottom: '10px', fontWeight: 'bold' }}>
+                  EVENT LOG
+                </div>
+                {runState.eventHistory.length === 0 && (
+                  <div style={{ fontSize: '12px', color: '#6699cc', opacity: 0.6 }}>
+                    No events yet...
+                  </div>
+                )}
+                {runState.eventHistory.slice(-15).reverse().map((event, idx) => {
+                  const getEventIcon = (type: string) => {
+                    switch (type) {
+                      case 'surge': return '⚡';
+                      case 'micro-leak': return '💧';
+                      case 'air-canister': return '🫧';
+                      case 'structural-brace': return '🔧';
+                      default: return '•';
+                    }
+                  };
+                  const getEventColor = (type: string) => {
+                    switch (type) {
+                      case 'surge': return '#ffdd00';
+                      case 'micro-leak': return '#00ddff';
+                      default: return '#88ccff';
+                    }
+                  };
+                  return (
+                    <div key={idx} style={{
+                      fontSize: '12px',
+                      marginBottom: '8px',
+                      padding: '6px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                      borderRadius: '3px',
+                      borderLeft: `3px solid ${getEventColor(event.type)}`,
+                      display: 'flex',
+                      gap: '8px'
+                    }}>
+                      <div style={{ fontSize: '16px' }}>{getEventIcon(event.type)}</div>
+                      <div style={{ color: '#88ccff', flex: 1 }}>{event.description}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{
+                padding: '15px',
+                backgroundColor: '#1a2530',
+                border: '2px solid #00ddff',
+                borderRadius: '4px',
+                maxHeight: '400px',
+                overflowY: 'auto'
+              }}>
+                <div style={{ fontSize: '14px', color: '#00ddff', marginBottom: '10px', fontWeight: 'bold' }}>
+                  DIVERS ({runState.players.length})
+                </div>
+                {runState.players.map((player) => (
+                  <div key={player.playerId} style={{
+                    padding: '10px',
+                    marginBottom: '8px',
+                    backgroundColor: (player.playerId === myPlayerId || player.playerId === socket?.id)
+                      ? 'rgba(0, 221, 255, 0.15)'
+                      : 'rgba(0, 0, 0, 0.3)',
+                    border: `1px solid ${getStatusColor(player)}`,
                     borderRadius: '4px'
                   }}>
-                    {myPlayer.exfiltrated
-                      ? `EXFILTRATED: ${myPlayer.payout} TC`
-                      : `BUSTED (${myPlayer.bustReason})`}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>
+                        {getStatusIcon(player)} {player.playerName}
+                        {(player.playerId === myPlayerId || player.playerId === socket?.id) && ' (You)'}
+                      </div>
+                    </div>
+                    {player.active && (
+                      <div style={{ fontSize: '11px', color: '#00ff88' }}>
+                        Active - {Math.floor((player.bid || bid) * runState.DataMultiplier)} TC
+                      </div>
+                    )}
+                    {player.exfiltrated && (
+                      <div style={{ fontSize: '11px', color: '#ffdd00' }}>
+                        Exfiltrated @ {player.exfiltrateDepth}: <strong>{player.payout} TC</strong>
+                      </div>
+                    )}
+                    {!player.active && !player.exfiltrated && (
+                      <div style={{ fontSize: '11px', color: '#ff4444' }}>
+                        Busted @ {player.bustDepth} ({player.bustReason})
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
+              </div>
 
-                {/* Depth Display */}
+              {message && (
                 <div style={{
-                  padding: '20px',
-                  backgroundColor: '#1a2530',
+                  padding: '12px',
+                  backgroundColor: 'rgba(0, 221, 255, 0.1)',
                   border: '2px solid #00ddff',
                   borderRadius: '4px',
+                  fontSize: '12px',
+                  color: '#00ddff',
                   textAlign: 'center'
                 }}>
-                  <div style={{ fontSize: '12px', color: '#88ccff', marginBottom: '8px' }}>DEPTH</div>
-                  <div style={{
-                    fontSize: '48px',
-                    fontWeight: 'bold',
-                    color: '#00ddff',
-                    textShadow: '0 0 20px rgba(0, 221, 255, 0.6)'
-                  }}>
-                    {runState.depth}
-                  </div>
+                  {message}
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-                {/* O2 & Suit */}
-                <div style={{
-                  padding: '15px',
-                  backgroundColor: '#1a2530',
-                  border: '2px solid #00ddff',
-                  borderRadius: '4px'
-                }}>
-                  <div style={{ marginBottom: '15px' }}>
-                    <div style={{ fontSize: '12px', color: '#88ccff', marginBottom: '5px' }}>OXYGEN</div>
-                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: getO2Color(runState.O2) }}>
-                      {runState.O2.toFixed(0)}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#88ccff', marginBottom: '5px' }}>SUIT INTEGRITY</div>
-                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: getSuitColor(runState.Suit) }}>
-                      {(runState.Suit * 100).toFixed(0)}%
-                    </div>
-                  </div>
-                </div>
+      {/* Results Phase - Show outcome and re-buy option */}
+      {clientPhase === 'results' && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 'calc(100vh - 60px)',
+          padding: '20px',
+          fontFamily: 'monospace',
+          textAlign: 'center'
+        }}>
+          {/* Result Display */}
+          <div style={{
+            fontSize: '80px',
+            marginBottom: '20px'
+          }}>
+            {lastResult?.won ? '💰' : '💀'}
+          </div>
 
-                {/* Corruption */}
-                <div style={{
-                  padding: '15px',
-                  backgroundColor: '#1a2530',
-                  border: '2px solid #ff6600',
-                  borderRadius: '4px',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '12px', color: '#ff6600', marginBottom: '5px' }}>CORRUPTION</div>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ff6600' }}>
-                    {runState.Corruption}
-                  </div>
-                </div>
-              </div>
+          <div style={{
+            fontSize: '48px',
+            color: lastResult?.won ? '#00ff88' : '#ff4444',
+            marginBottom: '10px',
+            textShadow: `0 0 30px ${lastResult?.won ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 68, 68, 0.5)'}`
+          }}>
+            {lastResult?.won ? 'EXFILTRATED!' : 'BUSTED!'}
+          </div>
 
-              {/* Center Column: Airlock Door + Data Multiplier */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '30px',
-                paddingTop: '20px'
-              }}>
-                {/* Data Multiplier - The "Jackpot Number" */}
-                <div style={{
-                  textAlign: 'center',
-                  padding: '20px 40px',
-                  backgroundColor: 'rgba(255, 221, 0, 0.1)',
-                  border: '3px solid #ffdd00',
-                  borderRadius: '8px',
-                  boxShadow: '0 0 30px rgba(255, 221, 0, 0.4)'
-                }}>
-                  <div style={{ fontSize: '14px', color: '#ffdd00', marginBottom: '5px', letterSpacing: '2px' }}>
-                    DATA RECOVERED
-                  </div>
-                  <div style={{
-                    fontSize: '72px',
-                    fontWeight: 'bold',
-                    color: '#ffdd00',
-                    textShadow: '0 0 30px rgba(255, 221, 0, 0.8)',
-                    lineHeight: '1'
-                  }}>
-                    {runState.DataMultiplier.toFixed(2)}×
-                  </div>
-                  <div style={{ fontSize: '16px', color: '#ffaa00', marginTop: '10px' }}>
-                    Your Payout: {Math.floor((myPlayer?.bid || bid) * runState.DataMultiplier)} TC
-                  </div>
-                </div>
+          <div style={{
+            fontSize: '24px',
+            color: '#88ccff',
+            marginBottom: '20px'
+          }}>
+            Depth Reached: {lastResult?.depth || runState?.depth || 0}
+          </div>
 
-                {/* Airlock Door Viewport (16:9 aspect ratio) */}
-                <div style={{
-                  position: 'relative',
-                  width: '100%',
-                  maxWidth: '800px',
-                  aspectRatio: '16 / 9',
-                  backgroundColor: '#0a0a0f',
-                  border: '4px solid #1a2530',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  boxShadow: `0 0 40px ${eventGlow}`
-                }}>
-                  {/* Corridor Background (visible when doors open) */}
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'radial-gradient(circle at center, rgba(0, 100, 150, 0.3) 0%, rgba(0, 0, 0, 1) 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    {/* Placeholder for corridor-bg.png */}
-                    <div style={{
-                      fontSize: '96px',
-                      opacity: 0.3,
-                      color: '#006480'
-                    }}>
-                      🌊
-                    </div>
-                  </div>
-
-                  {/* Door Left Half */}
-                  <div style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    width: '50%',
-                    height: '100%',
-                    backgroundColor: '#1a2530',
-                    backgroundImage: 'linear-gradient(90deg, #0f1419 0%, #1a2530 100%)',
-                    borderRight: `2px solid ${eventGlow}`,
-                    transform: doorOpen ? 'translateX(-100%)' : 'translateX(0)',
-                    transition: 'transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    padding: '20px',
-                    boxShadow: doorOpen ? 'none' : `inset -5px 0 20px ${eventGlow}`
-                  }}>
-                    {/* Placeholder for door-left.png */}
-                    <div style={{
-                      fontSize: '14px',
-                      color: '#00ddff',
-                      textAlign: 'right',
-                      opacity: 0.6,
-                      fontFamily: 'monospace'
-                    }}>
-                      AIRLOCK-L<br/>07-B
-                    </div>
-                  </div>
-
-                  {/* Door Right Half */}
-                  <div style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    width: '50%',
-                    height: '100%',
-                    backgroundColor: '#1a2530',
-                    backgroundImage: 'linear-gradient(270deg, #0f1419 0%, #1a2530 100%)',
-                    borderLeft: `2px solid ${eventGlow}`,
-                    transform: doorOpen ? 'translateX(100%)' : 'translateX(0)',
-                    transition: 'transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-start',
-                    padding: '20px',
-                    boxShadow: doorOpen ? 'none' : `inset 5px 0 20px ${eventGlow}`
-                  }}>
-                    {/* Placeholder for door-right.png */}
-                    <div style={{
-                      fontSize: '14px',
-                      color: '#00ddff',
-                      textAlign: 'left',
-                      opacity: 0.6,
-                      fontFamily: 'monospace'
-                    }}>
-                      AIRLOCK-R<br/>07-B
-                    </div>
-                  </div>
-
-                  {/* Status Indicator */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '10px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    fontSize: '12px',
-                    color: doorOpen ? '#00ff88' : '#88ccff',
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    padding: '5px 15px',
-                    borderRadius: '4px',
-                    border: `1px solid ${doorOpen ? '#00ff88' : '#88ccff'}`
-                  }}>
-                    {doorOpen ? '◉ OPEN' : '◉ SEALED'}
-                  </div>
-                </div>
-
-                {/* Exfiltrate Button */}
-                {myPlayer?.active && (
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '10px',
-                    width: '100%'
-                  }}>
-                    <button
-                      onClick={handleExfiltrate}
-                      style={{
-                        padding: '20px 60px',
-                        fontSize: '28px',
-                        backgroundColor: '#00ff88',
-                        color: '#000',
-                        border: '4px solid #ffdd00',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontFamily: 'monospace',
-                        fontWeight: 'bold',
-                        boxShadow: '0 0 30px rgba(0, 255, 136, 0.6)',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.05)';
-                        e.currentTarget.style.boxShadow = '0 0 40px rgba(0, 255, 136, 0.8)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.boxShadow = '0 0 30px rgba(0, 255, 136, 0.6)';
-                      }}
-                    >
-                      💰 EXFILTRATE 💰
-                    </button>
-                    <div style={{ fontSize: '14px', color: '#6699cc' }}>
-                      Auto-advance in {Math.max(0, Math.ceil(((runState.nextAdvanceAt || 0) - Date.now()) / 1000))}s
-                    </div>
-                  </div>
-                )}
-
-                {!myPlayer?.active && (
-                  <div style={{
-                    fontSize: '18px',
-                    color: '#ff6600',
-                    textAlign: 'center',
-                    padding: '20px'
-                  }}>
-                    {myPlayer?.exfiltrated ? '✓ EXFILTRATED - Watch others continue!' : '☠ BUSTED - Spectating...'}
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column: Event Log & Players */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '20px'
-              }}>
-                {/* Event Log */}
-                <div style={{
-                  padding: '15px',
-                  backgroundColor: '#1a2530',
-                  border: '2px solid #00ddff',
-                  borderRadius: '4px',
-                  maxHeight: '300px',
-                  overflowY: 'auto'
-                }}>
-                  <div style={{ fontSize: '14px', color: '#00ddff', marginBottom: '10px', fontWeight: 'bold' }}>
-                    EVENT LOG
-                  </div>
-                  {runState.eventHistory.length === 0 && (
-                    <div style={{ fontSize: '12px', color: '#6699cc', opacity: 0.6 }}>
-                      No events yet...
-                    </div>
-                  )}
-                  {runState.eventHistory.slice(-15).reverse().map((event, idx) => {
-                    // Get icon placeholder based on event type
-                    const getEventIcon = (type: string) => {
-                      switch (type) {
-                        case 'surge': return '⚡';
-                        case 'micro-leak': return '💧';
-                        case 'air-canister': return '🫧';
-                        case 'structural-brace': return '🔧';
-                        default: return '•';
-                      }
-                    };
-
-                    const getEventColor = (type: string) => {
-                      switch (type) {
-                        case 'surge': return '#ffdd00';
-                        case 'micro-leak': return '#00ddff';
-                        case 'air-canister': return '#88ccff';
-                        case 'structural-brace': return '#6699cc';
-                        default: return '#88ccff';
-                      }
-                    };
-
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          fontSize: '12px',
-                          marginBottom: '8px',
-                          padding: '6px',
-                          backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                          borderRadius: '3px',
-                          borderLeft: `3px solid ${getEventColor(event.type)}`,
-                          display: 'flex',
-                          gap: '8px',
-                          alignItems: 'flex-start'
-                        }}
-                      >
-                        <div style={{ fontSize: '16px' }}>{getEventIcon(event.type)}</div>
-                        <div style={{ color: '#88ccff', flex: 1 }}>{event.description}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Players List */}
-                <div style={{
-                  padding: '15px',
-                  backgroundColor: '#1a2530',
-                  border: '2px solid #00ddff',
-                  borderRadius: '4px',
-                  maxHeight: '400px',
-                  overflowY: 'auto'
-                }}>
-                  <div style={{ fontSize: '14px', color: '#00ddff', marginBottom: '10px', fontWeight: 'bold' }}>
-                    DIVERS ({runState.players.length})
-                  </div>
-
-                  {runState.players.map((player) => (
-                    <div
-                      key={player.playerId}
-                      style={{
-                        padding: '10px',
-                        marginBottom: '8px',
-                        backgroundColor: player.playerId === myPlayerId
-                          ? 'rgba(0, 221, 255, 0.15)'
-                          : 'rgba(0, 0, 0, 0.3)',
-                        border: `1px solid ${getStatusColor(player)}`,
-                        borderRadius: '4px'
-                      }}
-                    >
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '4px'
-                      }}>
-                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>
-                          {getStatusIcon(player)} {player.playerName}
-                          {player.playerId === myPlayerId && ' (You)'}
-                        </div>
-                      </div>
-
-                      {player.active && (
-                        <div style={{ fontSize: '11px', color: '#00ff88' }}>
-                          Active - {Math.floor((player.bid || bid) * runState.DataMultiplier)} TC
-                        </div>
-                      )}
-
-                      {player.exfiltrated && (
-                        <div style={{ fontSize: '11px', color: '#ffdd00' }}>
-                          Exfiltrated @ {player.exfiltrateDepth}: <strong>{player.payout} TC</strong>
-                        </div>
-                      )}
-
-                      {!player.active && !player.exfiltrated && (
-                        <div style={{ fontSize: '11px', color: '#ff4444' }}>
-                          Busted @ {player.bustDepth} ({player.bustReason})
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Message Display */}
-                {message && (
-                  <div style={{
-                    padding: '12px',
-                    backgroundColor: 'rgba(0, 221, 255, 0.1)',
-                    border: '2px solid #00ddff',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    color: '#00ddff',
-                    textAlign: 'center'
-                  }}>
-                    {message}
-                  </div>
-                )}
-              </div>
+          {lastResult?.won && (
+            <div style={{
+              fontSize: '36px',
+              color: '#ffdd00',
+              marginBottom: '40px',
+              textShadow: '0 0 20px rgba(255, 221, 0, 0.5)'
+            }}>
+              +{lastResult.payout} TC
             </div>
           )}
+
+          {!lastResult?.won && (
+            <div style={{
+              fontSize: '20px',
+              color: '#666',
+              marginBottom: '40px'
+            }}>
+              Lost: {bid} TC
+            </div>
+          )}
+
+          {/* Re-buy Button */}
+          <button
+            onClick={handleNewExpedition}
+            style={{
+              padding: '20px 50px',
+              fontSize: '24px',
+              fontFamily: 'monospace',
+              fontWeight: 'bold',
+              backgroundColor: '#00ddff',
+              color: '#000',
+              border: '3px solid #00ddff',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              boxShadow: '0 0 30px rgba(0, 221, 255, 0.4)',
+              transition: 'all 0.2s',
+              marginBottom: '20px'
+            }}
+          >
+            FUND NEW EXPEDITION
+          </button>
+
+          <button
+            onClick={handleBack}
+            style={{
+              padding: '12px 30px',
+              fontSize: '16px',
+              fontFamily: 'monospace',
+              backgroundColor: 'transparent',
+              color: '#6699cc',
+              border: '2px solid #335577',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Back to Games
+          </button>
         </div>
       )}
     </div>
