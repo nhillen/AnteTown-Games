@@ -1,13 +1,13 @@
 /**
  * Last Breath Shared Run Client
  *
- * Single continuous loop design:
- * - Always shows the game state (countdown → descent → results → countdown)
- * - Bet selection is always visible when you can join
- * - Never leaves this screen - just loops
+ * Server-driven continuous loop design:
+ * - Server manages all run lifecycle and timing
+ * - Client syncs state on table join and via events
+ * - No local timers for run scheduling
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
 
 const TopNav = ({ onBack }: { onBack: () => void }) => (
@@ -89,9 +89,9 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const [eventGlow, setEventGlow] = useState<string>('rgba(0, 221, 255, 0.3)');
   const [tableJoined, setTableJoined] = useState<boolean>(false);
   const [lastResult, setLastResult] = useState<{ won: boolean; payout: number; depth: number } | null>(null);
-  const [nextRunCountdown, setNextRunCountdown] = useState<number>(10);
+  const [nextRunAt, setNextRunAt] = useState<number | null>(null);
+  const [nextRunCountdown, setNextRunCountdown] = useState<number>(0);
   const [nextAdvanceCountdown, setNextAdvanceCountdown] = useState<number>(0);
-  const nextRunTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Am I in the current run?
   const getMyPlayer = useCallback((): Player | undefined => {
@@ -110,33 +110,28 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     setLastResult(null);
   }, [socket, tableJoined, playerName, bid]);
 
-  // Start countdown to next run after completion
-  const startNextRunTimer = useCallback(() => {
-    if (nextRunTimerRef.current) {
-      clearInterval(nextRunTimerRef.current);
-    }
-    setNextRunCountdown(10);
-    nextRunTimerRef.current = setInterval(() => {
-      setNextRunCountdown(prev => {
-        if (prev <= 1) {
-          if (nextRunTimerRef.current) {
-            clearInterval(nextRunTimerRef.current);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
-
   useEffect(() => {
     if (!socket) return;
 
     setMyPlayerId(socket.id || '');
 
-    const handleTableJoined = (data: { tableId: string }) => {
-      console.log('[Last Breath] Table joined:', data.tableId);
+    // Handle table joined - now includes current state!
+    const handleTableJoined = (data: { tableId: string; currentRun: RunState | null; nextRunAt: number | null }) => {
+      console.log('[Last Breath] Table joined:', data.tableId, 'currentRun:', data.currentRun?.phase, 'nextRunAt:', data.nextRunAt);
       setTableJoined(true);
+
+      // Sync with server state
+      if (data.currentRun) {
+        setRunState(data.currentRun);
+        // If there's a current run, join its socket room
+        if (data.currentRun.runId) {
+          socket.emit('join_run_room', { runId: data.currentRun.runId });
+        }
+      } else {
+        setRunState(null);
+      }
+
+      setNextRunAt(data.nextRunAt);
     };
 
     socket.on('table_joined', handleTableJoined);
@@ -159,16 +154,16 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     const handleRunJoined = (data: { runId: string; state: RunState; config: any; autoStartAt?: number }) => {
       console.log('[Last Breath] Run joined:', data.state.phase);
       setRunState(data.state);
+      setNextRunAt(null); // Clear next run timer since we're in a run
       setMessage('');
-      // Clear next run timer if we joined
-      if (nextRunTimerRef.current) {
-        clearInterval(nextRunTimerRef.current);
-        nextRunTimerRef.current = null;
-      }
     };
 
-    const handlePlayerJoinedRun = (data: { playerName: string; playerCount: number }) => {
+    const handlePlayerJoinedRun = (data: { playerName: string; playerCount: number; autoStartAt?: number }) => {
       setMessage(`${data.playerName} joined! (${data.playerCount} divers)`);
+      // Update autoStartAt if provided (first player triggers timer)
+      if (data.autoStartAt !== undefined) {
+        setRunState(prev => prev ? { ...prev, autoStartAt: data.autoStartAt as number } : prev);
+      }
     };
 
     const handleDescentStarted = (data: { state: RunState }) => {
@@ -230,12 +225,19 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
       console.log('[Last Breath] Run completed at depth:', data.depth);
       setRunState(data.finalState);
       setMessage(`Dive ended at ${data.depth}m`);
-      // Start countdown to next run
-      startNextRunTimer();
-      // Clear run state after delay
-      setTimeout(() => {
-        setRunState(null);
-      }, 3000);
+    };
+
+    // New server-driven events
+    const handleNextRunScheduled = (data: { nextRunAt: number }) => {
+      console.log('[Last Breath] Next run scheduled at:', data.nextRunAt);
+      setNextRunAt(data.nextRunAt);
+      setRunState(null); // Clear old run state
+    };
+
+    const handleLobbyCreated = (data: { runId: string; state: RunState }) => {
+      console.log('[Last Breath] Lobby created:', data.runId);
+      setRunState(data.state);
+      setNextRunAt(null);
     };
 
     const handleError = (data: { message: string }) => {
@@ -250,6 +252,8 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     socket.on('player_busted', handlePlayerBusted);
     socket.on('run_advanced', handleRunAdvanced);
     socket.on('run_completed', handleRunCompleted);
+    socket.on('next_run_scheduled', handleNextRunScheduled);
+    socket.on('lobby_created', handleLobbyCreated);
     socket.on('error', handleError);
 
     return () => {
@@ -263,12 +267,11 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
       socket.off('player_busted', handlePlayerBusted);
       socket.off('run_advanced', handleRunAdvanced);
       socket.off('run_completed', handleRunCompleted);
+      socket.off('next_run_scheduled', handleNextRunScheduled);
+      socket.off('lobby_created', handleLobbyCreated);
       socket.off('error', handleError);
-      if (nextRunTimerRef.current) {
-        clearInterval(nextRunTimerRef.current);
-      }
     };
-  }, [socket, tableId, playerName, myPlayerId, startNextRunTimer]);
+  }, [socket, tableId, playerName, myPlayerId]);
 
   // Countdown timer for lobby auto-start
   useEffect(() => {
@@ -283,6 +286,19 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     }, 100);
     return () => clearInterval(interval);
   }, [runState?.autoStartAt, runState?.phase]);
+
+  // Countdown timer for next run (server-driven)
+  useEffect(() => {
+    if (!nextRunAt) {
+      setNextRunCountdown(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((nextRunAt - Date.now()) / 1000));
+      setNextRunCountdown(remaining);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [nextRunAt]);
 
   // Countdown timer for next advance during descent
   useEffect(() => {
@@ -322,10 +338,10 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const isLobby = runState?.phase === 'lobby';
   const isDescending = runState?.phase === 'descending';
   const isCompleted = runState?.phase === 'completed';
-  const isWaitingForNextRun = !runState && tableJoined;
-
-  // Can I join? Only if there's a lobby OR waiting for next run
-  const canJoin = (isLobby || isWaitingForNextRun) && !amInRun;
+  // Waiting for next run: no current run but we have a nextRunAt timestamp
+  const isWaitingForNextRun = !runState && tableJoined && nextRunAt !== null;
+  // Ready to join: lobby exists (empty or with players) and we're not in it
+  const isReadyToJoin = isLobby && !amInRun;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0f', fontFamily: 'monospace' }}>
@@ -343,7 +359,6 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
         {/* LEFT PANEL - Stats (during descent) */}
         {isDescending && runState && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* My Result Banner */}
             {amSpectator && lastResult && (
               <div style={{
                 padding: '12px',
@@ -410,7 +425,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           justifyContent: 'center',
           gap: '20px'
         }}>
-          {/* WAITING FOR NEXT RUN */}
+          {/* WAITING FOR NEXT RUN (server-driven countdown) */}
           {isWaitingForNextRun && (
             <>
               <div style={{ fontSize: '28px', color: '#00ddff', textAlign: 'center' }}>
@@ -426,7 +441,6 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
               </div>
               <div style={{ fontSize: '70px', animation: 'pulse 1.5s infinite' }}>🤿</div>
 
-              {/* Last Result */}
               {lastResult && (
                 <div style={{
                   padding: '12px 25px',
@@ -441,9 +455,36 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                 </div>
               )}
 
-              {/* Bet Selection */}
+              <div style={{ fontSize: '16px', color: '#6699cc' }}>
+                Preparing next dive...
+              </div>
+            </>
+          )}
+
+          {/* LOBBY - Empty (waiting for first player) */}
+          {isLobby && runState && runState.players.length === 0 && !amInRun && (
+            <>
+              <div style={{ fontSize: '28px', color: '#00ddff', textAlign: 'center' }}>
+                DIVE READY
+              </div>
+              <div style={{ fontSize: '70px', animation: 'pulse 1.5s infinite' }}>🤿</div>
+
+              {lastResult && (
+                <div style={{
+                  padding: '12px 25px',
+                  backgroundColor: lastResult.won ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 68, 68, 0.1)',
+                  border: `2px solid ${lastResult.won ? '#00ff88' : '#ff4444'}`,
+                  borderRadius: '8px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '20px', color: lastResult.won ? '#00ff88' : '#ff4444', fontWeight: 'bold' }}>
+                    {lastResult.won ? `EXFILTRATED: +${lastResult.payout} TC` : 'BUSTED'}
+                  </div>
+                </div>
+              )}
+
               <div style={{ textAlign: 'center', marginTop: '10px' }}>
-                <div style={{ fontSize: '14px', color: '#6699cc', marginBottom: '10px' }}>SELECT STAKE FOR NEXT DIVE</div>
+                <div style={{ fontSize: '14px', color: '#6699cc', marginBottom: '10px' }}>SELECT STAKE</div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
                   {BUY_IN_OPTIONS.map((amount) => (
                     <button
@@ -482,13 +523,13 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                   boxShadow: '0 0 25px rgba(0, 255, 136, 0.4)'
                 }}
               >
-                JOIN DIVE - {bid} TC
+                START DIVE - {bid} TC
               </button>
             </>
           )}
 
-          {/* LOBBY - Countdown to descent */}
-          {isLobby && runState && (
+          {/* LOBBY - Has players, countdown active */}
+          {isLobby && runState && (runState.players.length > 0 || amInRun) && (
             <>
               <div style={{ fontSize: '28px', color: '#00ddff', textAlign: 'center' }}>
                 DIVE LAUNCHING IN
@@ -568,7 +609,6 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
           {/* DESCENDING */}
           {isDescending && runState && (
             <>
-              {/* Data Multiplier */}
               <div style={{
                 textAlign: 'center',
                 padding: '15px 40px',
@@ -594,7 +634,6 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                 )}
               </div>
 
-              {/* Airlock Door */}
               <div style={{
                 position: 'relative',
                 width: '100%',
@@ -642,7 +681,6 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                 }} />
               </div>
 
-              {/* Actions */}
               {myPlayer?.active && (
                 <div style={{ textAlign: 'center' }}>
                   <button
@@ -694,7 +732,14 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
             </>
           )}
 
-          {/* Message */}
+          {/* Not connected yet */}
+          {!tableJoined && (
+            <>
+              <div style={{ fontSize: '70px', animation: 'pulse 1.5s infinite' }}>🤿</div>
+              <div style={{ fontSize: '20px', color: '#6699cc' }}>Connecting to dive station...</div>
+            </>
+          )}
+
           {message && (
             <div style={{
               fontSize: '13px',

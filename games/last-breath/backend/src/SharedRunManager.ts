@@ -19,6 +19,7 @@ import type { SharedRunState, PlayerRunState, SharedAdvanceResult, PlayerDecisio
 const SERVER_SECRET = process.env.LAST_BREATH_SECRET || 'last-breath-secret-key';
 const AUTO_START_DELAY = 10000;  // 10 seconds after first player joins
 const AUTO_ADVANCE_INTERVAL = 3000;  // 3 seconds between rooms
+const NEXT_RUN_DELAY = 5000;  // 5 seconds between runs
 
 export class SharedRunManager extends EventEmitter {
   private config: LastBreathConfig;
@@ -27,11 +28,20 @@ export class SharedRunManager extends EventEmitter {
   private tableId: string;
   private autoStartTimer: NodeJS.Timeout | null = null;
   private autoAdvanceTimer: NodeJS.Timeout | null = null;
+  private nextRunTimer: NodeJS.Timeout | null = null;
+  private nextRunAt: number | null = null;
 
   constructor(tableId: string, config: LastBreathConfig) {
     super();
     this.tableId = tableId;
     this.config = config;
+  }
+
+  /**
+   * Get the timestamp when the next run will start (for new clients joining)
+   */
+  public getNextRunAt(): number | null {
+    return this.nextRunAt;
   }
 
   /**
@@ -46,6 +56,11 @@ export class SharedRunManager extends EventEmitter {
       clearInterval(this.autoAdvanceTimer);
       this.autoAdvanceTimer = null;
     }
+    if (this.nextRunTimer) {
+      clearTimeout(this.nextRunTimer);
+      this.nextRunTimer = null;
+    }
+    this.nextRunAt = null;
     this.removeAllListeners();
   }
 
@@ -125,7 +140,19 @@ export class SharedRunManager extends EventEmitter {
       joinedAtDepth: this.currentRun.depth
     };
 
+    // Check if this is first player joining an empty lobby
+    const isFirstPlayer = this.currentRun.players.size === 0;
+
     this.currentRun.players.set(playerId, playerState);
+
+    // Start auto-start timer if first player joins empty lobby
+    if (isFirstPlayer && this.currentRun.phase === 'lobby') {
+      const autoStartAt = Date.now() + AUTO_START_DELAY;
+      this.currentRun.autoStartAt = autoStartAt;
+      this.scheduleAutoStart();
+      console.log(`[Last Breath] First player joined, auto-start at ${autoStartAt}`);
+    }
+
     this.emit('player_joined', { runId: this.currentRun.runId, playerId });
 
     return this.currentRun;
@@ -366,15 +393,65 @@ export class SharedRunManager extends EventEmitter {
       this.autoAdvanceTimer = null;
     }
 
+    const completedRunId = this.currentRun.runId;
+    const completedDepth = this.currentRun.depth;
+
     this.emit('run_completed', {
-      runId: this.currentRun.runId,
-      depth: this.currentRun.depth
+      runId: completedRunId,
+      depth: completedDepth
     });
 
-    // Clear current run after a delay to allow clients to see final state
-    setTimeout(() => {
+    // Schedule next run
+    this.nextRunAt = Date.now() + NEXT_RUN_DELAY;
+    this.emit('next_run_scheduled', {
+      nextRunAt: this.nextRunAt
+    });
+
+    // Clear current run and start lobby for next run
+    if (this.nextRunTimer) {
+      clearTimeout(this.nextRunTimer);
+    }
+    this.nextRunTimer = setTimeout(() => {
       this.currentRun = null;
-    }, 5000);
+      this.nextRunAt = null;
+      this.nextRunTimer = null;
+      // Create an empty lobby that players can join
+      this.createEmptyLobby();
+    }, NEXT_RUN_DELAY);
+  }
+
+  /**
+   * Create an empty lobby waiting for players
+   */
+  private createEmptyLobby(): void {
+    const timestamp = Date.now();
+    const nonce = this.runCounter++;
+    const seed = generateSeed(SERVER_SECRET, this.tableId, timestamp, nonce);
+    const runId = `${this.tableId}-${timestamp}`;
+
+    this.currentRun = {
+      runId,
+      tableId: this.tableId,
+      seed,
+      depth: 0,
+      O2: this.config.start.O2,
+      Suit: this.config.start.Suit,
+      Corruption: 0,
+      DataMultiplier: this.config.start.M0,
+      rngCount: 0,
+      active: true,
+      phase: 'lobby',
+      currentEvents: [],
+      eventHistory: [],
+      players: new Map(),
+      createdAt: timestamp
+    };
+
+    console.log(`[Last Breath] Created empty lobby: ${runId}`);
+    this.emit('lobby_created', {
+      runId,
+      state: this.currentRun
+    });
   }
 
   /**
