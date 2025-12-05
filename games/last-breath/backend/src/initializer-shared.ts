@@ -154,6 +154,16 @@ function setupSocketHandlers(manager: SharedRunManager, io: SocketIOServer, tabl
     });
 
     // Listen to run events and broadcast to all players
+    manager.on('descent_started', () => {
+      const run = manager.getCurrentRun();
+      if (run) {
+        console.log(`[Last Breath] Auto-start: descent_started for run ${run.runId}`);
+        io.to(run.runId).emit('descent_started', {
+          state: serializeRunState(run)
+        });
+      }
+    });
+
     manager.on('player_exfiltrated', (data) => {
       const run = manager.getCurrentRun();
       if (run) {
