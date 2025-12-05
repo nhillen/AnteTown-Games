@@ -67,14 +67,16 @@ interface RunState {
 
 interface SharedRunClientProps {
   socket?: Socket | null;  // Platform socket from AuthProvider
-  socketUrl?: string;       // Fallback for standalone mode
+  tableId?: string;         // Table ID to join
   playerName?: string;
+  onLeaveTable?: () => void;
 }
 
 export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   socket: platformSocket = null,  // Accept platform socket
-  socketUrl = 'http://localhost:3001',
-  playerName = 'Player'
+  tableId = '',
+  playerName = 'Player',
+  onLeaveTable
 }) => {
   const socket = platformSocket;  // Use platform socket directly
   const [runState, setRunState] = useState<RunState | null>(null);
@@ -85,24 +87,37 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const [countdown, setCountdown] = useState<number>(0);
   const [doorOpen, setDoorOpen] = useState<boolean>(false);
   const [eventGlow, setEventGlow] = useState<string>('rgba(0, 221, 255, 0.3)'); // Default cyan glow
+  const [tableJoined, setTableJoined] = useState<boolean>(false);
 
-  // Connect to socket
+  // Connect to socket and join table
   useEffect(() => {
     if (!socket) return;
 
     setMyPlayerId(socket.id || '');
 
-    // Join run immediately if socket is already connected
-    if (socket.connected) {
-      console.log('[Last Breath] Socket already connected, joining run...');
+    // Handle table_joined - then emit join_run
+    const handleTableJoined = (data: { tableId: string }) => {
+      console.log('[Last Breath] Table joined:', data.tableId);
+      setTableJoined(true);
+      // Now emit join_run to start the game
       socket.emit('join_run', { playerName, bid });
+    };
+
+    socket.on('table_joined', handleTableJoined);
+
+    // Join table if socket is already connected
+    if (socket.connected && tableId) {
+      console.log('[Last Breath] Socket connected, joining table:', tableId);
+      socket.emit('join_table', { tableId });
     }
 
-    // Also handle future reconnections
+    // Handle reconnections
     const handleConnect = () => {
-      console.log('[Last Breath] Socket reconnected, joining run...');
+      console.log('[Last Breath] Socket reconnected, joining table:', tableId);
       setMyPlayerId(socket.id || '');
-      socket.emit('join_run', { playerName, bid });
+      if (tableId) {
+        socket.emit('join_table', { tableId });
+      }
     };
 
     socket.on('connect', handleConnect);
@@ -199,6 +214,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
     return () => {
       // Clean up listeners (DON'T close socket - platform owns it!)
       socket.off('connect', handleConnect);
+      socket.off('table_joined', handleTableJoined);
       socket.off('run_joined', handleRunJoined);
       socket.off('player_joined_run', handlePlayerJoinedRun);
       socket.off('descent_started', handleDescentStarted);
@@ -209,7 +225,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
       socket.off('run_completed', handleRunCompleted);
       socket.off('error', handleError);
     };
-  }, [socket, playerName, bid]);
+  }, [socket, tableId, playerName, bid]);
 
   // Countdown timer for auto-start
   useEffect(() => {

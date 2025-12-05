@@ -53,9 +53,8 @@ export const lastBreathInitializer: GameInitializer = {
     const tableId = config.tableId || `table-${Date.now()}`;
     const manager = new SharedRunManager(tableId, gameConfig);
 
-    if (io) {
-      setupSocketHandlers(manager, io, tableId);
-    }
+    // Note: Socket handlers are now set up by the platform's handleLastBreathJoin
+    // The platform handles socket events and delegates to the manager
 
     return manager;
   },
