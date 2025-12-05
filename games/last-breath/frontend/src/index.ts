@@ -1,10 +1,10 @@
 /**
  * @antetown/game-last-breath - Frontend
  *
- * Last Breath client component
+ * Last Breath client component for platform integration
+ * Uses SharedRunClient which accepts platform socket (no standalone socket creation)
  */
 
-export { GameClient } from './components/GameClient.js';
 export { SharedRunClient } from './components/SharedRunClient.js';
 
 export const GAME_CLIENT_INFO = {
