@@ -219,11 +219,8 @@ export class SharedRunManager extends EventEmitter {
       payout: player.payout
     });
 
-    // Check if all players are out
-    const hasActivePlayers = Array.from(this.currentRun.players.values()).some(p => p.active);
-    if (!hasActivePlayers) {
-      this.endRun();
-    }
+    // Run continues even if all players exfiltrated - they can spectate for FOMO!
+    // The run will end naturally when O2/Suit runs out or hazard occurs
   }
 
   /**
@@ -329,17 +326,20 @@ export class SharedRunManager extends EventEmitter {
       playerResults.set(playerId, { survived, failureReason });
     }
 
-    // Check if run should end (all players out or hazard)
+    // Check if run should end naturally (hazard, O2, or suit failure)
+    // Run continues even if all players exfiltrated - they spectate for FOMO!
     const hasActivePlayers = Array.from(run.players.values()).some(p => p.active);
-    if (!hasActivePlayers || hazardOccurred) {
+    const naturalEnding = hazardOccurred || run.O2 <= 0 || run.Suit <= 0;
+
+    if (naturalEnding) {
       this.endRun();
     } else {
-      // Update next advance time
+      // Update next advance time - run continues for spectators
       run.nextAdvanceAt = Date.now() + AUTO_ADVANCE_INTERVAL;
     }
 
     const result: SharedAdvanceResult = {
-      success: hasActivePlayers && !hazardOccurred,
+      success: !naturalEnding,
       newState: run,
       events: run.currentEvents,
       hazardOccurred,
