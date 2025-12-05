@@ -65,7 +65,10 @@ interface SharedRunClientProps {
   onLeaveTable?: () => void;
 }
 
-const BUY_IN_OPTIONS = [50, 100, 250, 500, 1000];
+const STAKE_OPTIONS = [50, 100, 250, 500, 1000];
+const MIN_STAKE = 50;
+const MAX_STAKE = 1000;
+const STAKE_STEP = 50;
 
 export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   socket: platformSocket = null,
@@ -77,7 +80,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const [runState, setRunState] = useState<RunState | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<string>('');
   const [message, setMessage] = useState<string>('');
-  const [bid, setBid] = useState<number>(100);
+  const [selectedStake, setSelectedStake] = useState<number>(100); // What user is configuring
   const [countdown, setCountdown] = useState<number>(0);
   const [doorOpen, setDoorOpen] = useState<boolean>(false);
   const [eventGlow, setEventGlow] = useState<string>('rgba(0, 221, 255, 0.3)');
@@ -103,11 +106,17 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const hasPendingStake = myStakeSet || !!myPendingStake;
 
   // Set stake for next dive
-  const setStake = useCallback(() => {
+  const setStake = useCallback((amount?: number) => {
     if (!socket || !tableJoined) return;
-    console.log('[Last Breath] Setting stake:', bid);
-    socket.emit('set_stake', { playerName, bid });
-  }, [socket, tableJoined, playerName, bid]);
+    const stakeAmount = amount ?? selectedStake;
+    console.log('[Last Breath] Setting stake:', stakeAmount);
+    socket.emit('set_stake', { playerName, bid: stakeAmount });
+  }, [socket, tableJoined, playerName, selectedStake]);
+
+  // Adjust stake with +/- buttons
+  const adjustStake = useCallback((delta: number) => {
+    setSelectedStake(prev => Math.max(MIN_STAKE, Math.min(MAX_STAKE, prev + delta)));
+  }, []);
 
   // Clear stake (opt out)
   const clearStake = useCallback(() => {
@@ -356,12 +365,15 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   // Status text for header
   const getStatusText = () => {
     if (!tableJoined) return 'CONNECTING...';
-    if (isWaiting) return `NEXT DIVE IN ${nextRunCountdown}`;
-    if (isLobby) return `DIVE LAUNCHING IN ${countdown}`;
+    if (isWaiting) return nextRunCountdown > 0 ? `NEXT DIVE IN ${nextRunCountdown}` : 'STARTING...';
+    if (isLobby) return countdown > 0 ? `DIVE IN ${countdown}` : 'LAUNCHING...';
     if (isDescending) return `DEPTH ${runState?.depth || 0}m`;
-    if (isCompleted) return 'DIVE COMPLETE';
+    if (isCompleted) return 'NEXT DIVE SOON...';
     return 'WAITING...';
   };
+
+  // Get the effective stake amount to display
+  const currentStakeDisplay = myStakeAmount || myPendingStake?.bid || 0;
 
   // Determine if we're actively diving (affects UI prominence)
   const isActivelyDiving = amActive && isDescending;
@@ -458,7 +470,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
             </div>
             {amInRun && runState && isDescending && (
               <div style={{ fontSize: '11px', color: '#ffaa00', marginTop: '2px' }}>
-                = {Math.floor((myPlayer?.bid || bid) * runState.DataMultiplier)} TC
+                = {Math.floor((myPlayer?.bid || selectedStake) * runState.DataMultiplier)} TC
               </div>
             )}
           </div>
@@ -605,65 +617,107 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
               </div>
             )}
 
-            {/* NOT ACTIVELY DIVING - Show stake selection in muted style */}
+            {/* NOT ACTIVELY DIVING - Show stake selection */}
             {!isActivelyDiving && (
               <div style={{ textAlign: 'center' }}>
-                {/* Status indicator */}
+                {/* Current Status Banner */}
                 <div style={{
-                  fontSize: '11px',
-                  color: isDescending ? '#ff9944' : '#6699cc',
-                  marginBottom: '10px',
-                  padding: '6px',
-                  backgroundColor: isDescending ? 'rgba(255, 150, 50, 0.1)' : 'transparent',
-                  borderRadius: '4px'
+                  fontSize: '12px',
+                  color: hasPendingStake ? '#00ff88' : (isDescending ? '#ff9944' : '#6699cc'),
+                  marginBottom: '12px',
+                  padding: '8px 12px',
+                  backgroundColor: hasPendingStake ? 'rgba(0, 255, 136, 0.1)' : (isDescending ? 'rgba(255, 150, 50, 0.1)' : 'rgba(100, 150, 200, 0.1)'),
+                  borderRadius: '6px',
+                  border: `1px solid ${hasPendingStake ? '#00ff88' : 'transparent'}`
                 }}>
-                  {isDescending && amInRun && !amActive && '👁 SPECTATING - You exfiltrated/busted'}
-                  {isDescending && !amInRun && '👁 WATCHING - Set stake to join next dive'}
-                  {isLobby && amInRun && `✓ IN LOBBY - Stake: ${myPlayer?.bid} TC`}
-                  {isLobby && !amInRun && hasPendingStake && '✓ STAKE SET - You\'ll join this dive'}
-                  {isLobby && !amInRun && !hasPendingStake && 'Set stake to join this dive'}
-                  {!isDescending && !isLobby && !runState && 'Waiting for next dive...'}
+                  {hasPendingStake ? (
+                    <span>✓ STAKE SET: <strong>{currentStakeDisplay} TC</strong> for next dive</span>
+                  ) : isDescending && amInRun && !amActive ? (
+                    '👁 SPECTATING - You exfiltrated/busted'
+                  ) : isDescending ? (
+                    '👁 WATCHING - Set stake below to join next dive'
+                  ) : isLobby && amInRun ? (
+                    <span>✓ IN THIS DIVE: <strong>{myPlayer?.bid} TC</strong></span>
+                  ) : (
+                    '👁 WATCHING - Set stake to join'
+                  )}
                 </div>
 
-                {/* Current stake status */}
-                {hasPendingStake && (
-                  <div style={{
-                    marginBottom: '12px',
-                    padding: '8px',
-                    backgroundColor: 'rgba(0, 255, 136, 0.1)',
-                    border: '1px solid #00ff88',
-                    borderRadius: '6px'
-                  }}>
-                    <div style={{ fontSize: '13px', color: '#00ff88', fontWeight: 'bold' }}>
-                      ✓ STAKE: {myStakeAmount || myPendingStake?.bid || bid} TC
-                    </div>
-                  </div>
-                )}
-
-                {/* Stake selection */}
+                {/* Stake Control - Always visible */}
                 <div style={{
-                  opacity: isDescending ? 0.7 : 1,
-                  padding: '10px',
-                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                  borderRadius: '6px'
+                  padding: '12px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  borderRadius: '8px',
+                  opacity: isDescending ? 0.85 : 1
                 }}>
-                  <div style={{ fontSize: '11px', color: '#6699cc', marginBottom: '8px' }}>
-                    {isDescending ? 'STAKE FOR NEXT DIVE' : hasPendingStake ? 'CHANGE STAKE' : 'SET STAKE'}
+                  {/* +/- Stake Adjuster */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <button
+                      onClick={() => adjustStake(-STAKE_STEP)}
+                      disabled={selectedStake <= MIN_STAKE}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        fontSize: '20px',
+                        fontFamily: 'monospace',
+                        fontWeight: 'bold',
+                        backgroundColor: selectedStake <= MIN_STAKE ? '#1a2530' : '#335577',
+                        color: selectedStake <= MIN_STAKE ? '#446688' : '#fff',
+                        border: '2px solid #335577',
+                        borderRadius: '6px',
+                        cursor: selectedStake <= MIN_STAKE ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      −
+                    </button>
+                    <div style={{
+                      minWidth: '100px',
+                      padding: '8px 16px',
+                      fontSize: '24px',
+                      fontWeight: 'bold',
+                      fontFamily: 'monospace',
+                      color: '#00ddff',
+                      backgroundColor: '#0f1419',
+                      border: '2px solid #335577',
+                      borderRadius: '6px',
+                      textAlign: 'center'
+                    }}>
+                      {selectedStake}
+                    </div>
+                    <button
+                      onClick={() => adjustStake(STAKE_STEP)}
+                      disabled={selectedStake >= MAX_STAKE}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        fontSize: '20px',
+                        fontFamily: 'monospace',
+                        fontWeight: 'bold',
+                        backgroundColor: selectedStake >= MAX_STAKE ? '#1a2530' : '#335577',
+                        color: selectedStake >= MAX_STAKE ? '#446688' : '#fff',
+                        border: '2px solid #335577',
+                        borderRadius: '6px',
+                        cursor: selectedStake >= MAX_STAKE ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      +
+                    </button>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '10px' }}>
-                    {BUY_IN_OPTIONS.map((amount) => (
+
+                  {/* Quick stake buttons */}
+                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginBottom: '12px' }}>
+                    {STAKE_OPTIONS.map((amount) => (
                       <button
                         key={amount}
-                        onClick={() => setBid(amount)}
+                        onClick={() => setSelectedStake(amount)}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '13px',
+                          padding: '4px 8px',
+                          fontSize: '11px',
                           fontFamily: 'monospace',
-                          fontWeight: 'bold',
-                          backgroundColor: bid === amount ? '#00ddff' : '#0f1419',
-                          color: bid === amount ? '#000' : '#00ddff',
-                          border: `2px solid ${bid === amount ? '#00ddff' : '#335577'}`,
-                          borderRadius: '6px',
+                          backgroundColor: selectedStake === amount ? '#00ddff' : 'transparent',
+                          color: selectedStake === amount ? '#000' : '#6699cc',
+                          border: `1px solid ${selectedStake === amount ? '#00ddff' : '#335577'}`,
+                          borderRadius: '4px',
                           cursor: 'pointer'
                         }}
                       >
@@ -671,38 +725,42 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                       </button>
                     ))}
                   </div>
+
+                  {/* Action Buttons */}
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                     <button
-                      onClick={setStake}
+                      onClick={() => setStake()}
                       style={{
-                        padding: '10px 24px',
+                        padding: '12px 24px',
                         fontSize: '14px',
                         fontFamily: 'monospace',
                         fontWeight: 'bold',
-                        backgroundColor: isDescending ? '#446688' : '#00ff88',
+                        backgroundColor: '#00ff88',
                         color: '#000',
-                        border: `2px solid ${isDescending ? '#446688' : '#00ff88'}`,
+                        border: '2px solid #00ff88',
                         borderRadius: '6px',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: '0 0 10px rgba(0, 255, 136, 0.3)'
                       }}
                     >
-                      {hasPendingStake ? 'UPDATE' : 'SET'} - {bid} TC
+                      {hasPendingStake ? `UPDATE TO ${selectedStake} TC` : `JOIN - ${selectedStake} TC`}
                     </button>
                     {hasPendingStake && (
                       <button
                         onClick={clearStake}
                         style={{
-                          padding: '10px 16px',
+                          padding: '12px 16px',
                           fontSize: '12px',
                           fontFamily: 'monospace',
-                          backgroundColor: 'transparent',
+                          fontWeight: 'bold',
+                          backgroundColor: '#331a1a',
                           color: '#ff6666',
-                          border: '1px solid #ff6666',
+                          border: '2px solid #ff6666',
                           borderRadius: '6px',
                           cursor: 'pointer'
                         }}
                       >
-                        OPT OUT
+                        SIT OUT
                       </button>
                     )}
                   </div>
