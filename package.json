@@ -4,8 +4,10 @@
   "private": true,
   "description": "AnteTown Games Monorepo - All casino games for the AnteTown platform",
   "workspaces": [
+    "packages/*",
     "games/*",
-    "packages/*"
+    "games/*/backend",
+    "games/*/frontend"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
