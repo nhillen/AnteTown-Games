@@ -9,9 +9,9 @@
     "public/"
   ],
   "scripts": {
-    "build": "mkdir -p dist && echo 'Backend and frontend built separately'",
+    "build": "cd backend && npm run build && cd ../frontend && npm run build",
     "watch": "echo 'Use backend/frontend watch scripts'",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist backend/dist frontend/dist",
     "test": "echo \"No tests yet\"",
     "publish:verdaccio": "npm publish --registry http://vps-0b87e710.tail751d97.ts.net:4873/"
   },
