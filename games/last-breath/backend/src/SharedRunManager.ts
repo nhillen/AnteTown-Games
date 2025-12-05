@@ -19,7 +19,7 @@ import type { SharedRunState, PlayerRunState, SharedAdvanceResult, PlayerDecisio
 const SERVER_SECRET = process.env.LAST_BREATH_SECRET || 'last-breath-secret-key';
 const AUTO_START_DELAY = 10000;  // 10 seconds lobby countdown
 const AUTO_ADVANCE_INTERVAL = 3000;  // 3 seconds between rooms
-const NEXT_RUN_DELAY = 0;  // No delay - go straight to next lobby
+const NEXT_RUN_DELAY = 5000;  // 5 seconds between runs for players to adjust stakes
 
 interface PendingStake {
   playerName: string;
@@ -210,6 +210,7 @@ export class SharedRunManager extends EventEmitter {
 
   /**
    * Add a single pending player to the current lobby
+   * Players with bid=0 are sitting out and won't be added
    */
   private addPendingPlayerToLobby(playerId: string): void {
     if (!this.currentRun || this.currentRun.phase !== 'lobby') return;
@@ -217,6 +218,7 @@ export class SharedRunManager extends EventEmitter {
 
     const pending = this.pendingStakes.get(playerId);
     if (!pending) return;
+    if (pending.bid <= 0) return; // Sitting out - don't add to lobby
 
     const playerState: PlayerRunState = {
       playerId,
@@ -230,7 +232,7 @@ export class SharedRunManager extends EventEmitter {
     this.currentRun.players.set(playerId, playerState);
     // Keep the pending stake - they'll auto-join future dives too
 
-    console.log(`[Last Breath] Added pending player to lobby: ${playerId}`);
+    console.log(`[Last Breath] Added pending player to lobby: ${playerId} (${pending.bid} TC)`);
 
     this.emit('player_joined', {
       runId: this.currentRun.runId,
@@ -242,12 +244,15 @@ export class SharedRunManager extends EventEmitter {
 
   /**
    * Add all players with pending stakes to the current lobby
+   * Players with bid=0 are sitting out and won't be added
    */
   private addAllPendingToLobby(): void {
     if (!this.currentRun || this.currentRun.phase !== 'lobby') return;
 
+    let addedCount = 0;
     for (const [playerId, pending] of this.pendingStakes) {
       if (this.currentRun.players.has(playerId)) continue;
+      if (pending.bid <= 0) continue; // Sitting out - skip
 
       const playerState: PlayerRunState = {
         playerId,
@@ -259,9 +264,10 @@ export class SharedRunManager extends EventEmitter {
       };
 
       this.currentRun.players.set(playerId, playerState);
+      addedCount++;
     }
 
-    console.log(`[Last Breath] Added ${this.currentRun.players.size} pending players to lobby`);
+    console.log(`[Last Breath] Added ${addedCount} players to lobby (${this.pendingStakes.size - addedCount} sitting out)`);
   }
 
   /**
@@ -510,13 +516,22 @@ export class SharedRunManager extends EventEmitter {
       depth: completedDepth
     });
 
-    // Clear current run and immediately start new lobby (no delay)
+    // Clear current run
     this.currentRun = null;
-    this.nextRunAt = null;
 
-    // Start new lobby with countdown (only if we have watchers)
-    if (this.connectedWatchers.size > 0) {
-      // Small delay to let run_completed event propagate first
+    // Schedule next run after delay (gives players time to adjust stakes)
+    if (this.connectedWatchers.size > 0 && NEXT_RUN_DELAY > 0) {
+      this.nextRunAt = Date.now() + NEXT_RUN_DELAY;
+      this.emit('next_run_scheduled', { nextRunAt: this.nextRunAt });
+
+      this.nextRunTimer = setTimeout(() => {
+        this.nextRunAt = null;
+        this.nextRunTimer = null;
+        this.createLobbyAndStart();
+      }, NEXT_RUN_DELAY);
+    } else if (this.connectedWatchers.size > 0) {
+      // No delay - start immediately
+      this.nextRunAt = null;
       setTimeout(() => {
         this.createLobbyAndStart();
       }, 100);
