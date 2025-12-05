@@ -421,9 +421,24 @@ export class SharedRunManager extends EventEmitter {
   }
 
   /**
-   * Create an empty lobby waiting for players
+   * Create an empty lobby waiting for players (called internally after run completes)
    */
   private createEmptyLobby(): void {
+    this.createLobbyInternal(true);
+  }
+
+  /**
+   * Create initial lobby when first player joins table (public method)
+   */
+  public createInitialLobby(): void {
+    if (this.currentRun) return; // Don't overwrite existing run
+    this.createLobbyInternal(false);
+  }
+
+  /**
+   * Internal lobby creation
+   */
+  private createLobbyInternal(emitEvent: boolean): void {
     const timestamp = Date.now();
     const nonce = this.runCounter++;
     const seed = generateSeed(SERVER_SECRET, this.tableId, timestamp, nonce);
@@ -448,10 +463,14 @@ export class SharedRunManager extends EventEmitter {
     };
 
     console.log(`[Last Breath] Created empty lobby: ${runId}`);
-    this.emit('lobby_created', {
-      runId,
-      state: this.currentRun
-    });
+
+    // Only emit if this is from auto-restart (not initial join)
+    if (emitEvent) {
+      this.emit('lobby_created', {
+        runId,
+        state: this.currentRun
+      });
+    }
   }
 
   /**
