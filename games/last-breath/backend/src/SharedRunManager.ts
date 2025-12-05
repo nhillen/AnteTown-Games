@@ -17,9 +17,9 @@ import type { LastBreathConfig, GameEvent } from './types/index.js';
 import type { SharedRunState, PlayerRunState, SharedAdvanceResult, PlayerDecision } from './types/SharedRun.js';
 
 const SERVER_SECRET = process.env.LAST_BREATH_SECRET || 'last-breath-secret-key';
-const AUTO_START_DELAY = 10000;  // 10 seconds lobby countdown
+const AUTO_START_DELAY = 5000;  // 5 seconds lobby countdown - this is the ONLY delay between rounds
 const AUTO_ADVANCE_INTERVAL = 3000;  // 3 seconds between rooms
-const NEXT_RUN_DELAY = 5000;  // 5 seconds between runs for players to adjust stakes
+const NEXT_RUN_DELAY = 0;  // No extra delay - lobby countdown is enough
 
 interface PendingStake {
   playerName: string;
