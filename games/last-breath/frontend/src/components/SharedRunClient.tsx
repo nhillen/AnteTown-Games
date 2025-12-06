@@ -762,7 +762,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                   border: `1px solid ${displayStake > 0 ? '#00ff88' : 'transparent'}`
                 }}>
                   {isDescending && amInRun && !amActive ? (
-                    '👁 SPECTATING - You exfiltrated/busted'
+                    myPlayer?.exfiltrated ? '👁 SPECTATING - You exfiltrated safely!' : '👁 SPECTATING - You busted!'
                   ) : isLobby && amInRun ? (
                     <span>✓ IN THIS DIVE: <strong>{myPlayer?.bid} TC</strong></span>
                   ) : displayStake > 0 ? (
