@@ -373,7 +373,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
   const getStatusText = () => {
     if (!tableJoined) return 'CONNECTING...';
     if (isWaiting) return nextRunCountdown > 0 ? `NEXT DIVE IN ${nextRunCountdown}` : 'STARTING...';
-    if (isLobby) return countdown > 0 ? `DIVE IN ${countdown}` : 'LAUNCHING...';
+    if (isLobby) return countdown > 0 ? `NEXT DIVE IN ${countdown}` : 'LAUNCHING...';
     if (isDescending) return `DEPTH ${runState?.depth || 0}m`;
     if (isCompleted) return 'NEXT DIVE SOON...';
     return 'WAITING...';
@@ -500,9 +500,30 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
             }}>
               {getStatusText()}
             </div>
-            {isLobby && (
-              <div style={{ fontSize: '14px', color: '#88ccff', marginTop: '5px' }}>
-                {runState?.players.length || 0} Diver{(runState?.players.length || 0) !== 1 ? 's' : ''} Ready
+            {/* Countdown progress bar for lobby */}
+            {isLobby && countdown > 0 && (
+              <div style={{
+                marginTop: '10px',
+                padding: '0 20px'
+              }}>
+                <div style={{
+                  height: '8px',
+                  backgroundColor: '#1a2530',
+                  borderRadius: '4px',
+                  overflow: 'hidden',
+                  border: '1px solid #335577'
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${(countdown / 5) * 100}%`,
+                    backgroundColor: countdown <= 2 ? '#ff3344' : '#ffdd00',
+                    borderRadius: '4px',
+                    transition: 'width 0.1s linear, background-color 0.3s'
+                  }} />
+                </div>
+                <div style={{ fontSize: '12px', color: '#88ccff', marginTop: '6px' }}>
+                  {runState?.players.length || 0} Diver{(runState?.players.length || 0) !== 1 ? 's' : ''} Ready
+                </div>
               </div>
             )}
             {isActivelyDiving && (
