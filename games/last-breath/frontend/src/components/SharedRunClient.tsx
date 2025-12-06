@@ -585,7 +585,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
               transition: 'transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1)'
             }} />
 
-            {/* Center overlay text when not descending */}
+            {/* Center overlay - countdown or results */}
             {!isDescending && (
               <div style={{
                 position: 'absolute',
@@ -595,6 +595,7 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                 justifyContent: 'center',
                 zIndex: 10
               }}>
+                {/* Countdown during lobby */}
                 {isLobby && countdown > 0 && (
                   <div style={{
                     fontSize: '120px',
@@ -603,6 +604,108 @@ export const SharedRunClient: React.FC<SharedRunClientProps> = ({
                     textShadow: `0 0 40px ${countdown <= 3 ? 'rgba(255, 51, 68, 0.8)' : 'rgba(255, 221, 0, 0.5)'}`
                   }}>
                     {countdown}
+                  </div>
+                )}
+
+                {/* Results leaderboard when completed */}
+                {isCompleted && runState && (
+                  <div style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    minWidth: '280px',
+                    maxWidth: '400px',
+                    border: '2px solid #ffdd00'
+                  }}>
+                    <div style={{
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      color: '#ffdd00',
+                      textAlign: 'center',
+                      marginBottom: '15px'
+                    }}>
+                      🏆 DIVE RESULTS
+                    </div>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      {(() => {
+                        // Sort players: exfiltrated by payout (desc), then busted
+                        const sortedPlayers = [...runState.players].sort((a, b) => {
+                          // Exfiltrated first
+                          if (a.exfiltrated && !b.exfiltrated) return -1;
+                          if (!a.exfiltrated && b.exfiltrated) return 1;
+                          // Then by payout
+                          return (b.payout || 0) - (a.payout || 0);
+                        }).slice(0, 10);
+
+                        if (sortedPlayers.length === 0) {
+                          return (
+                            <div style={{ color: '#666', textAlign: 'center', padding: '10px' }}>
+                              No divers this round
+                            </div>
+                          );
+                        }
+
+                        return sortedPlayers.map((player, index) => {
+                          const isMe = player.playerId === myPlayerId || player.playerId === socket?.id;
+                          const multiplier = player.payout && player.bid ? (player.payout / player.bid).toFixed(2) : '0.00';
+                          return (
+                            <div
+                              key={player.playerId}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 8px',
+                                marginBottom: '4px',
+                                backgroundColor: isMe ? 'rgba(0, 221, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '4px',
+                                border: isMe ? '1px solid #00ddff' : '1px solid transparent'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{
+                                  color: index === 0 ? '#ffd700' : index === 1 ? '#c0c0c0' : index === 2 ? '#cd7f32' : '#666',
+                                  fontWeight: 'bold',
+                                  width: '20px'
+                                }}>
+                                  {index + 1}.
+                                </span>
+                                <span style={{
+                                  color: player.exfiltrated ? '#00ff88' : '#ff4444',
+                                  fontSize: '13px'
+                                }}>
+                                  {player.playerName}{isMe ? ' (You)' : ''}
+                                </span>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                {player.exfiltrated ? (
+                                  <>
+                                    <div style={{ color: '#00ff88', fontWeight: 'bold', fontSize: '14px' }}>
+                                      +{player.payout} TC
+                                    </div>
+                                    <div style={{ color: '#88ccff', fontSize: '10px' }}>
+                                      {multiplier}x
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div style={{ color: '#ff4444', fontSize: '12px' }}>
+                                    💀 BUSTED
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                    <div style={{
+                      marginTop: '12px',
+                      textAlign: 'center',
+                      fontSize: '12px',
+                      color: '#88ccff'
+                    }}>
+                      Next dive in {nextRunCountdown}s...
+                    </div>
                   </div>
                 )}
               </div>

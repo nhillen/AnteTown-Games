@@ -17,9 +17,9 @@ import type { LastBreathConfig, GameEvent } from './types/index.js';
 import type { SharedRunState, PlayerRunState, SharedAdvanceResult, PlayerDecision } from './types/SharedRun.js';
 
 const SERVER_SECRET = process.env.LAST_BREATH_SECRET || 'last-breath-secret-key';
-const AUTO_START_DELAY = 5000;  // 5 seconds lobby countdown - this is the ONLY delay between rounds
+const AUTO_START_DELAY = 5000;  // 5 seconds lobby countdown
 const AUTO_ADVANCE_INTERVAL = 3000;  // 3 seconds between rooms
-const NEXT_RUN_DELAY = 0;  // No extra delay - lobby countdown is enough
+const RESULTS_DISPLAY_DELAY = 3000;  // 3 seconds to show results before next lobby
 
 interface PendingStake {
   playerName: string;
@@ -511,30 +511,25 @@ export class SharedRunManager extends EventEmitter {
     const completedRunId = this.currentRun.runId;
     const completedDepth = this.currentRun.depth;
 
+    // Keep currentRun so results can be displayed!
+    // It will be cleared when the new lobby is created
+
     this.emit('run_completed', {
       runId: completedRunId,
       depth: completedDepth
     });
 
-    // Clear current run
-    this.currentRun = null;
-
-    // Schedule next run after delay (gives players time to adjust stakes)
-    if (this.connectedWatchers.size > 0 && NEXT_RUN_DELAY > 0) {
-      this.nextRunAt = Date.now() + NEXT_RUN_DELAY;
+    // Schedule next lobby after results display delay
+    if (this.connectedWatchers.size > 0) {
+      this.nextRunAt = Date.now() + RESULTS_DISPLAY_DELAY;
       this.emit('next_run_scheduled', { nextRunAt: this.nextRunAt });
 
       this.nextRunTimer = setTimeout(() => {
         this.nextRunAt = null;
         this.nextRunTimer = null;
+        this.currentRun = null; // Clear now, before creating new lobby
         this.createLobbyAndStart();
-      }, NEXT_RUN_DELAY);
-    } else if (this.connectedWatchers.size > 0) {
-      // No delay - start immediately
-      this.nextRunAt = null;
-      setTimeout(() => {
-        this.createLobbyAndStart();
-      }, 100);
+      }, RESULTS_DISPLAY_DELAY);
     }
   }
 
