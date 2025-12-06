@@ -19,7 +19,7 @@ import type { SharedRunState, PlayerRunState, SharedAdvanceResult, PlayerDecisio
 const SERVER_SECRET = process.env.LAST_BREATH_SECRET || 'last-breath-secret-key';
 const AUTO_START_DELAY = 5000;  // 5 seconds lobby countdown
 const AUTO_ADVANCE_INTERVAL = 3000;  // 3 seconds between rooms
-const RESULTS_DISPLAY_DELAY = 3000;  // 3 seconds to show results before next lobby
+const RESULTS_DISPLAY_DELAY = 5000;  // 5 seconds to show results before next lobby
 
 interface PendingStake {
   playerName: string;
